@@ -15,13 +15,13 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Facilities', href: '/facilities' },
-  { label: 'Work Orders', href: '/work-orders' },
-  { label: 'Contractors', href: '/contractors' },
-  { label: 'Inspections', href: '/inspections' },
-  { label: 'Invoices', href: '/invoices' },
-  { label: 'Audit Vault', href: '/audit' }
+  { label: 'Dashboard', href: '/dashboard', roles: ['ADMIN', 'STAFF', 'APPROVER', 'CONTRACTOR', 'INSPECTOR', 'AUDITOR'] },
+  { label: 'Facilities', href: '/facilities', roles: ['ADMIN', 'STAFF', 'APPROVER'] },
+  { label: 'Work Orders', href: '/work-orders', roles: ['ADMIN', 'STAFF', 'APPROVER', 'CONTRACTOR', 'INSPECTOR', 'AUDITOR'] },
+  { label: 'Contractors', href: '/contractors', roles: ['ADMIN', 'APPROVER'] },
+  { label: 'Inspections', href: '/inspections', roles: ['ADMIN', 'INSPECTOR'] },
+  { label: 'Invoices', href: '/invoices', roles: ['ADMIN', 'APPROVER', 'CONTRACTOR'] },
+  { label: 'Audit Vault', href: '/audit', roles: ['ADMIN', 'AUDITOR'] }
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
