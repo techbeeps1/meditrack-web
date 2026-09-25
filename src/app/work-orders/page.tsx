@@ -10,6 +10,7 @@ import { z } from 'zod';
 import AppLayout from '@/components/layout/AppLayout';
 import { workOrderApi } from '@/services/work-orders';
 import { facilityApi } from '@/services/facilities';
+import { useAuth } from '@/hooks/useAuth';
 import { WorkOrderPriority, WorkOrderStatus } from '@/types/workOrder';
 import { formatDate, formatCurrency } from '@/lib/utils';
 
@@ -44,6 +45,7 @@ const STATUS_BADGES: Record<WorkOrderStatus, { bg: string; text: string; border:
 };
 
 function WorkOrdersContent() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
 
@@ -440,30 +442,32 @@ function WorkOrdersContent() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Estimated Cost ($)
-                    </label>
-                    <input
-                      {...register('estimated_cost')}
-                      type="number"
-                      placeholder="0"
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                    />
-                  </div>
+                {(user?.role === 'ADMIN' || user?.role === 'APPROVER') && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Estimated Cost ($)
+                      </label>
+                      <input
+                        {...register('estimated_cost')}
+                        type="number"
+                        placeholder="0"
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Target Due Date
-                    </label>
-                    <input
-                      {...register('due_date')}
-                      type="date"
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                    />
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Target Due Date
+                      </label>
+                      <input
+                        {...register('due_date')}
+                        type="date"
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">

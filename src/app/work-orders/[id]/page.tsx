@@ -289,13 +289,6 @@ export default function WorkOrderDetailPage() {
                 Cancel / Reject
               </button>
             )}
-
-            <button
-              onClick={() => setIsPhotoModalOpen(true)}
-              className="px-3 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-medium rounded shadow-sm transition-colors"
-            >
-              + Add Photos
-            </button>
           </div>
         </div>
 
@@ -479,27 +472,29 @@ export default function WorkOrderDetailPage() {
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-3">
-                <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
-                  Financials & Schedule
-                </h2>
-                <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
-                  <span className="text-gray-500">Estimated Cost</span>
-                  <span className="font-semibold text-gray-900">{formatCurrency(workOrder.estimated_cost)}</span>
+              {user?.role !== 'STAFF' && (
+                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-3">
+                  <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+                    Financials & Schedule
+                  </h2>
+                  <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
+                    <span className="text-gray-500">Estimated Cost</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(workOrder.estimated_cost)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
+                    <span className="text-gray-500">Actual Cost</span>
+                    <span className="font-semibold text-gray-900">{formatCurrency(workOrder.actual_cost)}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
+                    <span className="text-gray-500">Target Due Date</span>
+                    <span className="font-semibold text-gray-900">{workOrder.due_date ? formatDate(workOrder.due_date) : 'Flexible'}</span>
+                  </div>
+                  <div className="flex justify-between py-1 text-xs">
+                    <span className="text-gray-500">Assigned Contractor</span>
+                    <span className="font-semibold text-gray-900">{workOrder.assigned_to_name || 'Unassigned'}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
-                  <span className="text-gray-500">Actual Cost</span>
-                  <span className="font-semibold text-gray-900">{formatCurrency(workOrder.actual_cost)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
-                  <span className="text-gray-500">Target Due Date</span>
-                  <span className="font-semibold text-gray-900">{workOrder.due_date ? formatDate(workOrder.due_date) : 'Flexible'}</span>
-                </div>
-                <div className="flex justify-between py-1 text-xs">
-                  <span className="text-gray-500">Assigned Contractor</span>
-                  <span className="font-semibold text-gray-900">{workOrder.assigned_to_name || 'Unassigned'}</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         )}
