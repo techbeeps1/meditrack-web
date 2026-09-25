@@ -6,7 +6,8 @@ export type WorkOrderStatus =
   | 'in_progress'
   | 'completed'
   | 'verified'
-  | 'closed';
+  | 'closed'
+  | 'cancelled';
 
 export interface WorkOrderPhoto {
   id: string;

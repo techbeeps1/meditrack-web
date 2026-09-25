@@ -35,7 +35,8 @@ const STATUS_BADGES: Record<WorkOrderStatus, { bg: string; text: string; border:
   in_progress: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
   completed: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
   verified: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-  closed: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' }
+  closed: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  cancelled: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' }
 };
 
 export default function WorkOrderDetailPage() {
@@ -180,7 +181,7 @@ export default function WorkOrderDetailPage() {
   const canComplete = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'in_progress';
   const canVerify = (role === 'INSPECTOR' || role === 'ADMIN') && status === 'completed';
   const canClose = (role === 'APPROVER' || role === 'ADMIN') && status === 'verified';
-  const canReject = (role === 'APPROVER' || role === 'ADMIN') && status === 'reported';
+  const canReject = (role === 'APPROVER' || role === 'ADMIN') && ['reported', 'approved', 'assigned'].includes(status);
 
   return (
     <AppLayout>
@@ -207,7 +208,7 @@ export default function WorkOrderDetailPage() {
                 {workOrder.priority} Priority
               </span>
               <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize border ${sBadge.bg} ${sBadge.text} ${sBadge.border}`}
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${sBadge.bg} ${sBadge.text} ${sBadge.border}`}
               >
                 {workOrder.status.replace('_', ' ')}
               </span>
@@ -287,8 +288,8 @@ export default function WorkOrderDetailPage() {
 
             {canReject && (
               <button
-                onClick={() => openTransitionModal('closed')}
-                className="px-3 py-2 bg-white border border-red-300 hover:bg-red-50 text-red-700 text-xs font-medium rounded transition-colors"
+                onClick={() => openTransitionModal('cancelled')}
+                className="px-3 py-2 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 text-xs font-medium rounded transition-colors"
               >
                 Cancel / Reject
               </button>
@@ -298,8 +299,15 @@ export default function WorkOrderDetailPage() {
 
         {/* Workflow Pipeline Stepper */}
         <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-          <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">
-            Workflow Progress Pipeline
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+              Workflow Progress Pipeline
+            </div>
+            {workOrder.status === 'cancelled' && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                ✕ Order Cancelled / Rejected
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-7 gap-2">
             {WORKFLOW_STEPS.map((step, idx) => {
@@ -602,7 +610,7 @@ export default function WorkOrderDetailPage() {
             <div className="bg-white rounded-lg shadow-xl border border-gray-200 max-w-md w-full p-6 space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-base font-bold text-gray-900">
-                  {targetStatus === 'closed' && workOrder.status === 'reported'
+                  {targetStatus === 'cancelled'
                     ? 'Cancel / Reject Work Order'
                     : targetStatus === 'approved'
                     ? 'Approve Work Order'
@@ -671,7 +679,7 @@ export default function WorkOrderDetailPage() {
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  {targetStatus === 'closed' && workOrder.status === 'reported'
+                  {targetStatus === 'cancelled'
                     ? 'Reason for Cancellation / Rejection *'
                     : 'Audit Notes / Reason for Transition'}
                 </label>
@@ -680,7 +688,7 @@ export default function WorkOrderDetailPage() {
                   value={transitionNotes}
                   onChange={(e) => setTransitionNotes(e.target.value)}
                   placeholder={
-                    targetStatus === 'closed' && workOrder.status === 'reported'
+                    targetStatus === 'cancelled'
                       ? 'Provide rationale for cancelling this work order...'
                       : 'Provide audit rationale, inspection observations, or dispatch notes...'
                   }
@@ -701,14 +709,14 @@ export default function WorkOrderDetailPage() {
                   disabled={transitionMutation.isPending}
                   onClick={() => transitionMutation.mutate()}
                   className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors disabled:opacity-50 ${
-                    targetStatus === 'closed' && workOrder.status === 'reported'
+                    targetStatus === 'cancelled'
                       ? 'bg-rose-600 hover:bg-rose-700'
                       : 'bg-sky-600 hover:bg-sky-700'
                   }`}
                 >
                   {transitionMutation.isPending
                     ? 'Processing...'
-                    : targetStatus === 'closed' && workOrder.status === 'reported'
+                    : targetStatus === 'cancelled'
                     ? 'Confirm Cancellation'
                     : targetStatus === 'approved'
                     ? 'Confirm Approval'

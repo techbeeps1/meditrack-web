@@ -41,7 +41,8 @@ const STATUS_BADGES: Record<WorkOrderStatus, { bg: string; text: string; border:
   in_progress: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
   completed: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
   verified: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
-  closed: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' }
+  closed: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  cancelled: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' }
 };
 
 function WorkOrdersContent() {
@@ -205,7 +206,8 @@ function WorkOrdersContent() {
               'in_progress',
               'completed',
               'verified',
-              'closed'
+              'closed',
+              'cancelled'
             ].map((st) => (
               <button
                 key={st}
