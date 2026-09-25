@@ -231,7 +231,7 @@ function WorkOrdersContent() {
                   <th className="px-4 py-3">Facility & Location</th>
                   <th className="px-4 py-3">Priority</th>
                   <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Est. Cost</th>
+                  {user?.role !== 'STAFF' && <th className="px-4 py-3">Est. Cost</th>}
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-center w-16">Action</th>
                 </tr>
@@ -239,19 +239,19 @@ function WorkOrdersContent() {
               <tbody className="divide-y divide-gray-200 bg-white">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                    <td colSpan={user?.role === 'STAFF' ? 7 : 8} className="px-4 py-12 text-center text-gray-500">
                       Loading work orders...
                     </td>
                   </tr>
                 ) : isError ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-red-600">
+                    <td colSpan={user?.role === 'STAFF' ? 7 : 8} className="px-4 py-12 text-center text-red-600">
                       Error fetching work orders. Please check connection.
                     </td>
                   </tr>
                 ) : workOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                    <td colSpan={user?.role === 'STAFF' ? 7 : 8} className="px-4 py-12 text-center text-gray-500">
                       No work orders found. Click &quot;+ Report Work Order&quot; to create a new ticket.
                     </td>
                   </tr>
@@ -292,9 +292,11 @@ function WorkOrdersContent() {
                         <td className="px-4 py-3 text-xs text-gray-600 font-medium whitespace-nowrap">
                           {wo.category}
                         </td>
-                        <td className="px-4 py-3 font-mono text-gray-900 text-xs whitespace-nowrap">
-                          {formatCurrency(wo.estimated_cost)}
-                        </td>
+                        {user?.role !== 'STAFF' && (
+                          <td className="px-4 py-3 font-mono text-gray-900 text-xs whitespace-nowrap">
+                            {formatCurrency(wo.estimated_cost)}
+                          </td>
+                        )}
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium capitalize border ${sBadge.bg} ${sBadge.text} ${sBadge.border}`}
