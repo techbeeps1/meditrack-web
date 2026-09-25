@@ -122,8 +122,12 @@ export default function WorkOrderDetailPage() {
     setTargetStatus(status);
     setTransitionNotes('');
     setTransitionError(null);
-    if (workOrder?.actual_cost) {
-      setActualCostInput(workOrder.actual_cost);
+    if (status === 'approved') {
+      setActualCostInput(workOrder?.estimated_cost || '');
+    } else if (status === 'completed') {
+      setActualCostInput(workOrder?.actual_cost || workOrder?.estimated_cost || '');
+    } else {
+      setActualCostInput('');
     }
     setIsTransitionModalOpen(true);
   };
@@ -597,8 +601,12 @@ export default function WorkOrderDetailPage() {
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
             <div className="bg-white rounded-lg shadow-xl border border-gray-200 max-w-md w-full p-6 space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-base font-bold text-gray-900 capitalize">
-                  Transition Status &rarr; {targetStatus?.replace('_', ' ')}
+                <h3 className="text-base font-bold text-gray-900">
+                  {targetStatus === 'closed' && workOrder.status === 'reported'
+                    ? 'Cancel / Reject Work Order'
+                    : targetStatus === 'approved'
+                    ? 'Approve Work Order'
+                    : `Transition Status → ${targetStatus?.replace('_', ' ')}`}
                 </h3>
                 <button
                   onClick={() => setIsTransitionModalOpen(false)}
@@ -611,6 +619,22 @@ export default function WorkOrderDetailPage() {
               {transitionError && (
                 <div className="p-3 rounded bg-red-50 border border-red-200 text-red-700 text-xs">
                   {transitionError}
+                </div>
+              )}
+
+              {/* When Approver Approves: Allow setting/confirming Approved Estimated Budget */}
+              {targetStatus === 'approved' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Approved Estimated Budget ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={actualCostInput}
+                    onChange={(e) => setActualCostInput(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="e.g. 1000"
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  />
                 </div>
               )}
 
@@ -629,7 +653,8 @@ export default function WorkOrderDetailPage() {
                 </div>
               )}
 
-              {(targetStatus === 'completed' || targetStatus === 'verified' || targetStatus === 'closed') && (
+              {/* Only show Actual Cost when Contractor completes work */}
+              {targetStatus === 'completed' && (
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Actual Repair Cost ($)
@@ -646,13 +671,19 @@ export default function WorkOrderDetailPage() {
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Audit Notes / Reason for Transition
+                  {targetStatus === 'closed' && workOrder.status === 'reported'
+                    ? 'Reason for Cancellation / Rejection *'
+                    : 'Audit Notes / Reason for Transition'}
                 </label>
                 <textarea
                   rows={3}
                   value={transitionNotes}
                   onChange={(e) => setTransitionNotes(e.target.value)}
-                  placeholder="Provide audit rationale, inspection observations, or dispatch notes..."
+                  placeholder={
+                    targetStatus === 'closed' && workOrder.status === 'reported'
+                      ? 'Provide rationale for cancelling this work order...'
+                      : 'Provide audit rationale, inspection observations, or dispatch notes...'
+                  }
                   className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
                 />
               </div>
@@ -669,9 +700,19 @@ export default function WorkOrderDetailPage() {
                   type="button"
                   disabled={transitionMutation.isPending}
                   onClick={() => transitionMutation.mutate()}
-                  className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors disabled:opacity-50 ${
+                    targetStatus === 'closed' && workOrder.status === 'reported'
+                      ? 'bg-rose-600 hover:bg-rose-700'
+                      : 'bg-sky-600 hover:bg-sky-700'
+                  }`}
                 >
-                  {transitionMutation.isPending ? 'Processing...' : 'Confirm Status Change'}
+                  {transitionMutation.isPending
+                    ? 'Processing...'
+                    : targetStatus === 'closed' && workOrder.status === 'reported'
+                    ? 'Confirm Cancellation'
+                    : targetStatus === 'approved'
+                    ? 'Confirm Approval'
+                    : 'Confirm Status Change'}
                 </button>
               </div>
             </div>
