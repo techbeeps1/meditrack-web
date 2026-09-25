@@ -163,12 +163,14 @@ function WorkOrdersContent() {
               Track infrastructure issues, biomedical device repairs, and contractor assignments.
             </p>
           </div>
-          <button
-            onClick={openModal}
-            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors shrink-0"
-          >
-            + Report Work Order
-          </button>
+          {(user?.role === 'STAFF' || user?.role === 'ADMIN') && (
+            <button
+              onClick={openModal}
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors shrink-0"
+            >
+              + Report Work Order
+            </button>
+          )}
         </div>
 
         {/* Filter Controls */}

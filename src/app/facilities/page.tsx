@@ -141,7 +141,7 @@ export default function FacilitiesPage() {
     saveMutation.mutate(formData);
   };
 
-  const canManage = user?.role === 'ADMIN' || user?.role === 'APPROVER';
+  const canManage = user?.role === 'ADMIN';
   const canDelete = user?.role === 'ADMIN';
 
   return (
