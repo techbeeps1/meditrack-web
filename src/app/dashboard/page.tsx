@@ -6,6 +6,8 @@ import { useQuery } from '@tanstack/react-query';
 import AppLayout from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { dashboardApi } from '@/services/dashboard';
+import { workOrderApi } from '@/services/work-orders';
+import { formatDate } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -29,6 +31,16 @@ export default function DashboardPage() {
 
   const activeTotal =
     woStats.reported + woStats.approved + woStats.assigned + woStats.in_progress + woStats.completed;
+
+  // Query pending work orders for review
+  const { data: pendingWoData } = useQuery({
+    queryKey: ['pending-work-orders'],
+    queryFn: () => workOrderApi.getWorkOrders({ status: 'reported' }),
+    enabled: user?.role === 'APPROVER' || user?.role === 'ADMIN',
+    refetchInterval: 15000
+  });
+
+  const pendingWorkOrders = pendingWoData?.data || [];
 
   // -------------------------------------------------------------
   // 1. AUDITOR SPECIFIC VIEW (Cryptographic & Compliance Only)
@@ -447,7 +459,192 @@ export default function DashboardPage() {
   }
 
   // -------------------------------------------------------------
-  // 5. ADMIN & APPROVER FULL EXECUTIVE COMMAND DASHBOARD
+  // 5. APPROVER SPECIFIC VIEW (Leadership Review & Approval Queue)
+  // -------------------------------------------------------------
+  if (user?.role === 'APPROVER') {
+    const PIPELINE_STEPS = [
+      { key: 'reported', label: 'Reported', count: woStats.reported, color: 'bg-amber-400' },
+      { key: 'approved', label: 'Approved', count: woStats.approved, color: 'bg-blue-400' },
+      { key: 'assigned', label: 'Assigned', count: woStats.assigned, color: 'bg-indigo-400' },
+      { key: 'in_progress', label: 'In Progress', count: woStats.in_progress, color: 'bg-sky-500' },
+      { key: 'completed', label: 'Completed', count: woStats.completed, color: 'bg-purple-500' },
+      { key: 'verified', label: 'Verified (QC)', count: woStats.verified, color: 'bg-teal-500' },
+      { key: 'closed', label: 'Closed', count: woStats.closed, color: 'bg-emerald-500' }
+    ];
+
+    return (
+      <AppLayout>
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <div className="flex items-center space-x-2">
+                <h1 className="text-xl font-bold text-slate-900">
+                  Facility Leadership & Work Order Approval Center
+                </h1>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200 uppercase">
+                  APPROVER
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Review staff-reported maintenance requests, allocate approved budgets, and assign contractors
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/work-orders"
+                className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition shadow-sm"
+              >
+                View All Work Orders
+              </Link>
+              <Link
+                href="/invoices"
+                className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
+              >
+                Review Invoices
+              </Link>
+            </div>
+          </div>
+
+          {/* 3 Focused Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className={`p-5 rounded-xl border shadow-sm transition ${woStats.reported > 0 ? 'bg-amber-50/70 border-amber-300' : 'bg-white border-slate-200'}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                  Awaiting Your Approval
+                </span>
+                {woStats.reported > 0 && (
+                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-white animate-pulse">
+                    Action Required
+                  </span>
+                )}
+              </div>
+              <div className="text-3xl font-bold text-slate-900 mt-2 font-mono">
+                {isLoading ? '...' : woStats.reported}
+              </div>
+              <div className="text-xs text-slate-500 mt-1">New staff-reported requests pending review</div>
+            </div>
+
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+              <div className="text-[11px] font-medium text-sky-600 uppercase tracking-wider">
+                Active Jobs in Pipeline
+              </div>
+              <div className="text-3xl font-bold text-sky-700 mt-2 font-mono">
+                {isLoading ? '...' : (woStats.approved + woStats.assigned + woStats.in_progress)}
+              </div>
+              <div className="text-xs text-slate-400 mt-1">Contractor work actively underway</div>
+            </div>
+
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+              <div className="text-[11px] font-medium text-emerald-600 uppercase tracking-wider">
+                Pending Invoice Approvals
+              </div>
+              <div className="text-3xl font-bold text-emerald-600 mt-2 font-mono">
+                {isLoading ? '...' : `$${(summary?.invoices.totalPending || 0).toLocaleString()}`}
+              </div>
+              <div className="text-xs text-slate-400 mt-1">
+                {summary?.invoices.count || 0} invoices submitted by contractors
+              </div>
+            </div>
+          </div>
+
+          {/* Pending Approval Queue Table */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <span>Pending Work Orders Awaiting Approval</span>
+                  {pendingWorkOrders.length > 0 && (
+                    <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-amber-100 text-amber-800">
+                      {pendingWorkOrders.length}
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Review reported issue details, set estimated budget, or reject with audit notes
+                </p>
+              </div>
+              <Link href="/work-orders" className="text-xs font-medium text-sky-600 hover:text-sky-800">
+                View all in work orders &rarr;
+              </Link>
+            </div>
+
+            {pendingWorkOrders.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-100">
+                <div className="text-2xl mb-1">✓</div>
+                <div className="text-xs font-semibold text-slate-700">All caught up!</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">No work orders currently awaiting approval.</div>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {pendingWorkOrders.map((wo) => (
+                  <div key={wo.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-xs text-slate-900">{wo.tracking_number}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${
+                          wo.priority === 'critical' ? 'bg-red-50 text-red-700 border border-red-200' :
+                          wo.priority === 'high' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
+                          'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          {wo.priority}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-800">{wo.title}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-1">{wo.description}</p>
+                      <div className="text-[11px] text-slate-400 flex items-center gap-3">
+                        <span>🏥 {wo.facility_name || 'Hospital Facility'}</span>
+                        <span>👤 Reported by: {wo.reported_by_name || 'Staff'}</span>
+                        <span>🕒 {formatDate(wo.created_at)}</span>
+                      </div>
+                    </div>
+                    <Link
+                      href={`/work-orders/${wo.id}`}
+                      className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-lg transition shadow-sm shrink-0 text-center"
+                    >
+                      Review &amp; Approve / Reject &rarr;
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Workflow Pipeline Distribution */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                  Work Order Lifecycle Pipeline
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Distribution of facility maintenance tickets across operational stages
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+              {PIPELINE_STEPS.map((step) => (
+                <div
+                  key={step.key}
+                  className="p-3 rounded-lg border border-slate-100 bg-slate-50/60 flex flex-col justify-between"
+                >
+                  <div className="flex items-center space-x-1.5">
+                    <div className={`w-2 h-2 rounded-full ${step.color}`} />
+                    <span className="text-[11px] font-medium text-slate-600 truncate">{step.label}</span>
+                  </div>
+                  <div className="text-lg font-bold text-slate-900 font-mono mt-2">{step.count}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // 6. ADMIN FULL EXECUTIVE COMMAND DASHBOARD
   // -------------------------------------------------------------
   const PIPELINE_STEPS = [
     { key: 'reported', label: 'Reported', count: woStats.reported, color: 'bg-amber-400' },
