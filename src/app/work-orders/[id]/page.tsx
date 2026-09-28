@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AppLayout from '@/components/layout/AppLayout';
 import { workOrderApi } from '@/services/work-orders';
+import { contractorApi } from '@/services/contractors';
 import { API_SERVER_URL } from '@/services/api';
 import { WorkOrderPriority, WorkOrderStatus } from '@/types/workOrder';
 import { formatDate, formatCurrency } from '@/lib/utils';
@@ -75,6 +76,14 @@ export default function WorkOrderDetailPage() {
     enabled: !!id
   });
 
+  // Fetch Registered Contractors List for Assignment
+  const { data: contractorsData } = useQuery({
+    queryKey: ['contractors-list'],
+    queryFn: () => contractorApi.getContractors({ limit: 100 })
+  });
+
+  const contractors = contractorsData?.data || [];
+
   // Upload Photo Mutation
   const uploadPhotoMutation = useMutation({
     mutationFn: async () => {
@@ -127,6 +136,11 @@ export default function WorkOrderDetailPage() {
       setActualCostInput(workOrder?.estimated_cost || '');
     } else if (status === 'completed') {
       setActualCostInput(workOrder?.actual_cost || workOrder?.estimated_cost || '');
+    } else if (status === 'assigned') {
+      if (contractors.length > 0 && (!assignedTechnician || !contractors.some((c) => c.id === assignedTechnician))) {
+        setAssignedTechnician(contractors[0].id);
+      }
+      setActualCostInput('');
     } else {
       setActualCostInput('');
     }
@@ -656,7 +670,15 @@ export default function WorkOrderDetailPage() {
                     onChange={(e) => setAssignedTechnician(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
                   >
-                    <option value="usr_contractor_01">Apex BioMed Solutions (Field Engineer)</option>
+                    {contractors.length === 0 ? (
+                      <option value="usr_contractor_01">Apex BioMed Solutions (Field Engineer)</option>
+                    ) : (
+                      contractors.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.specialty ? `— (${c.specialty})` : ''}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               )}
