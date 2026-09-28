@@ -680,7 +680,7 @@ export default function DashboardPage() {
               href="/work-orders"
               className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition shadow-sm"
             >
-              {user?.role === 'APPROVER' ? 'Review Work Orders' : '+ Create Work Order'}
+              + Create Work Order
             </Link>
             <Link
               href="/invoices"
