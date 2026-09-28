@@ -32,15 +32,19 @@ export default function DashboardPage() {
   const activeTotal =
     woStats.reported + woStats.approved + woStats.assigned + woStats.in_progress + woStats.completed;
 
-  // Query pending work orders for review
-  const { data: pendingWoData } = useQuery({
-    queryKey: ['pending-work-orders'],
-    queryFn: () => workOrderApi.getWorkOrders({ status: 'reported' }),
-    enabled: user?.role === 'APPROVER' || user?.role === 'ADMIN',
+  // Query work orders for role-specific dashboard views
+  const { data: woData, isLoading: isWoLoading } = useQuery({
+    queryKey: ['dashboard-work-orders'],
+    queryFn: () => workOrderApi.getWorkOrders(),
     refetchInterval: 15000
   });
 
-  const pendingWorkOrders = pendingWoData?.data || [];
+  const allWorkOrders = woData?.data || [];
+  const pendingWorkOrders = allWorkOrders.filter((wo) => wo.status === 'reported');
+  const contractorWorkOrders = allWorkOrders.filter(
+    (wo) => wo.status === 'assigned' || wo.status === 'in_progress' || wo.status === 'completed'
+  );
+  const staffWorkOrders = allWorkOrders.slice(0, 5);
 
   // -------------------------------------------------------------
   // 1. AUDITOR SPECIFIC VIEW (Cryptographic & Compliance Only)
@@ -224,15 +228,15 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Work Orders List Action */}
+          {/* Recent Work Orders List */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  Recent Work Order Status
+                  Recent Work Orders & Reported Tickets
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Track repairs reported by hospital nursing & clinical staff
+                  Click any ticket to view details, audit logs, or track repair status
                 </p>
               </div>
               <Link href="/work-orders" className="text-xs font-semibold text-sky-600 hover:text-sky-800">
@@ -240,22 +244,55 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="p-4 bg-sky-50/50 rounded-lg border border-sky-100 flex items-center justify-between">
-              <div>
-                <div className="font-semibold text-xs text-slate-800">
-                  Notice an equipment breakdown or calibration error?
-                </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
-                  Click the button to log a ticket with device photos and location specifics.
-                </div>
+            {staffWorkOrders.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-100">
+                <div className="text-xs font-semibold text-slate-700">No tickets reported yet.</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">Click &quot;+ Report New Work Order&quot; to log a maintenance issue.</div>
               </div>
-              <Link
-                href="/work-orders"
-                className="px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded hover:bg-sky-700 transition"
-              >
-                + Create Ticket
-              </Link>
-            </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {staffWorkOrders.map((wo) => (
+                  <Link
+                    key={wo.id}
+                    href={`/work-orders/${wo.id}`}
+                    className="py-3.5 px-3 -mx-3 rounded-lg hover:bg-slate-50 transition flex flex-col md:flex-row md:items-center justify-between gap-3 group"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-bold text-xs text-sky-700">{wo.tracking_number}</span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${
+                            wo.priority === 'critical'
+                              ? 'bg-red-50 text-red-700 border border-red-200'
+                              : wo.priority === 'high'
+                              ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {wo.priority}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-800 group-hover:text-sky-700 transition">
+                          {wo.title}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-1">{wo.description}</p>
+                      <div className="text-[11px] text-slate-400 flex items-center gap-3">
+                        <span>🏥 {wo.facility_name || 'Hospital Facility'}</span>
+                        <span>🕒 {formatDate(wo.created_at)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="px-2.5 py-1 text-[11px] font-medium rounded-full bg-slate-100 text-slate-700 capitalize border border-slate-200">
+                        {wo.status.replace('_', ' ')}
+                      </span>
+                      <span className="text-xs font-semibold text-sky-600 group-hover:translate-x-0.5 transition-transform flex items-center">
+                        Open &rarr;
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </AppLayout>
@@ -331,6 +368,79 @@ export default function DashboardPage() {
                 ${(summary?.invoices.totalPending || 0).toLocaleString()} pending approval
               </div>
             </div>
+          </div>
+
+          {/* Assigned Work Orders Queue */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <span>Assigned Work Orders</span>
+                  {contractorWorkOrders.length > 0 && (
+                    <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-sky-100 text-sky-800">
+                      {contractorWorkOrders.length}
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Click on any assigned work order to execute, upload photos, or mark completed
+                </p>
+              </div>
+              <Link href="/work-orders" className="text-xs font-semibold text-sky-600 hover:text-sky-800">
+                View All in Work Orders &rarr;
+              </Link>
+            </div>
+
+            {contractorWorkOrders.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-100">
+                <div className="text-xs font-semibold text-slate-700">No active assigned jobs.</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">When hospital leadership assigns tickets to your team, they will appear here.</div>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {contractorWorkOrders.map((wo) => (
+                  <Link
+                    key={wo.id}
+                    href={`/work-orders/${wo.id}`}
+                    className="py-3.5 px-3 -mx-3 rounded-lg hover:bg-slate-50 transition flex flex-col md:flex-row md:items-center justify-between gap-3 group"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-bold text-xs text-sky-700">{wo.tracking_number}</span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${
+                            wo.priority === 'critical'
+                              ? 'bg-red-50 text-red-700 border border-red-200'
+                              : wo.priority === 'high'
+                              ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {wo.priority}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-800 group-hover:text-sky-700 transition">
+                          {wo.title}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-1">{wo.description}</p>
+                      <div className="text-[11px] text-slate-400 flex items-center gap-3">
+                        <span>🏥 {wo.facility_name || 'Hospital Facility'}</span>
+                        <span>📍 {wo.location_details || 'Main Campus'}</span>
+                        <span>🕒 {formatDate(wo.created_at)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="px-2.5 py-1 text-[11px] font-medium rounded-full bg-slate-100 text-slate-700 capitalize border border-slate-200">
+                        {wo.status.replace('_', ' ')}
+                      </span>
+                      <span className="px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg group-hover:bg-sky-700 transition shadow-2xs">
+                        Open Work Order &rarr;
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Quick Actions Card */}

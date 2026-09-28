@@ -6,6 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { notificationService } from '@/services/notifications';
+import { settingsApi } from '@/services/settings';
+import { setSystemCurrency } from '@/lib/utils';
 import { NotificationItem } from '@/types/notification';
 
 interface NavItem {
@@ -21,7 +23,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Contractors', href: '/contractors', roles: ['ADMIN', 'APPROVER'] },
   { label: 'Inspections', href: '/inspections', roles: ['ADMIN', 'INSPECTOR'] },
   { label: 'Invoices', href: '/invoices', roles: ['ADMIN', 'APPROVER', 'CONTRACTOR'] },
-  { label: 'Audit Vault', href: '/audit', roles: ['ADMIN', 'AUDITOR'] }
+  { label: 'Audit Vault', href: '/audit', roles: ['ADMIN', 'AUDITOR'] },
+  { label: 'User & System Settings', href: '/settings', roles: ['ADMIN'] }
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -37,6 +40,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Sync System Settings & Currency
+  const { data: systemSettings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: () => settingsApi.getSettings(),
+    enabled: !!user && mounted,
+    staleTime: 60000
+  });
+
+  useEffect(() => {
+    if (systemSettings?.currency) {
+      setSystemCurrency(systemSettings.currency);
+    }
+  }, [systemSettings]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -223,33 +240,47 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     {notifications.length === 0 ? (
                       <div className="p-6 text-center text-xs text-slate-400">No notifications</div>
                     ) : (
-                      notifications.map((n) => (
-                        <div
-                          key={n.id}
-                          onClick={() => handleNotificationClick(n)}
-                          className={`p-3.5 hover:bg-slate-50/80 cursor-pointer transition flex items-start space-x-3 ${
-                            !n.is_read ? 'bg-sky-50/30' : ''
-                          }`}
-                        >
-                          <div
-                            className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                              !n.is_read ? 'bg-sky-500 ring-2 ring-sky-200' : 'bg-slate-300'
+                      notifications.map((n) => {
+                        const targetHref = n.link || '/work-orders';
+                        return (
+                          <Link
+                            key={n.id}
+                            href={targetHref}
+                            onClick={() => {
+                              if (!n.is_read) markReadMutation.mutate(n.id);
+                              setIsNotifOpen(false);
+                            }}
+                            className={`p-3.5 hover:bg-sky-50/70 transition-colors flex items-start space-x-3 group ${
+                              !n.is_read ? 'bg-sky-50/30' : ''
                             }`}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-slate-800 truncate">{n.title}</p>
-                            <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-tight">
-                              {n.message}
-                            </p>
-                            <span className="text-[10px] text-slate-400 mt-1 block">
-                              {new Date(n.created_at).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                          </div>
-                        </div>
-                      ))
+                          >
+                            <div
+                              className={`w-2 h-2 rounded-full mt-1.5 shrink-0 transition-colors ${
+                                !n.is_read ? 'bg-sky-500 ring-2 ring-sky-200' : 'bg-slate-300'
+                              }`}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-semibold text-slate-800 group-hover:text-sky-700 transition-colors truncate">
+                                  {n.title}
+                                </p>
+                                <span className="text-[10px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity font-semibold shrink-0 ml-1">
+                                  Open &rarr;
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-tight">
+                                {n.message}
+                              </p>
+                              <span className="text-[10px] text-slate-400 mt-1 block">
+                                {new Date(n.created_at).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                          </Link>
+                        );
+                      })
                     )}
                   </div>
                 </div>

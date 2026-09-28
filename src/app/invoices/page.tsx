@@ -7,8 +7,14 @@ import { workOrderApi } from '@/services/work-orders';
 import { contractorApi } from '@/services/contractors';
 import { Invoice, InvoiceStatus, CreateInvoiceInput } from '@/types/invoice';
 import AppLayout from '@/components/layout/AppLayout';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function InvoicesPage() {
+  const { user } = useAuth();
+  const role = user?.role;
+  const canApproveOrPay = role === 'APPROVER' || role === 'ADMIN';
+  const canCreateInvoice = role === 'CONTRACTOR' || role === 'ADMIN' || role === 'APPROVER';
+
   const queryClient = useQueryClient();
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -122,15 +128,17 @@ export default function InvoicesPage() {
               Verify completion, inspect contractor claims, and approve disbursement settlements
             </p>
           </div>
-          <button
-            onClick={() => {
-              setActionError(null);
-              setIsCreateModalOpen(true);
-            }}
-            className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition shadow-sm"
-          >
-            + Create Invoice
-          </button>
+          {canCreateInvoice && (
+            <button
+              onClick={() => {
+                setActionError(null);
+                setIsCreateModalOpen(true);
+              }}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition shadow-sm"
+            >
+              Create Invoice
+            </button>
+          )}
         </div>
 
         {/* Financial KPI Summary Cards */}
@@ -256,7 +264,7 @@ export default function InvoicesPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
                           </button>
-                          {inv.status === 'pending' && (
+                          {canApproveOrPay && inv.status === 'pending' && inv.work_order_status === 'closed' && (
                             <button
                               onClick={() => statusMutation.mutate({ id: inv.id, status: 'approved' })}
                               className="px-2.5 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition"
@@ -264,13 +272,29 @@ export default function InvoicesPage() {
                               Approve
                             </button>
                           )}
-                          {inv.status === 'approved' && (
+                          {canApproveOrPay && inv.status === 'pending' && inv.work_order_status !== 'closed' && (
+                            <span
+                              title="Work order must be Closed by leadership before approving this invoice"
+                              className="px-2 py-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded"
+                            >
+                              Awaiting WO Closure
+                            </span>
+                          )}
+                          {canApproveOrPay && inv.status === 'approved' && inv.work_order_status === 'closed' && (
                             <button
                               onClick={() => statusMutation.mutate({ id: inv.id, status: 'paid' })}
                               className="px-2.5 py-1 text-xs font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700 transition"
                             >
                               Pay
                             </button>
+                          )}
+                          {canApproveOrPay && inv.status === 'approved' && inv.work_order_status !== 'closed' && (
+                            <span
+                              title="Work order must be Closed before payment disbursement"
+                              className="px-2 py-0.5 text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 rounded"
+                            >
+                              Awaiting WO Closure
+                            </span>
                           )}
                         </div>
                       </td>
@@ -310,34 +334,44 @@ export default function InvoicesPage() {
                 className="p-6 space-y-4"
               >
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Select Work Order (Must be Verified / Completed) *
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Select Verified Work Order (Must be QC Verified) *
                   </label>
-                  <select
-                    required
-                    value={formData.work_order_id}
-                    onChange={(e) => {
-                      const selectedWo = eligibleWorkOrders?.data?.find((w: any) => w.id === e.target.value);
-                      setFormData({
-                        ...formData,
-                        work_order_id: e.target.value,
-                        contractor_id: selectedWo?.contractor_id || formData.contractor_id,
-                        amount: selectedWo?.estimated_cost ? Number(selectedWo.estimated_cost) : formData.amount
-                      });
-                    }}
-                    className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  >
-                    <option value="">-- Choose Work Order --</option>
-                    {eligibleWorkOrders?.data?.map((wo: any) => (
-                      <option key={wo.id} value={wo.id}>
-                        {wo.tracking_number} - {wo.title} ({wo.status})
-                      </option>
-                    ))}
-                  </select>
+                  {eligibleWorkOrders?.data?.filter((wo: any) => (wo.status === 'verified' || wo.status === 'closed') && !wo.invoice_id).length === 0 ? (
+                    <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg">
+                      No uninvoiced verified work orders available. All completed/verified work orders already have invoices generated.
+                    </div>
+                  ) : (
+                    <select
+                      required
+                      value={formData.work_order_id}
+                      onChange={(e) => {
+                        const selectedWo = eligibleWorkOrders?.data?.find((w: any) => w.id === e.target.value);
+                        const approvedCost = Number(selectedWo?.actual_cost || selectedWo?.estimated_cost || 0);
+                        setFormData({
+                          ...formData,
+                          work_order_id: e.target.value,
+                          contractor_id: selectedWo?.contractor_id || selectedWo?.assigned_to || formData.contractor_id,
+                          amount: approvedCost
+                        });
+                      }}
+                      className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500"
+                    >
+                      <option value="">-- Choose Verified Work Order --</option>
+                      {eligibleWorkOrders?.data
+                        ?.filter((wo: any) => (wo.status === 'verified' || wo.status === 'closed') && !wo.invoice_id)
+                        ?.map((wo: any) => (
+                          <option key={wo.id} value={wo.id}>
+                            {wo.tracking_number} - {wo.title} (Verified — ${wo.actual_cost || wo.estimated_cost || 0})
+                          </option>
+                        ))}
+                    </select>
+                  )}
+                  <p className="text-[10px] text-slate-400 mt-1">Only uninvoiced work orders verified by QC inspection appear here</p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Contractor Entity *
                   </label>
                   <select
@@ -357,26 +391,26 @@ export default function InvoicesPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Base Amount ($) *</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Approved Base Amount ($) *</label>
                     <input
                       type="number"
                       step="0.01"
                       required
-                      min="1"
+                      readOnly
                       value={formData.amount}
-                      onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
-                      className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full text-xs px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-800 font-bold cursor-not-allowed select-none focus:outline-none"
                     />
+                    <p className="text-[10px] text-slate-400 mt-1">Locked to approved budget</p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Tax / VAT ($)</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tax / VAT ($)</label>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={formData.tax_amount}
                       onChange={(e) => setFormData({ ...formData, tax_amount: parseFloat(e.target.value) || 0 })}
-                      className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
                 </div>
@@ -486,34 +520,45 @@ export default function InvoicesPage() {
                   </div>
                 )}
 
+                {selectedInvoice.work_order_status && selectedInvoice.work_order_status !== 'closed' && (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded text-xs flex items-center gap-2">
+                    <span>⚠️</span>
+                    <span>
+                      Associated Work Order <strong>{selectedInvoice.work_order_tracking}</strong> is currently in &apos;{selectedInvoice.work_order_status}&apos; status. It must be Closed before approving or settling this invoice.
+                    </span>
+                  </div>
+                )}
+
                 <div className="pt-3 flex justify-between items-center">
                   <div>{getStatusBadge(selectedInvoice.status)}</div>
-                  <div className="space-x-2">
-                    {selectedInvoice.status === 'pending' && (
-                      <>
+                  {canApproveOrPay && (!selectedInvoice.work_order_status || selectedInvoice.work_order_status === 'closed') && (
+                    <div className="space-x-2">
+                      {selectedInvoice.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => statusMutation.mutate({ id: selectedInvoice.id, status: 'rejected' })}
+                            className="px-3 py-1.5 text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded hover:bg-rose-100"
+                          >
+                            Reject Claim
+                          </button>
+                          <button
+                            onClick={() => statusMutation.mutate({ id: selectedInvoice.id, status: 'approved' })}
+                            className="px-3 py-1.5 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700"
+                          >
+                            Approve
+                          </button>
+                        </>
+                      )}
+                      {selectedInvoice.status === 'approved' && (
                         <button
-                          onClick={() => statusMutation.mutate({ id: selectedInvoice.id, status: 'rejected' })}
-                          className="px-3 py-1.5 text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded hover:bg-rose-100"
+                          onClick={() => statusMutation.mutate({ id: selectedInvoice.id, status: 'paid' })}
+                          className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700"
                         >
-                          Reject Claim
+                          Mark as Paid
                         </button>
-                        <button
-                          onClick={() => statusMutation.mutate({ id: selectedInvoice.id, status: 'approved' })}
-                          className="px-3 py-1.5 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700"
-                        >
-                          Approve
-                        </button>
-                      </>
-                    )}
-                    {selectedInvoice.status === 'approved' && (
-                      <button
-                        onClick={() => statusMutation.mutate({ id: selectedInvoice.id, status: 'paid' })}
-                        className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700"
-                      >
-                        Mark as Paid
-                      </button>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

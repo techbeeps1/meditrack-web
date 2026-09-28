@@ -43,7 +43,7 @@ export default function InspectionsPage() {
       })
   });
 
-  // Fetch Completed or In Verification Work Orders for inspection
+  // Fetch only Completed Work Orders that are awaiting inspection
   const { data: woData } = useQuery({
     queryKey: ['work-orders-for-inspection'],
     queryFn: () => workOrderApi.getWorkOrders({ limit: 100 })
@@ -51,7 +51,7 @@ export default function InspectionsPage() {
 
   const inspections = data?.data || [];
   const candidateWorkOrders = (woData?.data || []).filter(
-    (wo) => wo.status === 'completed' || wo.status === 'verified' || wo.status === 'in_progress'
+    (wo) => wo.status === 'completed'
   );
 
   const createMutation = useMutation({
@@ -279,18 +279,24 @@ export default function InspectionsPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Target Work Order *
                 </label>
-                <select
-                  value={selectedWorkOrderId}
-                  onChange={(e) => setSelectedWorkOrderId(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                >
-                  <option value="">Select Completed Work Order...</option>
-                  {candidateWorkOrders.map((wo) => (
-                    <option key={wo.id} value={wo.id}>
-                      {wo.tracking_number} &bull; {wo.title} ({wo.status})
-                    </option>
-                  ))}
-                </select>
+                {candidateWorkOrders.length === 0 ? (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-xs">
+                    No completed work orders currently waiting for inspection. (Only work orders in &apos;completed&apos; status require safety inspection).
+                  </div>
+                ) : (
+                  <select
+                    value={selectedWorkOrderId}
+                    onChange={(e) => setSelectedWorkOrderId(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  >
+                    <option value="">Select Completed Work Order...</option>
+                    {candidateWorkOrders.map((wo) => (
+                      <option key={wo.id} value={wo.id}>
+                        {wo.tracking_number} &bull; {wo.title}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>
@@ -307,7 +313,7 @@ export default function InspectionsPage() {
                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                   >
-                    ✓ PASS (Verify Ticket)
+                    Pass (Verify Ticket)
                   </button>
                   <button
                     type="button"
@@ -318,7 +324,7 @@ export default function InspectionsPage() {
                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                     }`}
                   >
-                    ✕ FAIL (Re-work Required)
+                    Fail (Re-work Required)
                   </button>
                 </div>
               </div>

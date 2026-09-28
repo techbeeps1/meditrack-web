@@ -51,6 +51,10 @@ export interface WorkOrder {
   updated_at: string;
   photo_count?: number;
   photos?: WorkOrderPhoto[];
+  invoice_id?: string | null;
+  invoice_number?: string | null;
+  invoice_status?: 'pending' | 'approved' | 'rejected' | 'paid' | null;
+  invoice_total_amount?: number | null;
 }
 
 export interface CreateWorkOrderInput {

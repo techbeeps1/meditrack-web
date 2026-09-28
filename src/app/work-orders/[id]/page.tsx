@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AppLayout from '@/components/layout/AppLayout';
 import { workOrderApi } from '@/services/work-orders';
 import { contractorApi } from '@/services/contractors';
+import { invoiceService } from '@/services/invoices';
 import { API_SERVER_URL } from '@/services/api';
 import { WorkOrderPriority, WorkOrderStatus } from '@/types/workOrder';
 import { formatDate, formatCurrency } from '@/lib/utils';
@@ -104,6 +105,83 @@ export default function WorkOrderDetailPage() {
     }
   });
 
+  // Budget Edit State & Mutation (for Approver & Admin)
+  const [isEditingBudget, setIsEditingBudget] = useState(false);
+  const [budgetInput, setBudgetInput] = useState<number | ''>('');
+
+  const updateBudgetMutation = useMutation({
+    mutationFn: async (newBudget: number) => {
+      return workOrderApi.updateWorkOrder(id, { estimated_cost: newBudget });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      setIsEditingBudget(false);
+    }
+  });
+
+  // Invoice Generation State & Mutation
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [invoiceAmount, setInvoiceAmount] = useState<number>(0);
+  const [invoiceTax, setInvoiceTax] = useState<number>(0);
+  const [invoiceDueDate, setInvoiceDueDate] = useState<string>(
+    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+  const [invoiceNotes, setInvoiceNotes] = useState<string>('');
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+
+  const createInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      return invoiceService.createInvoice({
+        work_order_id: id,
+        contractor_id: workOrder?.contractor_id || workOrder?.assigned_to || 'usr_contractor_01',
+        amount: invoiceAmount || workOrder?.actual_cost || workOrder?.estimated_cost || 0,
+        tax_amount: invoiceTax || 0,
+        due_date: invoiceDueDate,
+        notes: invoiceNotes || `Invoice claim for completed work order ${workOrder?.tracking_number} - ${workOrder?.title}`
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      setIsInvoiceModalOpen(false);
+      setInvoiceError(null);
+    },
+    onError: (err: any) => {
+      setInvoiceError(err.response?.data?.message || 'Failed to generate invoice');
+    }
+  });
+
+  const [invoiceActionError, setInvoiceActionError] = useState<string | null>(null);
+
+  // Invoice Status Mutation (Directly Approve, Pay, or Reject from Work Order page)
+  const invoiceStatusMutation = useMutation({
+    mutationFn: async ({ status, notes }: { status: 'approved' | 'paid' | 'rejected'; notes?: string }) => {
+      if (!workOrder?.invoice_id) return;
+      return invoiceService.updateInvoiceStatus(workOrder.invoice_id, { status, notes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      setInvoiceActionError(null);
+    },
+    onError: (err: any) => {
+      setInvoiceActionError(err.response?.data?.message || 'Failed to update invoice settlement status');
+    }
+  });
+
+  const openInvoiceModal = () => {
+    const baseAmt = workOrder?.actual_cost || workOrder?.estimated_cost || 0;
+    setInvoiceAmount(baseAmt);
+    setInvoiceTax(0);
+    setInvoiceDueDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+    setInvoiceNotes(`Invoice claim for completed maintenance on ${workOrder?.tracking_number} (${workOrder?.title})`);
+    setInvoiceError(null);
+    setIsInvoiceModalOpen(true);
+  };
+
   // Status Transition Mutation
   const transitionMutation = useMutation({
     mutationFn: async () => {
@@ -112,7 +190,12 @@ export default function WorkOrderDetailPage() {
         status: targetStatus,
         notes: transitionNotes,
         assigned_to: targetStatus === 'assigned' ? assignedTechnician : undefined,
-        actual_cost: actualCostInput !== '' ? Number(actualCostInput) : undefined
+        actual_cost:
+          targetStatus === 'completed'
+            ? (workOrder?.estimated_cost ?? (actualCostInput !== '' ? Number(actualCostInput) : 0))
+            : actualCostInput !== ''
+            ? Number(actualCostInput)
+            : undefined
       });
     },
     onSuccess: () => {
@@ -133,9 +216,9 @@ export default function WorkOrderDetailPage() {
     setTransitionNotes('');
     setTransitionError(null);
     if (status === 'approved') {
-      setActualCostInput(workOrder?.estimated_cost || '');
+      setActualCostInput(workOrder?.estimated_cost ?? '');
     } else if (status === 'completed') {
-      setActualCostInput(workOrder?.actual_cost || workOrder?.estimated_cost || '');
+      setActualCostInput(workOrder?.estimated_cost ?? workOrder?.actual_cost ?? 0);
     } else if (status === 'assigned') {
       if (contractors.length > 0 && (!assignedTechnician || !contractors.some((c) => c.id === assignedTechnician))) {
         setAssignedTechnician(contractors[0].id);
@@ -196,6 +279,9 @@ export default function WorkOrderDetailPage() {
   const canVerify = (role === 'INSPECTOR' || role === 'ADMIN') && status === 'completed';
   const canClose = (role === 'APPROVER' || role === 'ADMIN') && status === 'verified';
   const canReject = (role === 'APPROVER' || role === 'ADMIN') && ['reported', 'approved', 'assigned'].includes(status);
+  const canGenerateInvoice = role === 'CONTRACTOR' || role === 'ADMIN' || role === 'APPROVER';
+  const canApproveOrPayInvoice = (role === 'APPROVER' || role === 'ADMIN') && !!workOrder.invoice_id;
+  const canViewAuditVault = role === 'ADMIN' || role === 'AUDITOR';
 
   return (
     <AppLayout>
@@ -243,7 +329,7 @@ export default function WorkOrderDetailPage() {
                 onClick={() => openTransitionModal('approved')}
                 className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
               >
-                ✓ Approve Work Order
+                Approve Work Order
               </button>
             )}
 
@@ -252,7 +338,7 @@ export default function WorkOrderDetailPage() {
                 onClick={() => openTransitionModal('assigned')}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
               >
-                ➔ Assign to Contractor
+                Assign to Contractor
               </button>
             )}
 
@@ -261,7 +347,7 @@ export default function WorkOrderDetailPage() {
                 onClick={() => openTransitionModal('in_progress')}
                 className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
               >
-                ▶ Start Field Work
+                Start Field Work
               </button>
             )}
 
@@ -270,7 +356,7 @@ export default function WorkOrderDetailPage() {
                 onClick={() => openTransitionModal('completed')}
                 className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
               >
-                ✓ Mark Work Completed
+                Mark Work Completed
               </button>
             )}
 
@@ -280,13 +366,13 @@ export default function WorkOrderDetailPage() {
                   onClick={() => openTransitionModal('verified')}
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
                 >
-                  ✓ Pass Inspection & Verify
+                  Pass Inspection & Verify
                 </button>
                 <button
                   onClick={() => openTransitionModal('in_progress')}
                   className="px-3 py-2 bg-white border border-red-300 hover:bg-red-50 text-red-700 text-xs font-semibold rounded transition-colors"
                 >
-                  ✕ Fail QC (Return to In Progress)
+                  Fail QC (Return to In Progress)
                 </button>
               </>
             )}
@@ -296,8 +382,119 @@ export default function WorkOrderDetailPage() {
                 onClick={() => openTransitionModal('closed')}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
               >
-                ✓ Close Work Order
+                Close Work Order
               </button>
+            )}
+
+            {/* When Completed: Disabled button waiting for verification (Contractor/Admin only) */}
+            {canGenerateInvoice && workOrder.status === 'completed' && !workOrder.invoice_id && (
+              <button
+                disabled
+                title="Invoice generation will be enabled after quality inspection and verification"
+                className="px-4 py-2 bg-slate-100 text-slate-400 border border-slate-200 text-xs font-semibold rounded cursor-not-allowed select-none"
+              >
+                Waiting for Verification
+              </button>
+            )}
+
+            {/* When Verified or Closed: Enabled button to generate invoice claim (Contractor/Admin only) */}
+            {canGenerateInvoice && ['verified', 'closed'].includes(workOrder.status) && !workOrder.invoice_id && (
+              <button
+                onClick={openInvoiceModal}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+              >
+                Generate Invoice Claim ({formatCurrency(workOrder.actual_cost || workOrder.estimated_cost || 0)})
+              </button>
+            )}
+
+            {/* When Invoice Exists: Direct Actions for Approver/Admin or status view */}
+            {workOrder.invoice_id && (
+              <>
+                {/* When Work Order is CLOSED and invoice is PENDING: Approver/Admin can Approve or Reject */}
+                {canApproveOrPayInvoice && workOrder.status === 'closed' && workOrder.invoice_status === 'pending' && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => invoiceStatusMutation.mutate({ status: 'approved' })}
+                      disabled={invoiceStatusMutation.isPending}
+                      className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                    >
+                      {invoiceStatusMutation.isPending ? 'Processing...' : `Approve Invoice (${formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)})`}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const reason = window.prompt('Enter reason for rejecting invoice claim:');
+                        if (reason) invoiceStatusMutation.mutate({ status: 'rejected', notes: reason });
+                      }}
+                      disabled={invoiceStatusMutation.isPending}
+                      className="px-3 py-2 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 text-xs font-medium rounded transition-colors"
+                    >
+                      Reject Claim
+                    </button>
+                  </div>
+                )}
+
+                {/* When Work Order is NOT yet CLOSED and invoice is pending: show indicator */}
+                {canApproveOrPayInvoice && workOrder.status !== 'closed' && workOrder.invoice_status === 'pending' && (
+                  <Link
+                    href="/invoices"
+                    title="Work order must be Closed by Approver/Admin before approving invoice claim"
+                    className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-xs font-semibold transition-colors"
+                  >
+                    Invoice {workOrder.invoice_number} (PENDING) — Awaiting WO Closure &rarr;
+                  </Link>
+                )}
+
+                {/* Pay button appears ONLY after Approver has closed the work order and invoice is approved */}
+                {canApproveOrPayInvoice && workOrder.status === 'closed' && workOrder.invoice_status === 'approved' && (
+                  <button
+                    onClick={() => invoiceStatusMutation.mutate({ status: 'paid' })}
+                    disabled={invoiceStatusMutation.isPending}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                  >
+                    {invoiceStatusMutation.isPending ? 'Settling...' : `Pay & Settle Claim (${formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)})`}
+                  </button>
+                )}
+
+                {/* If verified and approved, show status link indicating ready for payout once closed */}
+                {canApproveOrPayInvoice && workOrder.status !== 'closed' && workOrder.invoice_status === 'approved' && (
+                  <Link
+                    href="/invoices"
+                    className="px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded text-xs font-semibold transition-colors"
+                  >
+                    Invoice {workOrder.invoice_number} (APPROVED) — Awaiting WO Closure &rarr;
+                  </Link>
+                )}
+
+                {/* If Paid: Show exactly one green settled badge for all users */}
+                {workOrder.invoice_status === 'paid' && (
+                  <Link
+                    href="/invoices"
+                    className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-xs font-semibold transition-colors"
+                  >
+                    Invoice {workOrder.invoice_number} (PAID) — {formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)} &rarr;
+                  </Link>
+                )}
+
+                {/* If Rejected: Show exactly one red rejected badge for all users */}
+                {workOrder.invoice_status === 'rejected' && (
+                  <Link
+                    href="/invoices"
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 rounded text-xs font-semibold transition-colors"
+                  >
+                    Invoice {workOrder.invoice_number} (REJECTED) &rarr;
+                  </Link>
+                )}
+
+                {/* If Contractor/Other viewing a pending or approved invoice */}
+                {!canApproveOrPayInvoice && ['pending', 'approved'].includes(workOrder.invoice_status || '') && (
+                  <Link
+                    href="/invoices"
+                    className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-300 rounded text-xs font-semibold transition-colors"
+                  >
+                    Invoice {workOrder.invoice_number} ({workOrder.invoice_status?.toUpperCase()}) — {formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)} &rarr;
+                  </Link>
+                )}
+              </>
             )}
 
             {canReject && (
@@ -368,19 +565,21 @@ export default function WorkOrderDetailPage() {
           >
             Work Order Details & Photos
           </button>
-          <button
-            onClick={() => setActiveTab('audit')}
-            className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'audit'
-                ? 'border-sky-600 text-sky-700 font-semibold'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <span>SHA-256 Cryptographic Audit Trail</span>
-            <span className="px-2 py-0.5 text-[10px] font-mono bg-sky-100 text-sky-800 rounded-full font-bold">
-              {auditChain?.chain_length || 0} Events
-            </span>
-          </button>
+          {canViewAuditVault && (
+            <button
+              onClick={() => setActiveTab('audit')}
+              className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'audit'
+                  ? 'border-sky-600 text-sky-700 font-semibold'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <span>SHA-256 Cryptographic Audit Trail</span>
+              <span className="px-2 py-0.5 text-[10px] font-mono bg-sky-100 text-sky-800 rounded-full font-bold">
+                {auditChain?.chain_length || 0} Events
+              </span>
+            </button>
+          )}
         </div>
 
         {/* TAB 1: WORK ORDER DETAILS */}
@@ -503,21 +702,148 @@ export default function WorkOrderDetailPage() {
                   <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
                     Financials & Schedule
                   </h2>
-                  <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
-                    <span className="text-gray-500">Estimated Cost</span>
-                    <span className="font-semibold text-gray-900">{formatCurrency(workOrder.estimated_cost)}</span>
+                  <div className="py-1 border-b border-gray-100 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500">Approved Budget</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-gray-900">{formatCurrency(workOrder.estimated_cost)}</span>
+                        {(user?.role === 'APPROVER' || user?.role === 'ADMIN') && !isEditingBudget && (
+                          <button
+                            onClick={() => {
+                              setBudgetInput(workOrder.estimated_cost || '');
+                              setIsEditingBudget(true);
+                            }}
+                            className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold underline ml-1"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Inline Budget Editor */}
+                    {isEditingBudget && (
+                      <div className="mt-2 p-2.5 bg-sky-50/70 rounded-lg border border-sky-200 space-y-2">
+                        <div className="text-[11px] font-semibold text-sky-900">Update Approved Budget ($)</div>
+                        <input
+                          type="number"
+                          value={budgetInput}
+                          onChange={(e) => setBudgetInput(e.target.value === '' ? '' : Number(e.target.value))}
+                          placeholder="e.g. 1850"
+                          className="w-full px-2.5 py-1.5 bg-white border border-gray-300 rounded text-xs text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                        />
+                        <div className="flex justify-end gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingBudget(false)}
+                            className="px-2 py-1 text-[10px] text-gray-600 hover:text-gray-800 font-medium bg-white border border-gray-300 rounded"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            disabled={budgetInput === '' || updateBudgetMutation.isPending}
+                            onClick={() => {
+                              if (budgetInput !== '') updateBudgetMutation.mutate(Number(budgetInput));
+                            }}
+                            className="px-2.5 py-1 text-[10px] text-white bg-sky-600 hover:bg-sky-700 font-medium rounded transition disabled:opacity-50"
+                          >
+                            {updateBudgetMutation.isPending ? 'Saving...' : 'Save Budget'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
                     <span className="text-gray-500">Actual Cost</span>
-                    <span className="font-semibold text-gray-900">{formatCurrency(workOrder.actual_cost)}</span>
+                    <span className="font-semibold text-gray-900">
+                      {workOrder.actual_cost ? formatCurrency(workOrder.actual_cost) : formatCurrency(workOrder.estimated_cost)}
+                    </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
                     <span className="text-gray-500">Target Due Date</span>
                     <span className="font-semibold text-gray-900">{workOrder.due_date ? formatDate(workOrder.due_date) : 'Flexible'}</span>
                   </div>
-                  <div className="flex justify-between py-1 text-xs">
+                  <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
                     <span className="text-gray-500">Assigned Contractor</span>
                     <span className="font-semibold text-gray-900">{workOrder.assigned_to_name || 'Unassigned'}</span>
+                  </div>
+
+                  {/* Invoice Status & Action in Sidebar */}
+                  <div className="pt-2 border-t border-gray-100 text-xs space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-500 font-medium">Billing & Invoice</span>
+                      {workOrder.invoice_id ? (
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            workOrder.invoice_status === 'paid'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : workOrder.invoice_status === 'approved'
+                              ? 'bg-sky-100 text-sky-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {workOrder.invoice_status}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-[11px]">Unbilled</span>
+                      )}
+                    </div>
+
+                    {workOrder.invoice_id ? (
+                      <div className="space-y-1.5">
+                        {canApproveOrPayInvoice && workOrder.status === 'closed' && workOrder.invoice_status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => invoiceStatusMutation.mutate({ status: 'approved' })}
+                              disabled={invoiceStatusMutation.isPending}
+                              className="w-full py-1.5 px-3 bg-sky-600 hover:bg-sky-700 text-white rounded font-semibold text-xs transition text-center shadow-2xs"
+                            >
+                              {invoiceStatusMutation.isPending ? 'Processing...' : 'Approve Invoice Claim'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                const reason = window.prompt('Enter reason for rejecting invoice claim:');
+                                if (reason) invoiceStatusMutation.mutate({ status: 'rejected', notes: reason });
+                              }}
+                              disabled={invoiceStatusMutation.isPending}
+                              className="w-full py-1 px-3 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 rounded font-medium text-xs transition text-center"
+                            >
+                              Reject Claim
+                            </button>
+                          </>
+                        )}
+                        {canApproveOrPayInvoice && workOrder.status === 'closed' && workOrder.invoice_status === 'approved' && (
+                          <button
+                            onClick={() => invoiceStatusMutation.mutate({ status: 'paid' })}
+                            disabled={invoiceStatusMutation.isPending}
+                            className="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-semibold text-xs transition text-center shadow-2xs"
+                          >
+                            {invoiceStatusMutation.isPending ? 'Settling...' : 'Pay & Settle Invoice'}
+                          </button>
+                        )}
+                        <Link
+                          href="/invoices"
+                          className="block p-2 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 transition text-[11px] text-sky-700 font-semibold text-center"
+                        >
+                          View {workOrder.invoice_number} ({formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost || 0)}) &rarr;
+                        </Link>
+                      </div>
+                    ) : canGenerateInvoice && workOrder.status === 'completed' ? (
+                      <button
+                        disabled
+                        className="w-full py-1.5 px-3 bg-slate-100 text-slate-400 border border-slate-200 rounded font-medium text-xs cursor-not-allowed select-none text-center"
+                      >
+                        Waiting for Verification
+                      </button>
+                    ) : canGenerateInvoice && ['verified', 'closed'].includes(workOrder.status) ? (
+                      <button
+                        onClick={openInvoiceModal}
+                        className="w-full py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-semibold text-xs transition shadow-2xs text-center"
+                      >
+                        Create Invoice Claim
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -525,8 +851,8 @@ export default function WorkOrderDetailPage() {
           </div>
         )}
 
-        {/* TAB 2: CRYPTOGRAPHIC SHA-256 AUDIT TRAIL */}
-        {activeTab === 'audit' && (
+        {/* TAB 2: CRYPTOGRAPHIC SHA-256 AUDIT TRAIL (Admin & Auditor Only) */}
+        {activeTab === 'audit' && canViewAuditVault && (
           <div className="space-y-6">
             {/* Integrity Status Card */}
             <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -683,19 +1009,32 @@ export default function WorkOrderDetailPage() {
                 </div>
               )}
 
-              {/* Only show Actual Cost when Contractor completes work */}
+              {/* Locked Approved Cost for Contractor Completion */}
               {targetStatus === 'completed' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Actual Repair Cost ($)
-                  </label>
-                  <input
-                    type="number"
-                    value={actualCostInput}
-                    onChange={(e) => setActualCostInput(e.target.value === '' ? '' : Number(e.target.value))}
-                    placeholder="e.g. 1850"
-                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-700">
+                      Approved Repair Cost ($)
+                    </label>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      🔒 Locked by Approver
+                    </span>
+                  </div>
+                  <div className="relative rounded-md shadow-xs">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <span className="text-gray-500 text-sm font-medium">$</span>
+                    </div>
+                    <input
+                      type="number"
+                      readOnly
+                      disabled
+                      value={actualCostInput !== '' ? actualCostInput : (workOrder?.estimated_cost ?? 0)}
+                      className="w-full pl-7 pr-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-sm font-bold text-slate-800 cursor-not-allowed select-none focus:outline-none"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    This amount is pre-fixed according to the Approver&apos;s allocated budget and cannot be modified.
+                  </p>
                 </div>
               )}
 
@@ -822,6 +1161,144 @@ export default function WorkOrderDetailPage() {
                   className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
                 >
                   {uploadPhotoMutation.isPending ? 'Uploading...' : 'Upload Photos'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Generate & Submit Invoice Claim Modal */}
+        {isInvoiceModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Submit Invoice Claim
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Generate an immutable invoice claim for completed maintenance work
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsInvoiceModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {invoiceError && (
+                <div className="p-3 rounded bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                  {invoiceError}
+                </div>
+              )}
+
+              {/* Work Order Info Box */}
+              <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="font-mono font-bold text-sky-700">{workOrder.tracking_number}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200 uppercase">
+                    {workOrder.status.replace('_', ' ')}
+                  </span>
+                </div>
+                <div className="font-semibold text-slate-800">{workOrder.title}</div>
+                <div className="text-slate-500 text-[11px]">
+                  🏥 {workOrder.facility_name} &bull; 📍 {workOrder.location_details || 'Main Facility'}
+                </div>
+              </div>
+
+              {/* Amount Breakdown */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Approved Service Base ($) *
+                  </label>
+                  <input
+                    type="number"
+                    value={invoiceAmount}
+                    onChange={(e) => setInvoiceAmount(e.target.value === '' ? 0 : Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md text-sm font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Pre-filled with approved budget</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Tax / VAT ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={invoiceTax}
+                    onChange={(e) => setInvoiceTax(e.target.value === '' ? 0 : Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    placeholder="0.00"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Optional statutory tax</p>
+                </div>
+              </div>
+
+              {/* Total Claim Banner */}
+              <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between">
+                <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider">
+                  Total Claimable Amount
+                </span>
+                <span className="text-lg font-mono font-bold text-emerald-700">
+                  {formatCurrency((invoiceAmount || 0) + (invoiceTax || 0))}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Payment Due Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={invoiceDueDate}
+                    onChange={(e) => setInvoiceDueDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Contractor Entity
+                  </label>
+                  <div className="px-3 py-2 bg-slate-100 border border-slate-200 rounded-md text-xs font-semibold text-slate-800 truncate">
+                    {workOrder.assigned_to_name || 'Apex BioMed Solutions'}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Claim Notes / Work Summary
+                </label>
+                <textarea
+                  rows={2}
+                  value={invoiceNotes}
+                  onChange={(e) => setInvoiceNotes(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  placeholder="Provide brief repair summary for accounting review..."
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsInvoiceModalOpen(false)}
+                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={createInvoiceMutation.isPending || !invoiceAmount}
+                  onClick={() => createInvoiceMutation.mutate()}
+                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 rounded-md hover:bg-emerald-700 transition disabled:opacity-50 shadow-sm"
+                >
+                  {createInvoiceMutation.isPending ? 'Submitting Claim...' : 'Submit Invoice Claim'}
                 </button>
               </div>
             </div>
