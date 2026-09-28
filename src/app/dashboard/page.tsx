@@ -307,13 +307,12 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-bold text-xs text-sky-700">{wo.tracking_number}</span>
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${
-                            wo.priority === 'critical'
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${wo.priority === 'critical'
                               ? 'bg-red-50 text-red-700 border border-red-200'
                               : wo.priority === 'high'
-                              ? 'bg-orange-50 text-orange-700 border border-orange-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}
+                                ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}
                         >
                           {wo.priority}
                         </span>
@@ -472,13 +471,12 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-bold text-xs text-sky-700">{wo.tracking_number}</span>
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${
-                            wo.priority === 'critical'
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${wo.priority === 'critical'
                               ? 'bg-red-50 text-red-700 border border-red-200'
                               : wo.priority === 'high'
-                              ? 'bg-orange-50 text-orange-700 border border-orange-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}
+                                ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}
                         >
                           {wo.priority}
                         </span>
@@ -584,11 +582,10 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Link
               href="/work-orders?status=completed"
-              className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${
-                completedCount > 0
+              className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${completedCount > 0
                   ? 'bg-amber-50/70 border-amber-300 hover:border-amber-400'
                   : 'bg-white border-slate-200 hover:border-amber-300'
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider flex items-center gap-1.5">
@@ -672,11 +669,10 @@ export default function DashboardPage() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-xs text-slate-900">{wo.tracking_number}</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${
-                          wo.priority === 'critical' ? 'bg-red-50 text-red-700 border border-red-200' :
-                          wo.priority === 'high' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
-                          'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${wo.priority === 'critical' ? 'bg-red-50 text-red-700 border border-red-200' :
+                            wo.priority === 'high' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
+                              'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
                           {wo.priority}
                         </span>
                         <span className="text-xs font-semibold text-slate-800">{wo.title}</span>
@@ -756,11 +752,10 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Link
               href="/work-orders?status=reported"
-              className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${
-                reportedCount > 0
+              className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${reportedCount > 0
                   ? 'bg-amber-50/70 border-amber-300 hover:border-amber-400'
                   : 'bg-white border-slate-200 hover:border-sky-300'
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
@@ -848,11 +843,10 @@ export default function DashboardPage() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-xs text-slate-900">{wo.tracking_number}</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${
-                          wo.priority === 'critical' ? 'bg-red-50 text-red-700 border border-red-200' :
-                          wo.priority === 'high' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
-                          'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${wo.priority === 'critical' ? 'bg-red-50 text-red-700 border border-red-200' :
+                            wo.priority === 'high' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
+                              'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
                           {wo.priority}
                         </span>
                         <span className="text-xs font-semibold text-slate-800">{wo.title}</span>
