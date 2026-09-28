@@ -50,9 +50,12 @@ function WorkOrdersContent() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
 
+  const initialStatus = searchParams.get('status') || 'all';
+  const initialPriority = searchParams.get('priority') || 'all';
+
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
+  const [priorityFilter, setPriorityFilter] = useState<string>(initialPriority);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<FileList | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -68,6 +71,14 @@ function WorkOrdersContent() {
   useEffect(() => {
     if (searchParams.get('new') === 'true') {
       openModal();
+    }
+    const statusParam = searchParams.get('status');
+    if (statusParam) {
+      setStatusFilter(statusParam);
+    }
+    const priorityParam = searchParams.get('priority');
+    if (priorityParam) {
+      setPriorityFilter(priorityParam);
     }
   }, [searchParams, facilitiesData]);
 
@@ -118,12 +129,16 @@ function WorkOrdersContent() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-work-orders'] });
       closeModal();
     },
     onError: (err: any) => {
       setFormError(err.response?.data?.message || 'Failed to report work order');
     }
   });
+
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const openModal = () => {
     reset({
@@ -137,6 +152,7 @@ function WorkOrdersContent() {
       due_date: ''
     });
     setSelectedPhotos(null);
+    setPhotoError(null);
     setFormError(null);
     setIsModalOpen(true);
   };
@@ -144,10 +160,16 @@ function WorkOrdersContent() {
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedPhotos(null);
+    setPhotoError(null);
     setFormError(null);
   };
 
   const onSubmit = (formData: CreateWOFormData) => {
+    if (!selectedPhotos || selectedPhotos.length === 0) {
+      setPhotoError('At least 1 photo / evidence image is required to report this issue.');
+      return;
+    }
+    setPhotoError(null);
     createMutation.mutate(formData);
   };
 
@@ -200,6 +222,7 @@ function WorkOrdersContent() {
           <div className="flex space-x-1 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
             {[
               'all',
+              'active',
               'reported',
               'approved',
               'assigned',
@@ -218,7 +241,7 @@ function WorkOrdersContent() {
                     : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                {st.replace('_', ' ')}
+                {st === 'active' ? '⚡ Active Pipeline' : st.replace('_', ' ')}
               </button>
             ))}
           </div>
@@ -477,15 +500,38 @@ function WorkOrdersContent() {
 
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Attach Initial Photos (Optional, max 5)
+                    Attach Initial Evidence Photo <span className="text-rose-600 font-semibold">* (Required, at least 1 image, max 5)</span>
                   </label>
                   <input
                     type="file"
                     multiple
                     accept="image/*"
-                    onChange={(e) => setSelectedPhotos(e.target.files)}
-                    className="w-full text-xs text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded file:border file:border-gray-300 file:text-xs file:font-medium file:bg-gray-50 hover:file:bg-gray-100"
+                    onChange={(e) => {
+                      setSelectedPhotos(e.target.files);
+                      if (e.target.files && e.target.files.length > 0) {
+                        setPhotoError(null);
+                      }
+                    }}
+                    className={`w-full text-xs text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded file:border ${
+                      photoError ? 'border-rose-300' : 'border-gray-300'
+                    } file:text-xs file:font-medium file:bg-gray-50 hover:file:bg-gray-100`}
                   />
+                  {photoError && (
+                    <p className="text-xs text-rose-600 font-semibold mt-1 flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      {photoError}
+                    </p>
+                  )}
+                  {selectedPhotos && selectedPhotos.length > 0 && !photoError && (
+                    <p className="text-xs text-emerald-600 font-medium mt-1 flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      {selectedPhotos.length} {selectedPhotos.length === 1 ? 'evidence photo' : 'evidence photos'} selected
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200">

@@ -1,26 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoiceService } from '@/services/invoices';
 import { workOrderApi } from '@/services/work-orders';
 import { contractorApi } from '@/services/contractors';
 import { Invoice, InvoiceStatus, CreateInvoiceInput } from '@/types/invoice';
+import { downloadInvoicePdf } from '@/lib/invoicePdf';
 import AppLayout from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 
-export default function InvoicesPage() {
+function InvoicesContent() {
   const { user } = useAuth();
   const role = user?.role;
   const canApproveOrPay = role === 'APPROVER' || role === 'ADMIN';
   const canCreateInvoice = role === 'CONTRACTOR' || role === 'ADMIN' || role === 'APPROVER';
 
   const queryClient = useQueryClient();
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const searchParams = useSearchParams();
+
+  const initialStatus = searchParams.get('status') || 'all';
+  const [selectedStatus, setSelectedStatus] = useState<string>(initialStatus);
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    if (statusParam) {
+      setSelectedStatus(statusParam);
+    }
+  }, [searchParams]);
 
   // Form State
   const [formData, setFormData] = useState<CreateInvoiceInput>({
@@ -80,6 +92,9 @@ export default function InvoicesPage() {
       invoiceService.updateInvoiceStatus(id, { status, notes }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-work-orders'] });
       setSelectedInvoice(null);
     }
   });
@@ -255,6 +270,15 @@ export default function InvoicesPage() {
                       <td className="py-3 px-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
+                            onClick={() => downloadInvoicePdf(inv)}
+                            title="Download Invoice PDF / Print"
+                            className="inline-flex items-center justify-center p-1.5 text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-md border border-slate-300 transition-colors shadow-2xs"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </button>
+                          <button
                             onClick={() => setSelectedInvoice(inv)}
                             title="View Full Invoice Breakdown"
                             className="inline-flex items-center justify-center p-1.5 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:text-sky-900 rounded-md border border-sky-200 transition-colors shadow-2xs"
@@ -264,37 +288,13 @@ export default function InvoicesPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
                           </button>
-                          {canApproveOrPay && inv.status === 'pending' && inv.work_order_status === 'closed' && (
-                            <button
-                              onClick={() => statusMutation.mutate({ id: inv.id, status: 'approved' })}
-                              className="px-2.5 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition"
-                            >
-                              Approve
-                            </button>
-                          )}
-                          {canApproveOrPay && inv.status === 'pending' && inv.work_order_status !== 'closed' && (
-                            <span
-                              title="Work order must be Closed by leadership before approving this invoice"
-                              className="px-2 py-0.5 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded"
-                            >
-                              Awaiting WO Closure
-                            </span>
-                          )}
-                          {canApproveOrPay && inv.status === 'approved' && inv.work_order_status === 'closed' && (
+                          {canApproveOrPay && (inv.status === 'pending' || inv.status === 'approved') && (
                             <button
                               onClick={() => statusMutation.mutate({ id: inv.id, status: 'paid' })}
-                              className="px-2.5 py-1 text-xs font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700 transition"
+                              className="px-2.5 py-1 text-xs font-bold text-white bg-emerald-600 rounded hover:bg-emerald-700 transition shadow-xs"
                             >
-                              Pay
+                              Approve & Pay
                             </button>
-                          )}
-                          {canApproveOrPay && inv.status === 'approved' && inv.work_order_status !== 'closed' && (
-                            <span
-                              title="Work order must be Closed before payment disbursement"
-                              className="px-2 py-0.5 text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 rounded"
-                            >
-                              Awaiting WO Closure
-                            </span>
                           )}
                         </div>
                       </td>
@@ -529,34 +529,37 @@ export default function InvoicesPage() {
                   </div>
                 )}
 
-                <div className="pt-3 flex justify-between items-center">
-                  <div>{getStatusBadge(selectedInvoice.status)}</div>
-                  {canApproveOrPay && (!selectedInvoice.work_order_status || selectedInvoice.work_order_status === 'closed') && (
-                    <div className="space-x-2">
-                      {selectedInvoice.status === 'pending' && (
-                        <>
-                          <button
-                            onClick={() => statusMutation.mutate({ id: selectedInvoice.id, status: 'rejected' })}
-                            className="px-3 py-1.5 text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded hover:bg-rose-100"
-                          >
-                            Reject Claim
-                          </button>
-                          <button
-                            onClick={() => statusMutation.mutate({ id: selectedInvoice.id, status: 'approved' })}
-                            className="px-3 py-1.5 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700"
-                          >
-                            Approve
-                          </button>
-                        </>
-                      )}
-                      {selectedInvoice.status === 'approved' && (
-                        <button
-                          onClick={() => statusMutation.mutate({ id: selectedInvoice.id, status: 'paid' })}
-                          className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700"
-                        >
-                          Mark as Paid
-                        </button>
-                      )}
+                <div className="pt-3 flex flex-wrap justify-between items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(selectedInvoice.status)}
+                    <button
+                      type="button"
+                      onClick={() => downloadInvoicePdf(selectedInvoice)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-sky-700 bg-sky-50 border border-sky-200 rounded hover:bg-sky-100 transition shadow-xs cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Download Invoice (PDF)
+                    </button>
+                  </div>
+                  {canApproveOrPay && (selectedInvoice.status === 'pending' || selectedInvoice.status === 'approved') && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const reason = window.prompt('Enter reason for rejecting invoice claim:');
+                          if (reason) statusMutation.mutate({ id: selectedInvoice.id, status: 'rejected', notes: reason });
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded hover:bg-rose-100"
+                      >
+                        Reject Claim
+                      </button>
+                      <button
+                        onClick={() => statusMutation.mutate({ id: selectedInvoice.id, status: 'paid' })}
+                        className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 rounded hover:bg-emerald-700 transition shadow-xs"
+                      >
+                        Approve & Pay Claim (${Number(selectedInvoice.total_amount).toFixed(2)})
+                      </button>
                     </div>
                   )}
                 </div>
@@ -566,5 +569,19 @@ export default function InvoicesPage() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+export default function InvoicesPage() {
+  return (
+    <Suspense
+      fallback={
+        <AppLayout>
+          <div className="p-8 text-center text-sm text-slate-400">Loading Invoices...</div>
+        </AppLayout>
+      }
+    >
+      <InvoicesContent />
+    </Suspense>
   );
 }

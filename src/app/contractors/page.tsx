@@ -70,6 +70,22 @@ export default function ContractorsPage() {
     }
   });
 
+  const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState<ContractorFormData>({
+    name: '',
+    registration_number: '',
+    specialty: '',
+    contact_person: '',
+    email: '',
+    phone: '',
+    city: '',
+    state: '',
+    address: '',
+    compliance_status: 'compliant',
+    rating: 5.0
+  });
+
   const createMutation = useMutation({
     mutationFn: (formData: ContractorFormData) =>
       contractorApi.createContractor(formData as CreateContractorInput),
@@ -79,6 +95,19 @@ export default function ContractorsPage() {
     },
     onError: (err: any) => {
       setFormError(err.response?.data?.message || 'Failed to register contractor');
+    }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<CreateContractorInput> }) =>
+      contractorApi.updateContractor(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contractors'] });
+      queryClient.invalidateQueries({ queryKey: ['contractor', editingContractor?.id] });
+      closeEditModal();
+    },
+    onError: (err: any) => {
+      setFormError(err.response?.data?.message || 'Failed to update contractor details');
     }
   });
 
@@ -105,8 +134,57 @@ export default function ContractorsPage() {
     setFormError(null);
   };
 
+  const openEditModal = (c: Contractor) => {
+    setEditingContractor(c);
+    setEditFormData({
+      name: c.name,
+      registration_number: c.registration_number,
+      specialty: c.specialty,
+      contact_person: c.contact_person || '',
+      email: c.email,
+      phone: c.phone || '',
+      city: c.city || '',
+      state: c.state || '',
+      address: c.address || '',
+      compliance_status: c.compliance_status || 'compliant',
+      rating: c.rating || 5.0
+    });
+    setFormError(null);
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingContractor(null);
+    setFormError(null);
+  };
+
   const onSubmit = (formData: ContractorFormData) => {
     createMutation.mutate(formData);
+  };
+
+  const onEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingContractor) return;
+    if (!editFormData.name.trim()) {
+      setFormError('Company name is required');
+      return;
+    }
+    if (!editFormData.email.trim()) {
+      setFormError('Email is required');
+      return;
+    }
+    updateMutation.mutate({
+      id: editingContractor.id,
+      payload: {
+        ...editFormData,
+        name: editFormData.name.trim(),
+        registration_number: editFormData.registration_number.toUpperCase().trim(),
+        specialty: editFormData.specialty.trim(),
+        email: editFormData.email.trim(),
+        rating: Number(editFormData.rating)
+      }
+    });
   };
 
   const canManage = user?.role === 'ADMIN' || user?.role === 'APPROVER';
@@ -241,16 +319,29 @@ export default function ContractorsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center whitespace-nowrap">
-                          <Link
-                            href={`/contractors/${c.id}`}
-                            title="View Contractor Profile & Compliance Vault"
-                            className="inline-flex items-center justify-center p-1.5 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:text-sky-900 rounded-md border border-sky-200 transition-colors shadow-2xs"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                          </Link>
+                          <div className="flex items-center justify-center gap-1.5">
+                            {canManage && (
+                              <button
+                                onClick={() => openEditModal(c)}
+                                title="Edit Contractor Name & Details"
+                                className="inline-flex items-center justify-center p-1.5 text-amber-700 bg-amber-50 hover:bg-amber-100 hover:text-amber-900 rounded-md border border-amber-200 transition-colors shadow-2xs"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                            )}
+                            <Link
+                              href={`/contractors/${c.id}`}
+                              title="View Contractor Profile & Compliance Vault"
+                              className="inline-flex items-center justify-center p-1.5 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:text-sky-900 rounded-md border border-sky-200 transition-colors shadow-2xs"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -394,6 +485,194 @@ export default function ContractorsPage() {
                     className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
                   >
                     {isSubmitting || createMutation.isPending ? 'Registering...' : 'Register Contractor'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Contractor Modal */}
+        {isEditModalOpen && editingContractor && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl border border-gray-200 max-w-xl w-full p-6">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    Edit Contractor Profile
+                  </h3>
+                  <p className="text-xs text-gray-500 font-mono">
+                    ID: {editingContractor.id} &bull; Reg: {editingContractor.registration_number}
+                  </p>
+                </div>
+                <button
+                  onClick={closeEditModal}
+                  className="text-gray-400 hover:text-gray-600 text-sm font-semibold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {formError && (
+                <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700 text-sm">
+                  {formError}
+                </div>
+              )}
+
+              <form onSubmit={onEditSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Company Name *
+                    </label>
+                    <input
+                      value={editFormData.name}
+                      onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                      required
+                      placeholder="e.g. Apex BioMed Solutions"
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Registration # *
+                    </label>
+                    <input
+                      value={editFormData.registration_number}
+                      onChange={(e) => setEditFormData({ ...editFormData, registration_number: e.target.value.toUpperCase() })}
+                      required
+                      placeholder="e.g. REG-BIO-2026"
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Engineering Specialty *
+                    </label>
+                    <input
+                      value={editFormData.specialty}
+                      onChange={(e) => setEditFormData({ ...editFormData, specialty: e.target.value })}
+                      required
+                      placeholder="e.g. Biomedical & Diagnostic Imaging Systems"
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Compliance Status *
+                    </label>
+                    <select
+                      value={editFormData.compliance_status}
+                      onChange={(e) => setEditFormData({ ...editFormData, compliance_status: e.target.value as any })}
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    >
+                      <option value="compliant">Compliant</option>
+                      <option value="warning">Expiring Soon / Warning</option>
+                      <option value="non_compliant">Non-Compliant</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Contact Person
+                    </label>
+                    <input
+                      value={editFormData.contact_person || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, contact_person: e.target.value })}
+                      placeholder="e.g. David Henderson"
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Business Email *
+                    </label>
+                    <input
+                      type="email"
+                      value={editFormData.email}
+                      onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                      required
+                      placeholder="service@contractor.com"
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Phone Number
+                    </label>
+                    <input
+                      value={editFormData.phone || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                      placeholder="+1 (555) 010-0004"
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      City & State
+                    </label>
+                    <input
+                      value={editFormData.city || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
+                      placeholder="e.g. Boston, MA"
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Performance Rating (0-5)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="5"
+                      value={editFormData.rating}
+                      onChange={(e) => setEditFormData({ ...editFormData, rating: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Street Address
+                  </label>
+                  <input
+                    value={editFormData.address || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
+                    placeholder="e.g. 100 Technology Square, Suite 400"
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updateMutation.isPending}
+                    className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
+                  >
+                    {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </form>

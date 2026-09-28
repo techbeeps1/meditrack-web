@@ -29,5 +29,10 @@ export const invoiceService = {
   async updateInvoiceStatus(id: string, data: UpdateInvoiceStatusInput) {
     const res = await api.patch(`/invoices/${id}/status`, data);
     return res.data.data as Invoice;
+  },
+
+  async requestInvoice(workOrderId: string) {
+    const res = await api.post('/invoices/request', { work_order_id: workOrderId });
+    return res.data;
   }
 };

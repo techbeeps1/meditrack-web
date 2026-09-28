@@ -8,9 +8,11 @@ import AppLayout from '@/components/layout/AppLayout';
 import { workOrderApi } from '@/services/work-orders';
 import { contractorApi } from '@/services/contractors';
 import { invoiceService } from '@/services/invoices';
+import { inspectionApi } from '@/services/inspections';
 import { API_SERVER_URL } from '@/services/api';
 import { WorkOrderPriority, WorkOrderStatus } from '@/types/workOrder';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { downloadInvoicePdf } from '@/lib/invoicePdf';
 import { useAuth } from '@/hooks/useAuth';
 
 const WORKFLOW_STEPS: { status: WorkOrderStatus; label: string }[] = [
@@ -59,6 +61,20 @@ export default function WorkOrderDetailPage() {
   const [assignedTechnician, setAssignedTechnician] = useState('usr_contractor_01');
   const [actualCostInput, setActualCostInput] = useState<number | ''>('');
   const [transitionError, setTransitionError] = useState<string | null>(null);
+
+  // Inspection Modal state (for Inspector / Admin quality verification)
+  const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
+  const [inspectionResult, setInspectionResult] = useState<'PASS' | 'FAIL'>('PASS');
+  const [inspectionObservations, setInspectionObservations] = useState('');
+  const [inspectionRecommendations, setInspectionRecommendations] = useState('');
+  const [selectedInspectionPhotos, setSelectedInspectionPhotos] = useState<FileList | null>(null);
+  const [inspectionFormError, setInspectionFormError] = useState<string | null>(null);
+  const [inspectionChecklist, setInspectionChecklist] = useState({
+    calibration: true,
+    electricalSafety: true,
+    sterilization: true,
+    functionalTesting: true
+  });
 
   const [activeTab, setActiveTab] = useState<'details' | 'audit'>('details');
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
@@ -153,8 +169,25 @@ export default function WorkOrderDetailPage() {
   });
 
   const [invoiceActionError, setInvoiceActionError] = useState<string | null>(null);
+  const [invoiceRequestSuccess, setInvoiceRequestSuccess] = useState(false);
 
-  // Invoice Status Mutation (Directly Approve, Pay, or Reject from Work Order page)
+  // Request Invoice Mutation (Approver/Admin prompts contractor to submit claim)
+  const requestInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      return invoiceService.requestInvoice(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      setInvoiceRequestSuccess(true);
+      setTimeout(() => setInvoiceRequestSuccess(false), 5000);
+    },
+    onError: (err: any) => {
+      setInvoiceActionError(err.response?.data?.message || 'Failed to send invoice request to contractor');
+    }
+  });
+
+  // Invoice Status Mutation (Directly Approve & Pay or Reject from Work Order page)
   const invoiceStatusMutation = useMutation({
     mutationFn: async ({ status, notes }: { status: 'approved' | 'paid' | 'rejected'; notes?: string }) => {
       if (!workOrder?.invoice_id) return;
@@ -165,6 +198,8 @@ export default function WorkOrderDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-work-orders'] });
       setInvoiceActionError(null);
     },
     onError: (err: any) => {
@@ -202,6 +237,8 @@ export default function WorkOrderDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['work-order', id] });
       queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
       queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-work-orders'] });
       setIsTransitionModalOpen(false);
       setTransitionNotes('');
       setTransitionError(null);
@@ -228,6 +265,55 @@ export default function WorkOrderDetailPage() {
       setActualCostInput('');
     }
     setIsTransitionModalOpen(true);
+  };
+
+  // Inspection Mutation (Safety checklist, photos & status transition to verified or in_progress)
+  const createInspectionMutation = useMutation({
+    mutationFn: async () => {
+      if (!inspectionObservations) throw new Error('Please enter inspection observations / findings');
+
+      const formData = new FormData();
+      formData.append('work_order_id', id);
+      formData.append('result', inspectionResult);
+      formData.append('observations', inspectionObservations);
+      if (inspectionRecommendations) {
+        formData.append('recommendations', inspectionRecommendations);
+      }
+      formData.append('checklist_results', JSON.stringify(inspectionChecklist));
+
+      if (selectedInspectionPhotos && selectedInspectionPhotos.length > 0) {
+        for (let i = 0; i < selectedInspectionPhotos.length; i++) {
+          formData.append('photos', selectedInspectionPhotos[i]);
+        }
+      }
+
+      return inspectionApi.createInspection(formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['inspections'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-work-orders'] });
+      setIsInspectionModalOpen(false);
+      setInspectionObservations('');
+      setInspectionRecommendations('');
+      setSelectedInspectionPhotos(null);
+      setInspectionFormError(null);
+    },
+    onError: (err: any) => {
+      setInspectionFormError(err.response?.data?.message || err.message || 'Failed to submit inspection sign-off');
+    }
+  });
+
+  const openInspectionModal = (verdict: 'PASS' | 'FAIL' = 'PASS') => {
+    setInspectionResult(verdict);
+    setInspectionObservations('');
+    setInspectionRecommendations('');
+    setSelectedInspectionPhotos(null);
+    setInspectionFormError(null);
+    setIsInspectionModalOpen(true);
   };
 
   const copyToClipboard = (text: string) => {
@@ -277,9 +363,10 @@ export default function WorkOrderDetailPage() {
   const canStartWork = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'assigned';
   const canComplete = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'in_progress';
   const canVerify = (role === 'INSPECTOR' || role === 'ADMIN') && status === 'completed';
-  const canClose = (role === 'APPROVER' || role === 'ADMIN') && status === 'verified';
+  const canClose = (role === 'APPROVER' || role === 'ADMIN') && status === 'verified' && !workOrder.invoice_id;
   const canReject = (role === 'APPROVER' || role === 'ADMIN') && ['reported', 'approved', 'assigned'].includes(status);
-  const canGenerateInvoice = role === 'CONTRACTOR' || role === 'ADMIN' || role === 'APPROVER';
+  const canGenerateInvoice = (role === 'CONTRACTOR' || role === 'ADMIN') && ['verified', 'closed'].includes(status) && !workOrder.invoice_id;
+  const canRequestInvoice = (role === 'APPROVER' || role === 'ADMIN') && ['verified', 'closed'].includes(status) && !workOrder.invoice_id;
   const canApproveOrPayInvoice = (role === 'APPROVER' || role === 'ADMIN') && !!workOrder.invoice_id;
   const canViewAuditVault = role === 'ADMIN' || role === 'AUDITOR';
 
@@ -363,13 +450,13 @@ export default function WorkOrderDetailPage() {
             {canVerify && (
               <>
                 <button
-                  onClick={() => openTransitionModal('verified')}
+                  onClick={() => openInspectionModal('PASS')}
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
                 >
                   Pass Inspection & Verify
                 </button>
                 <button
-                  onClick={() => openTransitionModal('in_progress')}
+                  onClick={() => openInspectionModal('FAIL')}
                   className="px-3 py-2 bg-white border border-red-300 hover:bg-red-50 text-red-700 text-xs font-semibold rounded transition-colors"
                 >
                   Fail QC (Return to In Progress)
@@ -387,7 +474,7 @@ export default function WorkOrderDetailPage() {
             )}
 
             {/* When Completed: Disabled button waiting for verification (Contractor/Admin only) */}
-            {canGenerateInvoice && workOrder.status === 'completed' && !workOrder.invoice_id && (
+            {role === 'CONTRACTOR' && workOrder.status === 'completed' && !workOrder.invoice_id && (
               <button
                 disabled
                 title="Invoice generation will be enabled after quality inspection and verification"
@@ -397,8 +484,9 @@ export default function WorkOrderDetailPage() {
               </button>
             )}
 
-            {/* When Verified or Closed: Enabled button to generate invoice claim (Contractor/Admin only) */}
-            {canGenerateInvoice && ['verified', 'closed'].includes(workOrder.status) && !workOrder.invoice_id && (
+            {/* When Verified or Closed and No Invoice Yet: */}
+            {/* Contractor sees button to Generate Invoice Claim */}
+            {role === 'CONTRACTOR' && ['verified', 'closed'].includes(workOrder.status) && !workOrder.invoice_id && (
               <button
                 onClick={openInvoiceModal}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
@@ -407,18 +495,38 @@ export default function WorkOrderDetailPage() {
               </button>
             )}
 
-            {/* When Invoice Exists: Direct Actions for Approver/Admin or status view */}
+            {/* Approver / Admin sees button to Request Invoice from Contractor */}
+            {canRequestInvoice && (
+              <button
+                onClick={() => requestInvoiceMutation.mutate()}
+                disabled={requestInvoiceMutation.isPending || invoiceRequestSuccess}
+                className={`px-3.5 py-2 text-xs font-semibold rounded shadow-sm transition-colors flex items-center gap-1.5 ${
+                  invoiceRequestSuccess
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-300'
+                    : 'bg-amber-600 hover:bg-amber-700 text-white'
+                }`}
+              >
+                {requestInvoiceMutation.isPending
+                  ? 'Requesting...'
+                  : invoiceRequestSuccess
+                  ? '✓ Invoice Requested from Contractor'
+                  : 'Request Invoice from Contractor'}
+              </button>
+            )}
+
+            {/* When Invoice Exists: 1 Single "Approve & Pay Invoice" Button for Approver/Admin */}
             {workOrder.invoice_id && (
               <>
-                {/* When Work Order is CLOSED and invoice is PENDING: Approver/Admin can Approve or Reject */}
-                {canApproveOrPayInvoice && workOrder.status === 'closed' && workOrder.invoice_status === 'pending' && (
+                {canApproveOrPayInvoice && ['pending', 'approved'].includes(workOrder.invoice_status || '') && (
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => invoiceStatusMutation.mutate({ status: 'approved' })}
+                      onClick={() => invoiceStatusMutation.mutate({ status: 'paid' })}
                       disabled={invoiceStatusMutation.isPending}
-                      className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded shadow-sm transition-colors"
                     >
-                      {invoiceStatusMutation.isPending ? 'Processing...' : `Approve Invoice (${formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)})`}
+                      {invoiceStatusMutation.isPending
+                        ? 'Settling Payment...'
+                        : `Approve & Pay Invoice (${formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)})`}
                     </button>
                     <button
                       onClick={() => {
@@ -433,49 +541,17 @@ export default function WorkOrderDetailPage() {
                   </div>
                 )}
 
-                {/* When Work Order is NOT yet CLOSED and invoice is pending: show indicator */}
-                {canApproveOrPayInvoice && workOrder.status !== 'closed' && workOrder.invoice_status === 'pending' && (
-                  <Link
-                    href="/invoices"
-                    title="Work order must be Closed by Approver/Admin before approving invoice claim"
-                    className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-xs font-semibold transition-colors"
-                  >
-                    Invoice {workOrder.invoice_number} (PENDING) — Awaiting WO Closure &rarr;
-                  </Link>
-                )}
-
-                {/* Pay button appears ONLY after Approver has closed the work order and invoice is approved */}
-                {canApproveOrPayInvoice && workOrder.status === 'closed' && workOrder.invoice_status === 'approved' && (
-                  <button
-                    onClick={() => invoiceStatusMutation.mutate({ status: 'paid' })}
-                    disabled={invoiceStatusMutation.isPending}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
-                  >
-                    {invoiceStatusMutation.isPending ? 'Settling...' : `Pay & Settle Claim (${formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)})`}
-                  </button>
-                )}
-
-                {/* If verified and approved, show status link indicating ready for payout once closed */}
-                {canApproveOrPayInvoice && workOrder.status !== 'closed' && workOrder.invoice_status === 'approved' && (
-                  <Link
-                    href="/invoices"
-                    className="px-3.5 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 rounded text-xs font-semibold transition-colors"
-                  >
-                    Invoice {workOrder.invoice_number} (APPROVED) — Awaiting WO Closure &rarr;
-                  </Link>
-                )}
-
-                {/* If Paid: Show exactly one green settled badge for all users */}
+                {/* If Paid: Single settled badge */}
                 {workOrder.invoice_status === 'paid' && (
                   <Link
                     href="/invoices"
                     className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-xs font-semibold transition-colors"
                   >
-                    Invoice {workOrder.invoice_number} (PAID) — {formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)} &rarr;
+                    Invoice {workOrder.invoice_number} (PAID & SETTLED) — {formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)} &rarr;
                   </Link>
                 )}
 
-                {/* If Rejected: Show exactly one red rejected badge for all users */}
+                {/* If Rejected */}
                 {workOrder.invoice_status === 'rejected' && (
                   <Link
                     href="/invoices"
@@ -485,15 +561,33 @@ export default function WorkOrderDetailPage() {
                   </Link>
                 )}
 
-                {/* If Contractor/Other viewing a pending or approved invoice */}
-                {!canApproveOrPayInvoice && ['pending', 'approved'].includes(workOrder.invoice_status || '') && (
-                  <Link
-                    href="/invoices"
-                    className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-300 rounded text-xs font-semibold transition-colors"
-                  >
-                    Invoice {workOrder.invoice_number} ({workOrder.invoice_status?.toUpperCase()}) — {formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)} &rarr;
-                  </Link>
-                )}
+                {/* Direct Download Invoice PDF button */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadInvoicePdf({
+                      id: workOrder.invoice_id || id,
+                      invoice_number: workOrder.invoice_number || 'INV-REF',
+                      created_at: workOrder.created_at,
+                      status: workOrder.invoice_status || 'pending',
+                      amount: Number(workOrder.actual_cost || workOrder.estimated_cost || 0),
+                      tax_amount: 0,
+                      total_amount: Number(workOrder.invoice_total_amount || workOrder.actual_cost || workOrder.estimated_cost || 0),
+                      notes: `Invoice claim for completed maintenance on ${workOrder.tracking_number} (${workOrder.title})`,
+                      contractor_name: workOrder.assigned_to_name || 'Apex BioMed Solutions',
+                      work_order_tracking: workOrder.tracking_number,
+                      work_order_title: workOrder.title,
+                      facility_name: workOrder.facility_name
+                    })
+                  }
+                  title="Download and Print Official Invoice PDF"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded shadow-xs transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Invoice PDF
+                </button>
               </>
             )}
 
@@ -1299,6 +1393,148 @@ export default function WorkOrderDetailPage() {
                   className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 rounded-md hover:bg-emerald-700 transition disabled:opacity-50 shadow-sm"
                 >
                   {createInvoiceMutation.isPending ? 'Submitting Claim...' : 'Submit Invoice Claim'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Execute Quality & Safety Inspection Modal */}
+        {isInspectionModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl border border-gray-200 max-w-lg w-full p-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-base font-bold text-gray-900">
+                  Execute Quality & Safety Inspection
+                </h3>
+                <button
+                  onClick={() => setIsInspectionModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 text-sm font-semibold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {inspectionFormError && (
+                <div className="p-3 rounded bg-red-50 border border-red-200 text-red-700 text-xs">
+                  {inspectionFormError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Target Work Order *
+                </label>
+                <div className="px-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-sm font-medium text-slate-800">
+                  <span className="font-mono font-bold text-sky-700">{workOrder.tracking_number}</span> &bull; {workOrder.title}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Inspection Verdict *
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setInspectionResult('PASS')}
+                    className={`py-2 px-3 text-xs font-bold rounded-md border text-center transition-colors ${
+                      inspectionResult === 'PASS'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-400 ring-2 ring-emerald-200'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    Pass (Verify Ticket)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInspectionResult('FAIL')}
+                    className={`py-2 px-3 text-xs font-bold rounded-md border text-center transition-colors ${
+                      inspectionResult === 'FAIL'
+                        ? 'bg-red-50 text-red-700 border-red-400 ring-2 ring-red-200'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    Fail (Re-work Required)
+                  </button>
+                </div>
+              </div>
+
+              {/* Safety & Calibration Checklist */}
+              <div className="p-3 bg-gray-50 rounded border border-gray-200 space-y-2 text-xs">
+                <div className="font-semibold text-gray-700 uppercase text-[10px] tracking-wider mb-1">
+                  Safety & Calibration Checklist:
+                </div>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={inspectionChecklist.calibration}
+                    onChange={(e) => setInspectionChecklist({ ...inspectionChecklist, calibration: e.target.checked })}
+                    className="rounded text-sky-600 focus:ring-sky-500"
+                  />
+                  <span className="text-gray-700">OEM Tolerance & Calibration Verified</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={inspectionChecklist.electricalSafety}
+                    onChange={(e) => setInspectionChecklist({ ...inspectionChecklist, electricalSafety: e.target.checked })}
+                    className="rounded text-sky-600 focus:ring-sky-500"
+                  />
+                  <span className="text-gray-700">Dielectric & Ground Leakage Current Safe</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={inspectionChecklist.sterilization}
+                    onChange={(e) => setInspectionChecklist({ ...inspectionChecklist, sterilization: e.target.checked })}
+                    className="rounded text-sky-600 focus:ring-sky-500"
+                  />
+                  <span className="text-gray-700">Sanitation & Area Cleanliness Compliant</span>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Inspector Observations & Notes *
+                </label>
+                <textarea
+                  rows={3}
+                  value={inspectionObservations}
+                  onChange={(e) => setInspectionObservations(e.target.value)}
+                  placeholder="Record testing values, calibrated readings, or failure reasons..."
+                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Attach Inspection Photo Evidence (Optional)
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => setSelectedInspectionPhotos(e.target.files)}
+                  className="w-full text-xs text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded file:border file:border-gray-300 file:text-xs file:font-medium file:bg-gray-50"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setIsInspectionModalOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!inspectionObservations || createInspectionMutation.isPending}
+                  onClick={() => createInspectionMutation.mutate()}
+                  className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
+                >
+                  {createInspectionMutation.isPending ? 'Submitting...' : 'Submit Inspection Sign-Off'}
                 </button>
               </div>
             </div>
