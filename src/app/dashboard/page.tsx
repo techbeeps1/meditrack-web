@@ -714,6 +714,8 @@ export default function DashboardPage() {
       { key: 'closed', label: 'Closed', count: closedCount, color: 'bg-emerald-500' }
     ];
 
+    const approverScope = user?.approver_scope || 'wo_approver';
+
     return (
       <AppLayout>
         <div className="space-y-6">
@@ -722,14 +724,22 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-center space-x-2">
                 <h1 className="text-xl font-bold text-slate-900">
-                  Facility Leadership & Work Order Approval Center
+                  {approverScope === 'payment_approver'
+                    ? 'Finance & Invoice Settlement Center'
+                    : approverScope === 'contractor_approver'
+                    ? 'Contractor Assignment & Partner Center'
+                    : 'Work Order Approval Center'}
                 </h1>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200 uppercase">
-                  APPROVER
+                  {approverScope.replace('_', ' ')}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Review staff-reported maintenance requests, allocate approved budgets, and assign contractors
+                {approverScope === 'payment_approver'
+                  ? 'Review contractor invoice claims, inspect completion proof, and authorize disbursements'
+                  : approverScope === 'contractor_approver'
+                  ? 'Assign specialized contractors to approved tickets and review active maintenance jobs'
+                  : 'Review staff-reported maintenance requests and authorize allocated budgets'}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -737,42 +747,80 @@ export default function DashboardPage() {
                 href="/work-orders"
                 className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition shadow-sm"
               >
-                View All Work Orders
+                View Work Orders
               </Link>
-              <Link
-                href="/invoices"
-                className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
-              >
-                Review Invoices
-              </Link>
+              {approverScope === 'payment_approver' && (
+                <Link
+                  href="/invoices"
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
+                >
+                  Review Invoices
+                </Link>
+              )}
+              {approverScope === 'contractor_approver' && (
+                <Link
+                  href="/contractors"
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
+                >
+                  Contractors Directory
+                </Link>
+              )}
             </div>
           </div>
 
           {/* 3 Focused Metric Cards (Clickable) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Link
-              href="/work-orders?status=reported"
-              className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${reportedCount > 0
-                  ? 'bg-amber-50/70 border-amber-300 hover:border-amber-400'
-                  : 'bg-white border-slate-200 hover:border-sky-300'
+            {approverScope === 'contractor_approver' ? (
+              <Link
+                href="/work-orders?status=approved"
+                className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${
+                  approvedCount > 0
+                    ? 'bg-indigo-50/70 border-indigo-300 hover:border-indigo-400'
+                    : 'bg-white border-slate-200 hover:border-sky-300'
                 }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
-                  <span>Awaiting Your Approval</span>
-                  <span className="text-xs text-amber-600 group-hover:translate-x-0.5 transition">&rarr;</span>
-                </span>
-                {reportedCount > 0 && (
-                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-white animate-pulse">
-                    Action Required
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-800 flex items-center gap-1.5">
+                    <span>Awaiting Contractor Assignment</span>
+                    <span className="text-xs text-indigo-600 group-hover:translate-x-0.5 transition">&rarr;</span>
                   </span>
-                )}
-              </div>
-              <div className="text-3xl font-bold text-slate-900 mt-2 font-mono">
-                {isLoading ? '...' : reportedCount}
-              </div>
-              <div className="text-xs text-slate-500 mt-1">New staff-reported requests pending review &bull; Click to review</div>
-            </Link>
+                  {approvedCount > 0 && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-600 text-white animate-pulse">
+                      Action Required
+                    </span>
+                  )}
+                </div>
+                <div className="text-3xl font-bold text-slate-900 mt-2 font-mono">
+                  {isLoading ? '...' : approvedCount}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">Budget approved &bull; Assign active specialized contractor</div>
+              </Link>
+            ) : (
+              <Link
+                href="/work-orders?status=reported"
+                className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${
+                  reportedCount > 0
+                    ? 'bg-amber-50/70 border-amber-300 hover:border-amber-400'
+                    : 'bg-white border-slate-200 hover:border-sky-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                    <span>Awaiting Your Approval</span>
+                    <span className="text-xs text-amber-600 group-hover:translate-x-0.5 transition">&rarr;</span>
+                  </span>
+                  {reportedCount > 0 && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-white animate-pulse">
+                      Action Required
+                    </span>
+                  )}
+                </div>
+                <div className="text-3xl font-bold text-slate-900 mt-2 font-mono">
+                  {isLoading ? '...' : reportedCount}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">New staff-reported requests pending review &bull; Click to review</div>
+              </Link>
+            )}
 
             <Link
               href="/work-orders?status=active"
@@ -787,26 +835,44 @@ export default function DashboardPage() {
               <div className="text-3xl font-bold text-sky-700 mt-2 font-mono">
                 {isLoading ? '...' : (approvedCount + assignedCount + inProgressCount)}
               </div>
-              <div className="text-xs text-slate-400 mt-1">Contractor work actively underway &bull; View active jobs</div>
+              <div className="text-xs text-slate-400 mt-1">Contractor work underway &bull; View active jobs</div>
             </Link>
 
-            <Link
-              href="/invoices?status=pending"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">
-                  Pending Invoice Approvals
-                </span>
-                <span className="text-xs text-emerald-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-3xl font-bold text-emerald-600 mt-2 font-mono">
-                {isLoading ? '...' : formatCurrency(summary?.invoices.totalPending || 0)}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">
-                {summary?.invoices.count || 0} invoices submitted by contractors &bull; Approve & pay
-              </div>
-            </Link>
+            {approverScope === 'payment_approver' ? (
+              <Link
+                href="/invoices?status=pending"
+                className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md transition group cursor-pointer block"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">
+                    Pending Invoice Approvals
+                  </span>
+                  <span className="text-xs text-emerald-500 group-hover:translate-x-0.5 transition">&rarr;</span>
+                </div>
+                <div className="text-3xl font-bold text-emerald-600 mt-2 font-mono">
+                  {isLoading ? '...' : formatCurrency(summary?.invoices.totalPending || 0)}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">
+                  {summary?.invoices.count || 0} claims pending settlement &bull; Settle payouts
+                </div>
+              </Link>
+            ) : (
+              <Link
+                href="/work-orders?status=completed"
+                className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-teal-300 hover:shadow-md transition group cursor-pointer block"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-teal-600 uppercase tracking-wider">
+                    Completed &amp; QC Verified
+                  </span>
+                  <span className="text-xs text-teal-500 group-hover:translate-x-0.5 transition">&rarr;</span>
+                </div>
+                <div className="text-3xl font-bold text-teal-700 mt-2 font-mono">
+                  {isLoading ? '...' : (completedCount + verifiedCount)}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">Completed repairs awaiting inspection or closed</div>
+              </Link>
+            )}
           </div>
 
           {/* Pending Approval Queue Table */}

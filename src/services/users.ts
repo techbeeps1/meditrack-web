@@ -1,11 +1,12 @@
 import api from './api';
-import { ApiResponse, User, UserRole } from '@/types';
+import { ApiResponse, User, UserRole, ApproverScope } from '@/types';
 
 export interface CreateUserInput {
   name: string;
   email: string;
   password: string;
   role: UserRole;
+  approver_scope?: ApproverScope | null;
   phone?: string | null;
   facility_id?: string | null;
 }
@@ -15,6 +16,7 @@ export interface UpdateUserInput {
   email?: string;
   password?: string;
   role?: UserRole;
+  approver_scope?: ApproverScope | null;
   phone?: string | null;
   facility_id?: string | null;
   status?: 'active' | 'inactive';

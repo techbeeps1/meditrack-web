@@ -6,6 +6,7 @@ export const contractorApi = {
   getContractors: async (params?: {
     search?: string;
     compliance_status?: string;
+    approval_status?: string;
     specialty?: string;
     page?: number;
     limit?: number;
@@ -21,6 +22,11 @@ export const contractorApi = {
 
   createContractor: async (payload: CreateContractorInput) => {
     const res = await api.post<ApiResponse<Contractor>>('/contractors', payload);
+    return res.data.data;
+  },
+
+  reviewContractor: async (id: string, payload: { decision: 'approve' | 'reject'; rejection_reason?: string }) => {
+    const res = await api.post<ApiResponse<Contractor>>(`/contractors/${id}/review`, payload);
     return res.data.data;
   },
 

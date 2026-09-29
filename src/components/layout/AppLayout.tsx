@@ -14,15 +14,16 @@ interface NavItem {
   label: string;
   href: string;
   roles?: string[];
+  approverScopes?: string[];
 }
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', roles: ['ADMIN', 'STAFF', 'APPROVER', 'CONTRACTOR', 'INSPECTOR', 'AUDITOR'] },
   { label: 'Facilities', href: '/facilities', roles: ['ADMIN', 'STAFF', 'APPROVER'] },
   { label: 'Work Orders', href: '/work-orders', roles: ['ADMIN', 'STAFF', 'APPROVER', 'CONTRACTOR', 'INSPECTOR', 'AUDITOR'] },
-  { label: 'Contractors', href: '/contractors', roles: ['ADMIN', 'APPROVER'] },
+  { label: 'Contractors', href: '/contractors', roles: ['ADMIN', 'APPROVER'], approverScopes: ['contractor_approver'] },
   { label: 'Inspections', href: '/inspections', roles: ['ADMIN', 'INSPECTOR'] },
-  { label: 'Invoices', href: '/invoices', roles: ['ADMIN', 'APPROVER', 'CONTRACTOR'] },
+  { label: 'Invoices', href: '/invoices', roles: ['ADMIN', 'APPROVER', 'CONTRACTOR'], approverScopes: ['payment_approver'] },
   { label: 'Audit Vault', href: '/audit', roles: ['ADMIN', 'AUDITOR'] },
   { label: 'User & System Settings', href: '/settings', roles: ['ADMIN'] }
 ];
@@ -144,7 +145,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Navigation
             </div>
-            {NAV_ITEMS.filter((item) => !item.roles || item.roles.includes(user.role)).map((item) => {
+            {NAV_ITEMS.filter((item) => {
+              if (item.roles && !item.roles.includes(user.role)) return false;
+              if (user.role === 'APPROVER' && item.approverScopes && !item.approverScopes.includes(user.approver_scope || 'wo_approver')) {
+                return false;
+              }
+              return true;
+            }).map((item) => {
               const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname?.startsWith(`${item.href}`));
               return (
                 <Link

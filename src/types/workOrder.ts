@@ -51,10 +51,36 @@ export interface WorkOrder {
   updated_at: string;
   photo_count?: number;
   photos?: WorkOrderPhoto[];
+  approved_by?: string | null;
+  assigned_by?: string | null;
   invoice_id?: string | null;
   invoice_number?: string | null;
   invoice_status?: 'pending' | 'approved' | 'rejected' | 'paid' | null;
   invoice_total_amount?: number | null;
+  events?: Array<{
+    id: string;
+    work_order_id: string;
+    status: WorkOrderStatus;
+    actor_id: string;
+    actor_name?: string;
+    actor_role?: string;
+    previous_hash: string;
+    current_hash: string;
+    notes?: string | null;
+    metadata?: any;
+    created_at: string;
+  }>;
+  inspections?: Array<{
+    id: string;
+    work_order_id: string;
+    inspector_id: string;
+    inspector_name?: string;
+    result: 'PASS' | 'FAIL';
+    checklist_results?: string | null;
+    observations?: string | null;
+    recommendations?: string | null;
+    inspected_at: string;
+  }>;
 }
 
 export interface CreateWorkOrderInput {

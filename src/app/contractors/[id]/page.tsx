@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AppLayout from '@/components/layout/AppLayout';
 import { contractorApi } from '@/services/contractors';
+import { workCategoryApi } from '@/services/work-categories';
 import { API_SERVER_URL } from '@/services/api';
 import { ComplianceStatus } from '@/types/contractor';
 import { formatDate, formatCurrency } from '@/lib/utils';
@@ -15,6 +16,12 @@ const COMPLIANCE_BADGES: Record<ComplianceStatus, { bg: string; text: string; bo
   compliant: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', label: '100% Fully Compliant' },
   warning: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', label: 'Document Expiration Warning' },
   non_compliant: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', label: 'Non-Compliant (Expired Documents)' }
+};
+
+const APPROVAL_BADGES: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  active: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', label: 'Approved & Active' },
+  pending_approval: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', label: 'Pending LM Approval' },
+  rejected: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', label: 'Onboarding Rejected' }
 };
 
 export default function ContractorProfilePage() {
@@ -29,6 +36,12 @@ export default function ContractorProfilePage() {
   const [expiryDate, setExpiryDate] = useState('');
   const [docFile, setDocFile] = useState<File | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
+
+  // Line Manager Review Modal state
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewDecision, setReviewDecision] = useState<'approve' | 'reject'>('approve');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   // Edit Contractor State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -52,6 +65,13 @@ export default function ContractorProfilePage() {
     queryFn: () => contractorApi.getContractorById(id),
     enabled: !!id
   });
+
+  const { data: categoriesData } = useQuery({
+    queryKey: ['work-categories'],
+    queryFn: () => workCategoryApi.getCategories()
+  });
+
+  const categories = categoriesData?.data || [];
 
   const updateContractorMutation = useMutation({
     mutationFn: async () => {
@@ -120,6 +140,27 @@ export default function ContractorProfilePage() {
     }
   });
 
+  const reviewContractorMutation = useMutation({
+    mutationFn: async () => {
+      if (reviewDecision === 'reject' && !rejectionReason.trim()) {
+        throw new Error('Please provide a mandatory reason for rejecting this contractor.');
+      }
+      return contractorApi.reviewContractor(id, {
+        decision: reviewDecision,
+        rejection_reason: reviewDecision === 'reject' ? rejectionReason.trim() : undefined
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contractor', id] });
+      queryClient.invalidateQueries({ queryKey: ['contractors'] });
+      setIsReviewModalOpen(false);
+      setReviewError(null);
+    },
+    onError: (err: any) => {
+      setReviewError(err.response?.data?.message || err.message || 'Failed to submit contractor review');
+    }
+  });
+
   if (isLoading) {
     return (
       <AppLayout>
@@ -147,8 +188,10 @@ export default function ContractorProfilePage() {
   }
 
   const cBadge = COMPLIANCE_BADGES[contractor.compliance_status] || COMPLIANCE_BADGES.compliant;
-  const canUpload = user?.role === 'ADMIN' || user?.role === 'APPROVER' || (user?.role === 'CONTRACTOR' && user?.id === contractor.id);
-  const canEdit = user?.role === 'ADMIN' || user?.role === 'APPROVER';
+  const aBadge = APPROVAL_BADGES[contractor.approval_status || 'active'] || APPROVAL_BADGES.active;
+  const canUpload = user?.role === 'ADMIN' || (user?.role === 'CONTRACTOR' && user?.id === contractor.id);
+  const canEdit = user?.role === 'ADMIN';
+  const canReview = user?.role === 'ADMIN';
 
   return (
     <AppLayout>
@@ -162,12 +205,51 @@ export default function ContractorProfilePage() {
           <span className="font-mono text-gray-700">{contractor.registration_number}</span>
         </div>
 
+        {/* Governance Onboarding Banner */}
+        {contractor.approval_status === 'pending_approval' && (
+          <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-amber-900">Contractor Status: Inactive / Pending Admin Activation</h3>
+              <p className="text-xs text-amber-700 mt-0.5">
+                This contractor is currently inactive and cannot be assigned to hospital work orders until activated by an Administrator.
+              </p>
+            </div>
+            {canReview && (
+              <button
+                onClick={() => {
+                  setReviewDecision('approve');
+                  setRejectionReason('');
+                  setReviewError(null);
+                  setIsReviewModalOpen(true);
+                }}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded shadow-sm transition shrink-0"
+              >
+                Activate Contractor
+              </button>
+            )}
+          </div>
+        )}
+
+        {contractor.approval_status === 'rejected' && (
+          <div className="p-4 bg-rose-50 border border-rose-300 rounded-lg text-rose-900">
+            <h3 className="text-sm font-bold">Contractor Onboarding Rejected</h3>
+            <p className="text-xs text-rose-700 mt-0.5">
+              Reason: {contractor.rejection_reason || 'Application did not satisfy vendor compliance criteria.'}
+            </p>
+          </div>
+        )}
+
         {/* Top Profile Card */}
         <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5">
               <span className="font-mono font-bold text-sky-700 text-sm">
                 {contractor.registration_number}
+              </span>
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${aBadge.bg} ${aBadge.text} ${aBadge.border}`}
+              >
+                {aBadge.label}
               </span>
               <span
                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${cBadge.bg} ${cBadge.text} ${cBadge.border}`}
@@ -184,6 +266,19 @@ export default function ContractorProfilePage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {canReview && contractor.approval_status === 'pending_approval' && (
+              <button
+                onClick={() => {
+                  setReviewDecision('approve');
+                  setRejectionReason('');
+                  setReviewError(null);
+                  setIsReviewModalOpen(true);
+                }}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+              >
+                Review Application
+              </button>
+            )}
             {canEdit && (
               <button
                 onClick={openEditModal}
@@ -192,7 +287,7 @@ export default function ContractorProfilePage() {
                 <svg className="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                Edit Contractor Profile
+                Edit Profile
               </button>
             )}
             {canUpload && (
@@ -539,15 +634,32 @@ export default function ContractorProfilePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Engineering Specialty *
+                      Work Category &amp; Engineering Specialty *
                     </label>
-                    <input
+                    <select
                       value={editFormData.specialty}
                       onChange={(e) => setEditFormData({ ...editFormData, specialty: e.target.value })}
                       required
-                      placeholder="e.g. Biomedical & Diagnostic Imaging Systems"
                       className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                    />
+                    >
+                      <option value="">Select Category / Specialty...</option>
+                      {categories.length > 0 ? (
+                        categories.map((c) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name} {c.description ? `(${c.description})` : ''}
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="Biomedical Equipment">Biomedical Equipment (Diagnostic &amp; Life Support)</option>
+                          <option value="HVAC">HVAC &amp; Cleanroom Air Flow</option>
+                          <option value="Electrical">Electrical &amp; Generators (High Voltage / Circuits)</option>
+                          <option value="Plumbing">Plumbing &amp; Dialysis Water Filtration</option>
+                          <option value="Structural">Structural, Architectural &amp; Paint</option>
+                          <option value="Sanitation">Sterilization &amp; Sanitation</option>
+                        </>
+                      )}
+                    </select>
                   </div>
 
                   <div>
@@ -661,6 +773,141 @@ export default function ContractorProfilePage() {
                     className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
                   >
                     {updateContractorMutation.isPending ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        {/* Line Manager Review Modal */}
+        {isReviewModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl border border-gray-200 max-w-lg w-full p-6 space-y-4">
+              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">
+                    Line Manager Contractor Onboarding Review
+                  </h3>
+                  <p className="text-xs text-gray-500 font-mono mt-0.5">
+                    ID: {contractor.id} &bull; Reg: {contractor.registration_number}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsReviewModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 text-sm font-semibold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {reviewError && (
+                <div className="p-3 rounded bg-red-50 border border-red-200 text-red-700 text-xs">
+                  {reviewError}
+                </div>
+              )}
+
+              {/* Contractor Snapshot Card */}
+              <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1.5 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900 text-sm">{contractor.name}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                    Pending LM Review
+                  </span>
+                </div>
+                <div className="text-slate-600">
+                  Specialty: <span className="font-semibold text-slate-800">{contractor.specialty}</span>
+                </div>
+                <div className="text-slate-500 text-[11px]">
+                  Contact: {contractor.contact_person || 'N/A'} &bull; {contractor.email} &bull; {contractor.phone || 'No phone'}
+                </div>
+                {contractor.address && (
+                  <div className="text-slate-500 text-[11px]">
+                    Address: {contractor.address}, {contractor.city || ''} {contractor.state || ''}
+                  </div>
+                )}
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  reviewContractorMutation.mutate();
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                    Review Decision *
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setReviewDecision('approve')}
+                      className={`py-2 px-3 text-xs font-bold rounded-md border text-center transition-colors ${
+                        reviewDecision === 'approve'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-400 ring-2 ring-emerald-200'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      Approve Contractor
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReviewDecision('reject')}
+                      className={`py-2 px-3 text-xs font-bold rounded-md border text-center transition-colors ${
+                        reviewDecision === 'reject'
+                          ? 'bg-rose-50 text-rose-700 border-rose-400 ring-2 ring-rose-200'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      Reject Application
+                    </button>
+                  </div>
+                </div>
+
+                {reviewDecision === 'reject' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-rose-700 mb-1">
+                      Reason for Rejection *
+                    </label>
+                    <textarea
+                      rows={3}
+                      required
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      placeholder="Explain why this contractor application is being rejected (e.g. invalid medical accreditations, missing insurance)..."
+                      className="w-full px-3 py-2 bg-white border border-rose-300 rounded-md text-xs text-gray-900 focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                    />
+                  </div>
+                )}
+
+                {reviewDecision === 'approve' && (
+                  <p className="text-[11px] text-emerald-700 bg-emerald-50 p-2.5 rounded border border-emerald-200">
+                    Approving this contractor will activate their profile and make them eligible for Work Order assignment across all hospital facilities.
+                  </p>
+                )}
+
+                <div className="flex justify-end space-x-2 pt-3 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setIsReviewModalOpen(false)}
+                    className="px-4 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={reviewContractorMutation.isPending}
+                    className={`px-4 py-2 text-xs font-bold text-white rounded-md transition-colors disabled:opacity-50 ${
+                      reviewDecision === 'approve'
+                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                        : 'bg-rose-600 hover:bg-rose-700'
+                    }`}
+                  >
+                    {reviewContractorMutation.isPending
+                      ? 'Submitting...'
+                      : reviewDecision === 'approve'
+                      ? 'Confirm Approval'
+                      : 'Confirm Rejection'}
                   </button>
                 </div>
               </form>

@@ -1,4 +1,5 @@
 export type ComplianceStatus = 'compliant' | 'warning' | 'non_compliant';
+export type ContractorApprovalStatus = 'pending_approval' | 'active' | 'rejected';
 
 export interface ContractorDocument {
   id: string;
@@ -23,6 +24,9 @@ export interface Contractor {
   city?: string | null;
   state?: string | null;
   compliance_status: ComplianceStatus;
+  approval_status?: ContractorApprovalStatus;
+  approved_by?: string | null;
+  rejection_reason?: string | null;
   rating: number;
   document_count?: number;
   active_jobs_count?: number;

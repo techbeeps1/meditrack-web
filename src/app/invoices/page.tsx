@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoiceService } from '@/services/invoices';
@@ -14,8 +15,11 @@ import { useAuth } from '@/hooks/useAuth';
 function InvoicesContent() {
   const { user } = useAuth();
   const role = user?.role;
-  const canApproveOrPay = role === 'APPROVER' || role === 'ADMIN';
-  const canCreateInvoice = role === 'CONTRACTOR' || role === 'ADMIN' || role === 'APPROVER';
+  const approverScope = user?.approver_scope || 'wo_approver';
+  const isPaymentApprover = role === 'ADMIN' || (role === 'APPROVER' && approverScope === 'payment_approver');
+  const canViewInvoices = role === 'ADMIN' || role === 'CONTRACTOR' || role === 'AUDITOR' || isPaymentApprover;
+  const canApproveOrPay = isPaymentApprover;
+  const canCreateInvoice = role === 'ADMIN';
 
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
@@ -96,6 +100,10 @@ function InvoicesContent() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-work-orders'] });
       setSelectedInvoice(null);
+      setActionError(null);
+    },
+    onError: (err: any) => {
+      setActionError(err.response?.data?.message || 'Failed to update invoice settlement status');
     }
   });
 
@@ -131,6 +139,25 @@ function InvoicesContent() {
         );
     }
   };
+
+  if (!canViewInvoices) {
+    return (
+      <AppLayout>
+        <div className="bg-white p-8 rounded-xl border border-slate-200 text-center space-y-4 max-w-lg mx-auto my-12">
+          <h2 className="text-base font-bold text-slate-800">Financial Ledger & Invoices Restricted</h2>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Invoice settlement, claims verification, and payouts are restricted to Payment Approver (Finance) and System Administrators.
+          </p>
+          <Link
+            href="/dashboard"
+            className="inline-block px-4 py-2 bg-sky-600 text-white rounded text-xs font-semibold hover:bg-sky-700 transition"
+          >
+            &larr; Return to Dashboard
+          </Link>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -381,11 +408,13 @@ function InvoicesContent() {
                     className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500"
                   >
                     <option value="">-- Choose Contractor --</option>
-                    {contractorsData?.data?.map((c: any) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.specialty})
-                      </option>
-                    ))}
+                    {contractorsData?.data
+                      ?.filter((c: any) => c.approval_status === 'active' || !c.approval_status)
+                      ?.map((c: any) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.specialty})
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -475,12 +504,21 @@ function InvoicesContent() {
                   <p className="text-xs text-slate-400">Created {new Date(selectedInvoice.created_at).toLocaleDateString()}</p>
                 </div>
                 <button
-                  onClick={() => setSelectedInvoice(null)}
+                  onClick={() => {
+                    setSelectedInvoice(null);
+                    setActionError(null);
+                  }}
                   className="text-slate-400 hover:text-slate-600 text-lg leading-none"
                 >
                   &times;
                 </button>
               </div>
+
+              {actionError && (
+                <div className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg font-medium">
+                  {actionError}
+                </div>
+              )}
 
               <div className="p-6 space-y-4 text-xs">
                 <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg">
@@ -521,11 +559,8 @@ function InvoicesContent() {
                 )}
 
                 {selectedInvoice.work_order_status && selectedInvoice.work_order_status !== 'closed' && (
-                  <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded text-xs flex items-center gap-2">
-                    <span>⚠️</span>
-                    <span>
-                      Associated Work Order <strong>{selectedInvoice.work_order_tracking}</strong> is currently in &apos;{selectedInvoice.work_order_status}&apos; status. It must be Closed before approving or settling this invoice.
-                    </span>
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded text-xs">
+                    Associated Work Order <strong>{selectedInvoice.work_order_tracking}</strong> is currently in &apos;{selectedInvoice.work_order_status}&apos; status. It must be Closed before approving or settling this invoice.
                   </div>
                 )}
 

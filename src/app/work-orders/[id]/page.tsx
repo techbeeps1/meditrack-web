@@ -43,6 +43,49 @@ const STATUS_BADGES: Record<WorkOrderStatus, { bg: string; text: string; border:
   cancelled: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' }
 };
 
+export function matchesSpecialty(category: string | undefined | null, specialty: string | undefined | null): boolean {
+  if (!category || !specialty) return false;
+  const c = category.toLowerCase().trim();
+  const s = specialty.toLowerCase().trim();
+
+  // Direct containment
+  if (s.includes(c) || c.includes(s)) return true;
+
+  // Domain keyword dictionary mapping
+  const CATEGORY_KEYWORDS: Record<string, string[]> = {
+    electrical: ['electrical', 'voltage', 'power', 'circuit', 'switch', 'generator', 'wiring', 'lighting'],
+    biomedical: ['biomedical', 'biomed', 'diagnostic', 'imaging', 'mri', 'ventilator', 'dialysis', 'sensor', 'device', 'clinical', 'medical'],
+    hvac: ['hvac', 'air', 'laminar', 'cleanroom', 'ventilation', 'chiller', 'cooling', 'heating', 'flow', 'filter'],
+    plumbing: ['plumbing', 'water', 'filtration', 'gas', 'gases', 'pipe', 'drain', 'hydraulic', 'leakage', 'sewage'],
+    structural: ['structural', 'paint', 'painting', 'building', 'masonry', 'roof', 'carpentry', 'door', 'wall', 'architectural'],
+    sanitation: ['sanitation', 'sterilization', 'cleaning', 'waste', 'hygiene', 'disinfection']
+  };
+
+  for (const [catKey, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    const isCategoryMatch = c.includes(catKey) || keywords.some((kw) => c.includes(kw));
+    if (isCategoryMatch) {
+      if (keywords.some((kw) => s.includes(kw))) {
+        return true;
+      }
+    }
+  }
+
+  const cWords = c.split(/[\s,&/-]+/).filter((w) => w.length > 2);
+  const sWords = s.split(/[\s,&/-]+/).filter((w) => w.length > 2);
+  return cWords.some((cw) => sWords.some((sw) => sw.includes(cw) || cw.includes(sw)));
+}
+
+const EVENT_CONFIG: Record<string, { title: string; color: string; badge: string }> = {
+  reported: { title: 'Work Order Reported & Created', color: 'border-sky-500 text-sky-600', badge: 'bg-sky-50 text-sky-700 border-sky-200' },
+  approved: { title: 'Budget & Scope Approved', color: 'border-blue-500 text-blue-600', badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+  assigned: { title: 'Contractor Assigned', color: 'border-indigo-500 text-indigo-600', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  in_progress: { title: 'Work Started / In Progress', color: 'border-amber-500 text-amber-600', badge: 'bg-amber-50 text-amber-700 border-amber-200' },
+  completed: { title: 'Repair Completed & Submitted for QC', color: 'border-purple-500 text-purple-600', badge: 'bg-purple-50 text-purple-700 border-purple-200' },
+  verified: { title: 'QC Safety Inspection Passed', color: 'border-teal-500 text-teal-600', badge: 'bg-teal-50 text-teal-700 border-teal-200' },
+  closed: { title: 'Work Order Closed & Settled', color: 'border-emerald-500 text-emerald-600', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  cancelled: { title: 'Work Order Cancelled / Rejected', color: 'border-rose-500 text-rose-600', badge: 'bg-rose-50 text-rose-700 border-rose-200' }
+};
+
 export default function WorkOrderDetailPage() {
   const params = useParams();
   const id = params.id as string;
@@ -76,7 +119,7 @@ export default function WorkOrderDetailPage() {
     functionalTesting: true
   });
 
-  const [activeTab, setActiveTab] = useState<'details' | 'audit'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'timeline' | 'audit'>('details');
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
 
   // Fetch Work Order
@@ -257,8 +300,11 @@ export default function WorkOrderDetailPage() {
     } else if (status === 'completed') {
       setActualCostInput(workOrder?.estimated_cost ?? workOrder?.actual_cost ?? 0);
     } else if (status === 'assigned') {
-      if (contractors.length > 0 && (!assignedTechnician || !contractors.some((c) => c.id === assignedTechnician))) {
-        setAssignedTechnician(contractors[0].id);
+      const activeContractors = contractors.filter((c) => c.approval_status === 'active' || !c.approval_status);
+      const preferred = activeContractors.filter((c) => matchesSpecialty(workOrder?.category, c.specialty));
+      const targetList = preferred.length > 0 ? preferred : activeContractors;
+      if (targetList.length > 0 && (!assignedTechnician || !targetList.some((c) => c.id === assignedTechnician))) {
+        setAssignedTechnician(targetList[0].id);
       }
       setActualCostInput('');
     } else {
@@ -354,20 +400,29 @@ export default function WorkOrderDetailPage() {
   // Determine current step index in 7-step pipeline
   const currentStepIdx = WORKFLOW_STEPS.findIndex((s) => s.status === workOrder.status);
 
-  // Check what actions the logged-in user can take
+  // Check what actions the logged-in user can take with Segregation of Duties (SoD)
   const role = user?.role;
+  const approverScope = user?.approver_scope || 'general';
   const status = workOrder.status;
 
-  const canApprove = (role === 'APPROVER' || role === 'ADMIN') && status === 'reported';
-  const canAssign = (role === 'APPROVER' || role === 'ADMIN') && status === 'approved';
+  const isSameApproverForAssignment = !!workOrder.approved_by && workOrder.approved_by === user?.id && role !== 'ADMIN';
+  const isSodViolationForInvoice = !!(workOrder.approved_by === user?.id || workOrder.assigned_by === user?.id) && role !== 'ADMIN';
+
+  const hasWoApproveScope = role === 'ADMIN' || (role === 'APPROVER' && ['wo_approver', 'general'].includes(approverScope));
+  const hasAssignScope = role === 'ADMIN' || (role === 'APPROVER' && ['contractor_approver', 'procurement', 'general'].includes(approverScope));
+  const hasPaymentScope = role === 'ADMIN' || (role === 'APPROVER' && ['payment_approver', 'general'].includes(approverScope));
+  const canViewInvoiceDetails = hasPaymentScope || role === 'CONTRACTOR' || role === 'AUDITOR';
+
+  const canApprove = hasWoApproveScope && status === 'reported';
+  const canAssign = hasAssignScope && !isSameApproverForAssignment && status === 'approved';
   const canStartWork = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'assigned';
   const canComplete = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'in_progress';
   const canVerify = (role === 'INSPECTOR' || role === 'ADMIN') && status === 'completed';
   const canClose = (role === 'APPROVER' || role === 'ADMIN') && status === 'verified' && !workOrder.invoice_id;
   const canReject = (role === 'APPROVER' || role === 'ADMIN') && ['reported', 'approved', 'assigned'].includes(status);
   const canGenerateInvoice = (role === 'CONTRACTOR' || role === 'ADMIN') && ['verified', 'closed'].includes(status) && !workOrder.invoice_id;
-  const canRequestInvoice = (role === 'APPROVER' || role === 'ADMIN') && ['verified', 'closed'].includes(status) && !workOrder.invoice_id;
-  const canApproveOrPayInvoice = (role === 'APPROVER' || role === 'ADMIN') && !!workOrder.invoice_id;
+  const canRequestInvoice = hasPaymentScope && ['verified', 'closed'].includes(status) && !workOrder.invoice_id;
+  const canApproveOrPayInvoice = hasPaymentScope && !isSodViolationForInvoice && !!workOrder.invoice_id;
   const canViewAuditVault = role === 'ADMIN' || role === 'AUDITOR';
 
   return (
@@ -427,6 +482,15 @@ export default function WorkOrderDetailPage() {
               >
                 Assign to Contractor
               </button>
+            )}
+
+            {status === 'approved' && isSameApproverForAssignment && (
+              <span
+                title="Segregation of Duties: You approved this work order scope/budget. To prevent single-point control, contractor assignment must be completed by Procurement or another authorized officer."
+                className="px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium rounded"
+              >
+                Assignment Delegated to Procurement (SoD)
+              </span>
             )}
 
             {canStartWork && (
@@ -509,7 +573,7 @@ export default function WorkOrderDetailPage() {
                 {requestInvoiceMutation.isPending
                   ? 'Requesting...'
                   : invoiceRequestSuccess
-                  ? '✓ Invoice Requested from Contractor'
+                  ? 'Invoice Requested from Contractor'
                   : 'Request Invoice from Contractor'}
               </button>
             )}
@@ -541,18 +605,33 @@ export default function WorkOrderDetailPage() {
                   </div>
                 )}
 
-                {/* If Paid: Single settled badge */}
-                {workOrder.invoice_status === 'paid' && (
-                  <Link
-                    href="/invoices"
-                    className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-xs font-semibold transition-colors"
+                {isSodViolationForInvoice && ['pending', 'approved'].includes(workOrder.invoice_status || '') && (
+                  <span
+                    title="Segregation of Duties: You approved or assigned this work order. To prevent conflict of interest, invoice settlement must be completed by Finance / Payment Approver."
+                    className="px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium rounded"
                   >
-                    Invoice {workOrder.invoice_number} (PAID & SETTLED) — {formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)} &rarr;
-                  </Link>
+                    Settlement Delegated to Finance (SoD)
+                  </span>
+                )}
+
+                {/* If Paid: Show badge or link */}
+                {workOrder.invoice_status === 'paid' && (
+                  canViewInvoiceDetails ? (
+                    <Link
+                      href="/invoices"
+                      className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-xs font-semibold transition-colors"
+                    >
+                      Invoice {workOrder.invoice_number} (PAID & SETTLED) — {formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)} &rarr;
+                    </Link>
+                  ) : (
+                    <span className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded text-xs font-semibold">
+                      Payment Settled
+                    </span>
+                  )
                 )}
 
                 {/* If Rejected */}
-                {workOrder.invoice_status === 'rejected' && (
+                {workOrder.invoice_status === 'rejected' && canViewInvoiceDetails && (
                   <Link
                     href="/invoices"
                     className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 rounded text-xs font-semibold transition-colors"
@@ -561,33 +640,35 @@ export default function WorkOrderDetailPage() {
                   </Link>
                 )}
 
-                {/* Direct Download Invoice PDF button */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    downloadInvoicePdf({
-                      id: workOrder.invoice_id || id,
-                      invoice_number: workOrder.invoice_number || 'INV-REF',
-                      created_at: workOrder.created_at,
-                      status: workOrder.invoice_status || 'pending',
-                      amount: Number(workOrder.actual_cost || workOrder.estimated_cost || 0),
-                      tax_amount: 0,
-                      total_amount: Number(workOrder.invoice_total_amount || workOrder.actual_cost || workOrder.estimated_cost || 0),
-                      notes: `Invoice claim for completed maintenance on ${workOrder.tracking_number} (${workOrder.title})`,
-                      contractor_name: workOrder.assigned_to_name || 'Apex BioMed Solutions',
-                      work_order_tracking: workOrder.tracking_number,
-                      work_order_title: workOrder.title,
-                      facility_name: workOrder.facility_name
-                    })
-                  }
-                  title="Download and Print Official Invoice PDF"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded shadow-xs transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Invoice PDF
-                </button>
+                {/* Direct Download Invoice PDF button (Payment Approver, Admin, Contractor, Auditor only) */}
+                {canViewInvoiceDetails && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadInvoicePdf({
+                        id: workOrder.invoice_id || id,
+                        invoice_number: workOrder.invoice_number || 'INV-REF',
+                        created_at: workOrder.created_at,
+                        status: workOrder.invoice_status || 'pending',
+                        amount: Number(workOrder.actual_cost || workOrder.estimated_cost || 0),
+                        tax_amount: 0,
+                        total_amount: Number(workOrder.invoice_total_amount || workOrder.actual_cost || workOrder.estimated_cost || 0),
+                        notes: `Invoice claim for completed maintenance on ${workOrder.tracking_number} (${workOrder.title})`,
+                        contractor_name: workOrder.assigned_to_name || 'Apex BioMed Solutions',
+                        work_order_tracking: workOrder.tracking_number,
+                        work_order_title: workOrder.title,
+                        facility_name: workOrder.facility_name
+                      })
+                    }
+                    title="Download and Print Official Invoice PDF"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded shadow-xs transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Invoice PDF
+                  </button>
+                )}
               </>
             )}
 
@@ -601,6 +682,64 @@ export default function WorkOrderDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Inspection QC Rejection Feedback Banner */}
+        {workOrder.status === 'in_progress' && workOrder.inspections && workOrder.inspections.length > 0 && workOrder.inspections[0].result === 'FAIL' && (
+          <div className="p-5 bg-rose-50 border border-rose-300 rounded-xl space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse" />
+                <h3 className="text-sm font-bold text-rose-900">
+                  QC Inspection Failed — Corrective Action Required
+                </h3>
+              </div>
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-rose-200 text-rose-800 uppercase">
+                Returned to In Progress
+              </span>
+            </div>
+
+            <div className="bg-white/90 p-3.5 rounded-lg border border-rose-200 text-xs space-y-2">
+              <div>
+                <span className="font-semibold text-rose-900">Inspector Feedback & Reason:</span>
+                <p className="text-rose-800 mt-0.5 leading-relaxed whitespace-pre-line">
+                  {workOrder.inspections[0].observations || 'Work was rejected by QC inspector. Please rectify and resubmit.'}
+                </p>
+              </div>
+
+              {workOrder.inspections[0].recommendations && (
+                <div className="pt-2 border-t border-rose-100">
+                  <span className="font-semibold text-rose-900">Recommended Rectification:</span>
+                  <p className="text-rose-700 mt-0.5">
+                    {workOrder.inspections[0].recommendations}
+                  </p>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-rose-100 flex items-center justify-between text-[11px] text-rose-600">
+                <span>
+                  Inspector: <strong>{workOrder.inspections[0].inspector_name || 'QC Officer'}</strong>
+                </span>
+                <span>
+                  Inspected on {formatDate(workOrder.inspections[0].inspected_at)}
+                </span>
+              </div>
+            </div>
+
+            {role === 'CONTRACTOR' && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                <span className="text-xs text-rose-700 font-medium">
+                  Once repairs have been rectified, click to resubmit for verification:
+                </span>
+                <button
+                  onClick={() => openTransitionModal('completed')}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-sm transition shrink-0"
+                >
+                  Mark Fixed &amp; Resubmit for QC &rarr;
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Workflow Pipeline Stepper */}
         <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
@@ -647,7 +786,7 @@ export default function WorkOrderDetailPage() {
           </div>
         </div>
 
-        {/* Tab Navigation (Details vs SHA-256 Audit Trail) */}
+        {/* Tab Navigation (Details vs Unified Activity History vs SHA-256 Vault) */}
         <div className="flex border-b border-gray-200">
           <button
             onClick={() => setActiveTab('details')}
@@ -657,8 +796,23 @@ export default function WorkOrderDetailPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            Work Order Details & Photos
+            Work Order Details &amp; Photos
           </button>
+
+          <button
+            onClick={() => setActiveTab('timeline')}
+            className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'timeline'
+                ? 'border-sky-600 text-sky-700 font-semibold'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <span>Activity &amp; Audit History</span>
+            <span className="px-2 py-0.5 text-[10px] font-mono bg-slate-100 text-slate-700 rounded-full font-bold">
+              {(workOrder.events?.length || auditChain?.chain_length || 0)} Logs
+            </span>
+          </button>
+
           {canViewAuditVault && (
             <button
               onClick={() => setActiveTab('audit')}
@@ -668,7 +822,7 @@ export default function WorkOrderDetailPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              <span>SHA-256 Cryptographic Audit Trail</span>
+              <span>SHA-256 Cryptographic Vault</span>
               <span className="px-2 py-0.5 text-[10px] font-mono bg-sky-100 text-sky-800 rounded-full font-bold">
                 {auditChain?.chain_length || 0} Events
               </span>
@@ -916,12 +1070,14 @@ export default function WorkOrderDetailPage() {
                             {invoiceStatusMutation.isPending ? 'Settling...' : 'Pay & Settle Invoice'}
                           </button>
                         )}
-                        <Link
-                          href="/invoices"
-                          className="block p-2 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 transition text-[11px] text-sky-700 font-semibold text-center"
-                        >
-                          View {workOrder.invoice_number} ({formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost || 0)}) &rarr;
-                        </Link>
+                        {canViewInvoiceDetails && (
+                          <Link
+                            href="/invoices"
+                            className="block p-2 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 transition text-[11px] text-sky-700 font-semibold text-center"
+                          >
+                            View {workOrder.invoice_number} ({formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost || 0)}) &rarr;
+                          </Link>
+                        )}
                       </div>
                     ) : canGenerateInvoice && workOrder.status === 'completed' ? (
                       <button
@@ -945,7 +1101,193 @@ export default function WorkOrderDetailPage() {
           </div>
         )}
 
-        {/* TAB 2: CRYPTOGRAPHIC SHA-256 AUDIT TRAIL (Admin & Auditor Only) */}
+        {/* TAB 2: UNIFIED ACTIVITY & AUDIT HISTORY TIMELINE (Accessible to all roles) */}
+        {activeTab === 'timeline' && (
+          <div className="space-y-6">
+            {/* Header Summary Card */}
+            <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">
+                  Lifecycle Audit Trail &amp; Activity Log
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Complete chronological history of approvals, contractor actions, QC inspections, feedback loops, and financial settlements for Work Order #{workOrder.tracking_number}.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-md border border-slate-200">
+                  {(workOrder.events?.length || auditChain?.events?.length || 0)} Total Events
+                </span>
+                {workOrder.inspections && workOrder.inspections.length > 0 && (
+                  <span className="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-semibold rounded-md border border-purple-200">
+                    {workOrder.inspections.length} QC Inspection(s)
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Inspections History Sub-Section (if any exist) */}
+            {workOrder.inspections && workOrder.inspections.length > 0 && (
+              <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm space-y-3">
+                <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  Quality Control (QC) &amp; Safety Verification Records
+                </h4>
+                <div className="space-y-3">
+                  {workOrder.inspections.map((insp) => (
+                    <div
+                      key={insp.id}
+                      className={`p-4 rounded-lg border text-xs ${
+                        insp.result === 'PASS'
+                          ? 'bg-emerald-50/50 border-emerald-200 text-emerald-900'
+                          : 'bg-rose-50/50 border-rose-200 text-rose-900'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-black/5 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              insp.result === 'PASS'
+                                ? 'bg-emerald-200 text-emerald-800'
+                                : 'bg-rose-200 text-rose-800'
+                            }`}
+                          >
+                            QC Result: {insp.result}
+                          </span>
+                          <span className="font-semibold text-gray-800">
+                            Inspector: {insp.inspector_name || 'QC Officer'}
+                          </span>
+                        </div>
+                        <span className="text-gray-500 font-mono text-[11px]">
+                          {formatDate(insp.inspected_at)}
+                        </span>
+                      </div>
+
+                      {insp.observations && (
+                        <div className="mt-2.5">
+                          <span className="font-semibold text-gray-700">Observations / Feedback:</span>
+                          <p className="mt-0.5 text-gray-800 leading-relaxed whitespace-pre-line bg-white/70 p-2.5 rounded border border-black/5">
+                            {insp.observations}
+                          </p>
+                        </div>
+                      )}
+
+                      {insp.recommendations && (
+                        <div className="mt-2">
+                          <span className="font-semibold text-gray-700">Recommended Action:</span>
+                          <p className="mt-0.5 text-gray-700">{insp.recommendations}</p>
+                        </div>
+                      )}
+
+                      {(() => {
+                        let parsedChecklist: Record<string, boolean> | null = null;
+                        if (insp.checklist_results) {
+                          try {
+                            parsedChecklist = typeof insp.checklist_results === 'string' ? JSON.parse(insp.checklist_results) : insp.checklist_results;
+                          } catch {
+                            parsedChecklist = null;
+                          }
+                        }
+                        if (!parsedChecklist || Object.keys(parsedChecklist).length === 0) return null;
+                        return (
+                          <div className="mt-2.5 pt-2 border-t border-black/5 flex flex-wrap gap-2 text-[11px]">
+                            <span className="font-medium text-gray-600">Verification Checklist:</span>
+                            {Object.entries(parsedChecklist).map(([k, v]) => (
+                              <span
+                                key={k}
+                                className={`px-2 py-0.5 rounded font-mono ${
+                                  v ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                }`}
+                              >
+                                {k.replace(/([A-Z])/g, ' $1').toLowerCase()}: {v ? '✓ Pass' : '✕ Fail'}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Chronological Event Timeline */}
+            <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+              <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-5">
+                Sequential Activity Audit Trail
+              </h4>
+
+              {(!workOrder.events || workOrder.events.length === 0) && (!auditChain?.events || auditChain.events.length === 0) ? (
+                <div className="py-8 text-center text-xs text-gray-400 border border-dashed border-gray-200 rounded">
+                  No status transition events logged yet.
+                </div>
+              ) : (
+                <div className="relative border-l-2 border-gray-200 ml-4 pl-6 space-y-6">
+                  {(workOrder.events || auditChain?.events || []).map((evt, idx) => {
+                    const cfg = EVENT_CONFIG[evt.status] || {
+                      title: evt.status.replace('_', ' ').toUpperCase(),
+                      color: 'border-gray-400 text-gray-600',
+                      badge: 'bg-gray-100 text-gray-700 border-gray-200'
+                    };
+                    const isRejection = evt.notes && (evt.notes.toLowerCase().includes('reject') || evt.notes.toLowerCase().includes('fail') || evt.notes.toLowerCase().includes('rectif'));
+
+                    return (
+                      <div key={evt.id || idx} className="relative group">
+                        {/* Dot indicator */}
+                        <div className={`absolute -left-[31px] top-1.5 h-4 w-4 rounded-full border-2 bg-white ${
+                          isRejection ? 'border-rose-500 bg-rose-50' : cfg.color.split(' ')[0]
+                        }`} />
+
+                        <div className="bg-slate-50 hover:bg-slate-100/80 p-4 rounded-lg border border-slate-200 transition-colors space-y-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-gray-900">
+                                {cfg.title}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${cfg.badge}`}>
+                                {evt.status.replace('_', ' ')}
+                              </span>
+                              {isRejection && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 uppercase">
+                                  Action Required
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-400 font-mono">
+                              {formatDate(evt.created_at)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs text-gray-600">
+                            <span>Actor:</span>
+                            <strong className="text-gray-900">{evt.actor_name || 'System / Authorized User'}</strong>
+                            <span className="px-1.5 py-0.5 rounded bg-gray-200 text-gray-700 text-[10px] font-mono uppercase">
+                              {evt.actor_role || 'Staff'}
+                            </span>
+                          </div>
+
+                          {evt.notes && (
+                            <div className={`p-2.5 rounded text-xs border ${
+                              isRejection
+                                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                                : 'bg-white border-gray-200 text-gray-700'
+                            }`}>
+                              <span className="font-semibold block mb-0.5 text-[11px] text-gray-500">
+                                Audit / Transition Notes:
+                              </span>
+                              <p className="whitespace-pre-line leading-relaxed">{evt.notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: CRYPTOGRAPHIC SHA-256 AUDIT TRAIL (Admin & Auditor Only) */}
         {activeTab === 'audit' && canViewAuditVault && (
           <div className="space-y-6">
             {/* Integrity Status Card */}
@@ -1082,24 +1424,52 @@ export default function WorkOrderDetailPage() {
 
               {targetStatus === 'assigned' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Select Maintenance Contractor / Specialist *
-                  </label>
-                  <select
-                    value={assignedTechnician}
-                    onChange={(e) => setAssignedTechnician(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                  >
-                    {contractors.length === 0 ? (
-                      <option value="usr_contractor_01">Apex BioMed Solutions (Field Engineer)</option>
-                    ) : (
-                      contractors.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} {c.specialty ? `— (${c.specialty})` : ''}
-                        </option>
-                      ))
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-gray-700">
+                      Select Maintenance Contractor / Specialist *
+                    </label>
+                    {workOrder?.category && (
+                      <span className="text-[11px] font-medium text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                        Category: {workOrder.category}
+                      </span>
                     )}
-                  </select>
+                  </div>
+
+                  {(() => {
+                    const activeContractors = contractors.filter((c) => c.approval_status === 'active' || !c.approval_status);
+                    const matchedList = activeContractors.filter((c) => matchesSpecialty(workOrder?.category, c.specialty));
+                    const isStrictMatched = matchedList.length > 0;
+                    const displayList = isStrictMatched ? matchedList : activeContractors;
+
+                    return (
+                      <>
+                        <select
+                          value={assignedTechnician}
+                          onChange={(e) => setAssignedTechnician(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                        >
+                          {displayList.length === 0 ? (
+                            <option value="usr_contractor_01">Apex BioMed Solutions (Field Engineer)</option>
+                          ) : (
+                            displayList.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name} — {c.specialty || 'General Maintenance'}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        {isStrictMatched ? (
+                          <p className="text-[11px] text-emerald-600 mt-1 font-medium">
+                            Showing {matchedList.length} approved contractor(s) matching &quot;{workOrder?.category}&quot; specialty.
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-amber-600 mt-1">
+                            No specialized active contractor found for &quot;{workOrder?.category}&quot;. Showing all approved partners.
+                          </p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1110,8 +1480,8 @@ export default function WorkOrderDetailPage() {
                     <label className="block text-xs font-semibold text-gray-700">
                       Approved Repair Cost ($)
                     </label>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                      🔒 Locked by Approver
+                    <span className="inline-flex items-center text-[11px] font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                      Locked by Approver
                     </span>
                   </div>
                   <div className="relative rounded-md shadow-xs">
@@ -1298,7 +1668,7 @@ export default function WorkOrderDetailPage() {
                 </div>
                 <div className="font-semibold text-slate-800">{workOrder.title}</div>
                 <div className="text-slate-500 text-[11px]">
-                  🏥 {workOrder.facility_name} &bull; 📍 {workOrder.location_details || 'Main Facility'}
+                  Facility: {workOrder.facility_name} &bull; Location: {workOrder.location_details || 'Main Facility'}
                 </div>
               </div>
 

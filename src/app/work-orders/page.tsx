@@ -10,6 +10,7 @@ import { z } from 'zod';
 import AppLayout from '@/components/layout/AppLayout';
 import { workOrderApi } from '@/services/work-orders';
 import { facilityApi } from '@/services/facilities';
+import { workCategoryApi } from '@/services/work-categories';
 import { useAuth } from '@/hooks/useAuth';
 import { WorkOrderPriority, WorkOrderStatus } from '@/types/workOrder';
 import { formatDate, formatCurrency } from '@/lib/utils';
@@ -93,7 +94,13 @@ function WorkOrdersContent() {
       })
   });
 
+  const { data: categoriesData } = useQuery({
+    queryKey: ['work-categories'],
+    queryFn: () => workCategoryApi.getCategories()
+  });
+
   const workOrders = data?.data || [];
+  const categories = categoriesData?.data || [];
 
   const {
     register,
@@ -418,12 +425,22 @@ function WorkOrdersContent() {
                       {...register('category')}
                       className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
                     >
-                      <option value="Biomedical Equipment">Biomedical Equipment</option>
-                      <option value="HVAC">HVAC & Air Flow</option>
-                      <option value="Electrical">Electrical & Generators</option>
-                      <option value="Plumbing">Plumbing & Filtration</option>
-                      <option value="Structural">Structural & Architectural</option>
-                      <option value="Sanitation">Sterilization & Sanitation</option>
+                      {categories.length > 0 ? (
+                        categories.map((c) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="Biomedical Equipment">Biomedical Equipment</option>
+                          <option value="HVAC">HVAC &amp; Air Flow</option>
+                          <option value="Electrical">Electrical &amp; Generators</option>
+                          <option value="Plumbing">Plumbing &amp; Filtration</option>
+                          <option value="Structural">Structural &amp; Architectural</option>
+                          <option value="Sanitation">Sterilization &amp; Sanitation</option>
+                        </>
+                      )}
                     </select>
                   </div>
                 </div>

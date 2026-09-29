@@ -14,7 +14,7 @@ export function formatDate(dateString: string | Date | null | undefined): string
   }).format(date);
 }
 
-let cachedCurrency = 'USD';
+let cachedCurrency = 'ZAR';
 
 export function setSystemCurrency(currencyCode: string) {
   if (currencyCode) {
@@ -31,7 +31,7 @@ export function getSystemCurrency(): string {
     const saved = localStorage.getItem('meditrack_currency');
     if (saved) return saved;
   }
-  return cachedCurrency || 'USD';
+  return cachedCurrency || 'ZAR';
 }
 
 export function formatCurrency(amount: number | string | null | undefined, currency?: string): string {
@@ -40,9 +40,24 @@ export function formatCurrency(amount: number | string | null | undefined, curre
   try {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: activeCurrency
+      currency: activeCurrency,
+      currencyDisplay: 'narrowSymbol'
     }).format(isNaN(numericAmount) ? 0 : numericAmount);
   } catch {
-    return `${activeCurrency} ${(isNaN(numericAmount) ? 0 : numericAmount).toFixed(2)}`;
+    const symbols: Record<string, string> = {
+      USD: '$',
+      ZAR: 'R',
+      INR: '₹',
+      EUR: '€',
+      GBP: '£',
+      AED: 'AED',
+      SAR: 'SAR',
+      CAD: 'CA$',
+      AUD: 'AU$',
+      SGD: 'SG$',
+      JPY: '¥'
+    };
+    const sym = symbols[activeCurrency] || activeCurrency;
+    return `${sym} ${(isNaN(numericAmount) ? 0 : numericAmount).toFixed(2)}`;
   }
 }
