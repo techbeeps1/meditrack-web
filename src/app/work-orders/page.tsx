@@ -101,6 +101,7 @@ function WorkOrdersContent() {
 
   const workOrders = data?.data || [];
   const categories = categoriesData?.data || [];
+  const userFacility = facilities.find((f) => f.id === user?.facility_id) || facilities[0];
 
   const {
     register,
@@ -148,10 +149,11 @@ function WorkOrdersContent() {
   const [photoError, setPhotoError] = useState<string | null>(null);
 
   const openModal = () => {
+    const defaultFacilityId = user?.facility_id || (facilities.length > 0 ? facilities[0].id : '');
     reset({
       title: '',
       description: '',
-      facility_id: facilities[0]?.id || '',
+      facility_id: defaultFacilityId,
       location_details: '',
       category: 'Biomedical Equipment',
       priority: 'medium',
@@ -401,17 +403,30 @@ function WorkOrdersContent() {
                     <label className="block text-xs font-medium text-gray-700 mb-1">
                       Hospital Facility *
                     </label>
-                    <select
-                      {...register('facility_id')}
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                    >
-                      <option value="">Select Facility...</option>
-                      {facilities.map((fac) => (
-                        <option key={fac.id} value={fac.id}>
-                          {fac.name} ({fac.code})
-                        </option>
-                      ))}
-                    </select>
+                    {user?.role === 'STAFF' ? (
+                      <div>
+                        <div className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-sm font-medium text-slate-900 flex items-center justify-between select-none">
+                          <span className="truncate">{userFacility?.name || 'Metro General Hospital'} ({userFacility?.code || 'FAC-MGH-01'})</span>
+                          <span className="text-[10px] text-slate-500 font-mono bg-slate-200 px-1.5 py-0.5 rounded ml-2 shrink-0">Assigned</span>
+                        </div>
+                        <input type="hidden" {...register('facility_id')} value={userFacility?.id || facilities[0]?.id || ''} />
+                      </div>
+                    ) : (
+                      <select
+                        {...register('facility_id')}
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                      >
+                        {facilities.length === 0 ? (
+                          <option value="">No Facilities Available</option>
+                        ) : (
+                          facilities.map((fac) => (
+                            <option key={fac.id} value={fac.id}>
+                              {fac.name} ({fac.code})
+                            </option>
+                          ))
+                        )}
+                      </select>
+                    )}
                     {errors.facility_id && (
                       <p className="text-xs text-red-600 mt-1">{errors.facility_id.message}</p>
                     )}
@@ -492,7 +507,7 @@ function WorkOrdersContent() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">
-                        Estimated Cost ($)
+                        Estimated Cost (R)
                       </label>
                       <input
                         {...register('estimated_cost')}

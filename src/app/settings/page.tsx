@@ -5,25 +5,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AppLayout from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { userApi, CreateUserInput, UpdateUserInput } from '@/services/users';
-import { settingsApi, SystemSettings } from '@/services/settings';
 import { facilityApi } from '@/services/facilities';
 import { workCategoryApi, WorkCategory } from '@/services/work-categories';
 import { User, UserRole, ApproverScope } from '@/types';
-import { formatDate, formatCurrency, setSystemCurrency } from '@/lib/utils';
-
-const AVAILABLE_CURRENCIES = [
-  { code: 'ZAR', symbol: 'R', name: 'South African Rand (R - ZAR)' },
-  { code: 'USD', symbol: '$', name: 'US Dollar ($ - USD)' },
-  { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹ - INR)' },
-  { code: 'EUR', symbol: '€', name: 'Euro (€ - EUR)' },
-  { code: 'GBP', symbol: '£', name: 'British Pound (£ - GBP)' },
-  { code: 'AED', symbol: 'AED', name: 'UAE Dirham (AED)' },
-  { code: 'SAR', symbol: 'SAR', name: 'Saudi Riyal (SAR)' },
-  { code: 'CAD', symbol: 'CA$', name: 'Canadian Dollar (CA$)' },
-  { code: 'AUD', symbol: 'AU$', name: 'Australian Dollar (AU$)' },
-  { code: 'SGD', symbol: 'SG$', name: 'Singapore Dollar (SG$)' },
-  { code: 'JPY', symbol: '¥', name: 'Japanese Yen (¥ - JPY)' }
-];
+import { formatDate } from '@/lib/utils';
 
 const ROLES_LIST: { role: UserRole; label: string; desc: string; color: string }[] = [
   { role: 'ADMIN', label: 'Admin', desc: 'Full platform control, user management, audit verification', color: 'bg-rose-50 text-rose-700 border-rose-200' },
@@ -44,7 +29,7 @@ export default function SettingsPage() {
   const { user: currentUser, refreshUser } = useAuth();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<'users' | 'categories' | 'system'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'categories'>('users');
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -84,12 +69,6 @@ export default function SettingsPage() {
     status: 'active'
   });
   const [formError, setFormError] = useState<string | null>(null);
-  const [settingsSuccessMsg, setSettingsSuccessMsg] = useState<string | null>(null);
-
-  // System settings form state
-  const [selectedCurrency, setSelectedCurrency] = useState('ZAR');
-  const [orgName, setOrgName] = useState('Apex Metro Health System');
-  const [systemName, setSystemName] = useState('MediTrack');
 
   // Queries
   const { data: usersData, isLoading: isUsersLoading } = useQuery({
@@ -105,19 +84,6 @@ export default function SettingsPage() {
   const { data: categoriesData, isLoading: isCategoriesLoading } = useQuery({
     queryKey: ['work-categories'],
     queryFn: () => workCategoryApi.getCategories()
-  });
-
-  const { data: systemSettings, isLoading: isSettingsLoading } = useQuery({
-    queryKey: ['system-settings'],
-    queryFn: async () => {
-      const data = await settingsApi.getSettings();
-      if (data) {
-        if (data.currency) setSelectedCurrency(data.currency);
-        if (data.organization_name) setOrgName(data.organization_name);
-        if (data.system_name) setSystemName(data.system_name);
-      }
-      return data;
-    }
   });
 
   // User Mutations
@@ -248,22 +214,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Settings Mutation
-  const updateSettingsMutation = useMutation({
-    mutationFn: (payload: Partial<SystemSettings>) => settingsApi.updateSettings(payload),
-    onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
-      if (updated.currency) {
-        setSystemCurrency(updated.currency);
-      }
-      setSettingsSuccessMsg('Platform currency and system settings updated successfully!');
-      setTimeout(() => setSettingsSuccessMsg(null), 4000);
-    },
-    onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to save system settings');
-    }
-  });
-
   const resetUserForm = () => {
     setFormData({
       name: '',
@@ -346,17 +296,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    const currObj = AVAILABLE_CURRENCIES.find((c) => c.code === selectedCurrency);
-    updateSettingsMutation.mutate({
-      currency: selectedCurrency,
-      currency_symbol: currObj?.symbol || '$',
-      organization_name: orgName,
-      system_name: systemName
-    });
-  };
-
   const users = usersData?.data || [];
   const facilities = facilitiesData?.data || [];
   const categories: WorkCategory[] = categoriesData?.data || [];
@@ -389,9 +328,9 @@ export default function SettingsPage() {
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System & User Administration</h1>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">System &amp; User Administration</h1>
             <p className="text-xs text-slate-500 mt-1">
-              Manage user accounts, work categories &amp; engineering specialties, and global system configuration
+              Manage user accounts, roles, and work categories &amp; engineering specialties
             </p>
           </div>
 
@@ -456,21 +395,6 @@ export default function SettingsPage() {
             <span className="px-2 py-0.5 text-[10px] font-mono bg-indigo-100 text-indigo-800 rounded-full font-bold">
               {categories.length}
             </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('system')}
-            className={`py-3 px-5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'system'
-                ? 'border-sky-600 text-sky-700 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span>Currency &amp; System Configuration</span>
           </button>
         </div>
 
@@ -735,158 +659,6 @@ export default function SettingsPage() {
                     )}
                   </tbody>
                 </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: CURRENCY & SYSTEM SETTINGS */}
-        {activeTab === 'system' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Form Section */}
-            <div className="lg:col-span-2 space-y-6">
-              <form onSubmit={handleSaveSettings} className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-6">
-                <div className="border-b border-slate-100 pb-4">
-                  <h2 className="text-base font-bold text-slate-900">Platform Currency Settings</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Select the active currency symbol and code used for all work orders, estimates, contractor invoices, and financial ledgers.
-                  </p>
-                </div>
-
-                {settingsSuccessMsg && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs font-semibold flex items-center gap-2">
-                    <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span>{settingsSuccessMsg}</span>
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                      Active Currency
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {AVAILABLE_CURRENCIES.map((curr) => {
-                        const isSelected = selectedCurrency === curr.code;
-                        return (
-                          <div
-                            key={curr.code}
-                            onClick={() => setSelectedCurrency(curr.code)}
-                            className={`p-3.5 rounded-lg border-2 cursor-pointer transition flex items-center justify-between ${
-                              isSelected
-                                ? 'border-sky-600 bg-sky-50/50 shadow-xs'
-                                : 'border-slate-200 hover:border-slate-300 bg-white'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className={`h-8 w-8 rounded-lg flex items-center justify-center text-sm font-bold ${
-                                isSelected ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700'
-                              }`}>
-                                {curr.symbol}
-                              </span>
-                              <div>
-                                <span className="font-semibold text-xs text-slate-900 block">{curr.name}</span>
-                                <span className="text-[11px] text-slate-500 font-mono">Code: {curr.code}</span>
-                              </div>
-                            </div>
-                            <input
-                              type="radio"
-                              name="currency"
-                              checked={isSelected}
-                              onChange={() => setSelectedCurrency(curr.code)}
-                              className="text-sky-600 focus:ring-sky-500"
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Platform / System Name
-                      </label>
-                      <input
-                        type="text"
-                        value={systemName}
-                        onChange={(e) => setSystemName(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-sky-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Healthcare Network / Org Name
-                      </label>
-                      <input
-                        type="text"
-                        value={orgName}
-                        onChange={(e) => setOrgName(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-sky-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-4 border-t border-slate-100">
-                  <button
-                    type="submit"
-                    disabled={updateSettingsMutation.isPending}
-                    className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-sm transition flex items-center gap-2"
-                  >
-                    {updateSettingsMutation.isPending ? 'Saving Settings...' : 'Save & Update Currency'}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            {/* Live Preview Sidebar */}
-            <div className="space-y-4">
-              <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm space-y-4">
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Live Currency Preview
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Below is how currency amounts will render across invoices, estimates, and work orders:
-                </p>
-
-                <div className="space-y-3 pt-2">
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                    <span className="text-xs text-slate-600">Sample Maintenance Ticket:</span>
-                    <span className="text-xs font-bold text-slate-900 font-mono">
-                      {formatCurrency(199, selectedCurrency)}
-                    </span>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                    <span className="text-xs text-slate-600">Major Equipment Overhaul:</span>
-                    <span className="text-xs font-bold text-slate-900 font-mono">
-                      {formatCurrency(3500.5, selectedCurrency)}
-                    </span>
-                  </div>
-
-                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center justify-between">
-                    <span className="text-xs text-emerald-800 font-medium">Total Monthly Disbursed:</span>
-                    <span className="text-sm font-bold text-emerald-800 font-mono">
-                      {formatCurrency(48250, selectedCurrency)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-sky-50 p-4 rounded-lg border border-sky-200 text-xs text-sky-800 space-y-2">
-                <div className="font-bold flex items-center gap-1.5">
-                  <svg className="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Instant Global Update
-                </div>
-                <p className="leading-relaxed text-[11px]">
-                  Saving the currency setting updates the entire web portal instantly in real-time across Work Orders, Invoices, Contractor ledger, and Dashboard statistics.
-                </p>
               </div>
             </div>
           </div>

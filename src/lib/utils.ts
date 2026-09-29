@@ -17,47 +17,19 @@ export function formatDate(dateString: string | Date | null | undefined): string
 let cachedCurrency = 'ZAR';
 
 export function setSystemCurrency(currencyCode: string) {
-  if (currencyCode) {
-    cachedCurrency = currencyCode.toUpperCase();
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('meditrack_currency', cachedCurrency);
-      window.dispatchEvent(new CustomEvent('meditrack_currency_changed', { detail: cachedCurrency }));
-    }
+  cachedCurrency = 'ZAR';
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('meditrack_currency', 'ZAR');
+    window.dispatchEvent(new CustomEvent('meditrack_currency_changed', { detail: 'ZAR' }));
   }
 }
 
 export function getSystemCurrency(): string {
-  if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('meditrack_currency');
-    if (saved) return saved;
-  }
-  return cachedCurrency || 'ZAR';
+  return 'ZAR';
 }
 
-export function formatCurrency(amount: number | string | null | undefined, currency?: string): string {
+export function formatCurrency(amount: number | string | null | undefined, _currency?: string): string {
   const numericAmount = typeof amount === 'string' ? parseFloat(amount) : (amount ?? 0);
-  const activeCurrency = currency || getSystemCurrency();
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: activeCurrency,
-      currencyDisplay: 'narrowSymbol'
-    }).format(isNaN(numericAmount) ? 0 : numericAmount);
-  } catch {
-    const symbols: Record<string, string> = {
-      USD: '$',
-      ZAR: 'R',
-      INR: '₹',
-      EUR: '€',
-      GBP: '£',
-      AED: 'AED',
-      SAR: 'SAR',
-      CAD: 'CA$',
-      AUD: 'AU$',
-      SGD: 'SG$',
-      JPY: '¥'
-    };
-    const sym = symbols[activeCurrency] || activeCurrency;
-    return `${sym} ${(isNaN(numericAmount) ? 0 : numericAmount).toFixed(2)}`;
-  }
+  const val = isNaN(numericAmount) ? 0 : numericAmount;
+  return `R ${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

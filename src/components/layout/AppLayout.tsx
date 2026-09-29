@@ -19,13 +19,13 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', roles: ['ADMIN', 'STAFF', 'APPROVER', 'CONTRACTOR', 'INSPECTOR', 'AUDITOR'] },
-  { label: 'Facilities', href: '/facilities', roles: ['ADMIN', 'STAFF', 'APPROVER'] },
+  { label: 'Facilities', href: '/facilities', roles: ['ADMIN', 'APPROVER'] },
   { label: 'Work Orders', href: '/work-orders', roles: ['ADMIN', 'STAFF', 'APPROVER', 'CONTRACTOR', 'INSPECTOR', 'AUDITOR'] },
   { label: 'Contractors', href: '/contractors', roles: ['ADMIN', 'APPROVER'], approverScopes: ['contractor_approver'] },
   { label: 'Inspections', href: '/inspections', roles: ['ADMIN', 'INSPECTOR'] },
   { label: 'Invoices', href: '/invoices', roles: ['ADMIN', 'APPROVER', 'CONTRACTOR'], approverScopes: ['payment_approver'] },
   { label: 'Audit Vault', href: '/audit', roles: ['ADMIN', 'AUDITOR'] },
-  { label: 'User & System Settings', href: '/settings', roles: ['ADMIN'] }
+  { label: 'User Administration', href: '/settings', roles: ['ADMIN'] }
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -126,17 +126,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div>
           <div className="h-16 flex items-center px-6 border-b border-slate-200">
             <Link href="/dashboard" className="flex items-center space-x-2.5">
-              <span className="h-8 w-8 rounded-lg bg-sky-600 text-white font-bold text-sm flex items-center justify-center shadow-sm">
-                M+
-              </span>
-              <div>
+              <img
+                src="/images/logo.png"
+                alt="HES Logo"
+                className="h-20 w-20 max-w-[200px] object-contain rounded"
+              />
+              {/* <div>
                 <span className="font-bold text-sm text-slate-900 tracking-tight block leading-tight">
-                  MediTrack
+                  HES
                 </span>
                 <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">
                   Healthcare Ops
                 </span>
-              </div>
+              </div> */}
             </Link>
           </div>
 
@@ -157,11 +159,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center px-3 py-2 text-xs font-medium rounded-lg transition ${
-                    isActive
-                      ? 'bg-sky-50 text-sky-700 font-bold border-l-2 border-sky-600'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
+                  className={`flex items-center px-3 py-2 text-xs font-medium rounded-lg transition ${isActive
+                    ? 'bg-sky-50 text-sky-700 font-bold border-l-2 border-sky-600'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
                 >
                   {item.label}
                 </Link>
@@ -257,14 +258,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                               if (!n.is_read) markReadMutation.mutate(n.id);
                               setIsNotifOpen(false);
                             }}
-                            className={`p-3.5 hover:bg-sky-50/70 transition-colors flex items-start space-x-3 group ${
-                              !n.is_read ? 'bg-sky-50/30' : ''
-                            }`}
+                            className={`p-3.5 hover:bg-sky-50/70 transition-colors flex items-start space-x-3 group ${!n.is_read ? 'bg-sky-50/30' : ''
+                              }`}
                           >
                             <div
-                              className={`w-2 h-2 rounded-full mt-1.5 shrink-0 transition-colors ${
-                                !n.is_read ? 'bg-sky-500 ring-2 ring-sky-200' : 'bg-slate-300'
-                              }`}
+                              className={`w-2 h-2 rounded-full mt-1.5 shrink-0 transition-colors ${!n.is_read ? 'bg-sky-500 ring-2 ring-sky-200' : 'bg-slate-300'
+                                }`}
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">

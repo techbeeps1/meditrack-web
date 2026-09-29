@@ -16,7 +16,9 @@ type LoginFormData = z.infer<typeof loginFormSchema>;
 const DEMO_ROLES = [
   { role: 'Admin', email: 'admin@meditrack.com' },
   { role: 'Staff', email: 'staff@meditrack.com' },
-  { role: 'Approver', email: 'approver@meditrack.com' },
+  { role: 'Work Approver', email: 'approver1@meditrack.com' },
+  { role: 'Contractor Approver', email: 'approver2@meditrack.com' },
+  { role: 'Payment Approver', email: 'approver3@meditrack.com' },
   { role: 'Contractor', email: 'contractor@meditrack.com' },
   { role: 'Inspector', email: 'inspector@meditrack.com' },
   { role: 'Auditor', email: 'auditor@meditrack.com' }
@@ -68,15 +70,19 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-flex items-center justify-center h-10 w-10 rounded-md bg-sky-600 text-white font-bold text-lg tracking-wide mb-3 shadow-sm">
-          M+
+        <div className="flex justify-center mb-3">
+          <img
+            src="/images/logo.png"
+            alt="HES Logo"
+            className="h-40 w-40 max-w-[400px] object-contain"
+          />
         </div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-          MediTrack
+        {/* <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+          HES
         </h1>
         <p className="mt-1 text-sm text-gray-500">
           Healthcare Infrastructure Maintenance Portal
-        </p>
+        </p> */}
       </div>
 
       {/* Main Login Card */}
@@ -95,11 +101,10 @@ export default function LoginPage() {
                     key={item.role}
                     type="button"
                     onClick={() => handleSelectRole(item.email)}
-                    className={`py-1.5 px-2 text-xs font-medium rounded border transition-colors ${
-                      isActive
-                        ? 'bg-sky-50 border-sky-500 text-sky-700'
-                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
-                    }`}
+                    className={`py-1.5 px-2 text-xs font-medium rounded border transition-colors ${isActive
+                      ? 'bg-sky-50 border-sky-500 text-sky-700'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                      }`}
                   >
                     {item.role}
                   </button>

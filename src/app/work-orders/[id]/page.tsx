@@ -260,6 +260,42 @@ export default function WorkOrderDetailPage() {
     setIsInvoiceModalOpen(true);
   };
 
+  // Contractor Quote Modal State
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+  const [quotePrice, setQuotePrice] = useState<number | ''>('');
+  const [quoteNotes, setQuoteNotes] = useState('');
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+
+  const submitQuoteMutation = useMutation({
+    mutationFn: async () => {
+      if (quotePrice === '' || Number(quotePrice) <= 0) {
+        throw new Error('Please enter a valid estimated price quote greater than 0');
+      }
+      return workOrderApi.updateWorkOrder(id, {
+        estimated_cost: Number(quotePrice)
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      setIsQuoteModalOpen(false);
+      setQuotePrice('');
+      setQuoteNotes('');
+      setQuoteError(null);
+    },
+    onError: (err: any) => {
+      setQuoteError(err.response?.data?.message || err.message || 'Failed to submit price quote');
+    }
+  });
+
+  const openQuoteModal = () => {
+    setQuotePrice(workOrder?.estimated_cost || '');
+    setQuoteNotes('');
+    setQuoteError(null);
+    setIsQuoteModalOpen(true);
+  };
+
   // Status Transition Mutation
   const transitionMutation = useMutation({
     mutationFn: async () => {
@@ -296,17 +332,19 @@ export default function WorkOrderDetailPage() {
     setTransitionNotes('');
     setTransitionError(null);
     if (status === 'approved') {
-      setActualCostInput(workOrder?.estimated_cost ?? '');
+      setActualCostInput('');
     } else if (status === 'completed') {
       setActualCostInput(workOrder?.estimated_cost ?? workOrder?.actual_cost ?? 0);
     } else if (status === 'assigned') {
       const activeContractors = contractors.filter((c) => c.approval_status === 'active' || !c.approval_status);
-      const preferred = activeContractors.filter((c) => matchesSpecialty(workOrder?.category, c.specialty));
-      const targetList = preferred.length > 0 ? preferred : activeContractors;
-      if (targetList.length > 0 && (!assignedTechnician || !targetList.some((c) => c.id === assignedTechnician))) {
-        setAssignedTechnician(targetList[0].id);
+      const matched = activeContractors.filter((c) => matchesSpecialty(workOrder?.category, c.specialty));
+      const target = matched[0] || activeContractors[0];
+      if (target) {
+        setAssignedTechnician(target.id);
+      } else {
+        setAssignedTechnician('usr_contractor_01');
       }
-      setActualCostInput('');
+      setActualCostInput(workOrder?.estimated_cost ?? '');
     } else {
       setActualCostInput('');
     }
@@ -475,12 +513,25 @@ export default function WorkOrderDetailPage() {
               </button>
             )}
 
+            {/* When Approved: Contractor can submit / update price quotation */}
+            {status === 'approved' && role === 'CONTRACTOR' && (
+              <button
+                onClick={openQuoteModal}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded shadow-sm transition-colors flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {workOrder.estimated_cost ? `Update Price Quote (${formatCurrency(workOrder.estimated_cost)})` : 'Submit Price Quote (R)'}
+              </button>
+            )}
+
             {canAssign && (
               <button
                 onClick={() => openTransitionModal('assigned')}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
               >
-                Assign to Contractor
+                Assign to Contractor {workOrder.estimated_cost ? `(${formatCurrency(workOrder.estimated_cost)})` : ''}
               </button>
             )}
 
@@ -683,6 +734,62 @@ export default function WorkOrderDetailPage() {
           </div>
         </div>
 
+        {/* Contractor Quotation & Assignment Stage Banner */}
+        {workOrder.status === 'approved' && (
+          <div className="p-5 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-indigo-600 animate-pulse" />
+                <h3 className="text-sm font-bold text-indigo-950">
+                  Step 2: Contractor Price Quotation &amp; Assignment
+                </h3>
+              </div>
+              {workOrder.estimated_cost ? (
+                <span className="px-2.5 py-1 rounded text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  Contractor Quoted: {formatCurrency(workOrder.estimated_cost)}
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                  Awaiting Contractor Price Quote
+                </span>
+              )}
+            </div>
+
+            <div className="bg-white/90 p-4 rounded-lg border border-indigo-100 text-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <p className="text-slate-700 leading-relaxed">
+                  {workOrder.estimated_cost
+                    ? `Contractor has submitted an estimated quote of ${formatCurrency(workOrder.estimated_cost)}. Contractor Approver can now review the amount and assign the specialist.`
+                    : 'Work Order scope is approved. Contractors can submit their price estimate before Contractor Approver assigns the job.'}
+                </p>
+                <div className="text-[11px] text-slate-500 mt-1">
+                  Scope Approved by: <strong className="text-slate-800">{workOrder.reported_by_name || 'Work Approver'}</strong>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {role === 'CONTRACTOR' && (
+                  <button
+                    onClick={openQuoteModal}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition"
+                  >
+                    {workOrder.estimated_cost ? 'Update Price Quote' : 'Submit Price Quote (R)'} &rarr;
+                  </button>
+                )}
+
+                {canAssign && (
+                  <button
+                    onClick={() => openTransitionModal('assigned')}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition"
+                  >
+                    Review Amount &amp; Assign Contractor &rarr;
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Inspection QC Rejection Feedback Banner */}
         {workOrder.status === 'in_progress' && workOrder.inspections && workOrder.inspections.length > 0 && workOrder.inspections[0].result === 'FAIL' && (
           <div className="p-5 bg-rose-50 border border-rose-300 rounded-xl space-y-3">
@@ -799,19 +906,21 @@ export default function WorkOrderDetailPage() {
             Work Order Details &amp; Photos
           </button>
 
-          <button
-            onClick={() => setActiveTab('timeline')}
-            className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'timeline'
-                ? 'border-sky-600 text-sky-700 font-semibold'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <span>Activity &amp; Audit History</span>
-            <span className="px-2 py-0.5 text-[10px] font-mono bg-slate-100 text-slate-700 rounded-full font-bold">
-              {(workOrder.events?.length || auditChain?.chain_length || 0)} Logs
-            </span>
-          </button>
+          {canViewAuditVault && (
+            <button
+              onClick={() => setActiveTab('timeline')}
+              className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'timeline'
+                  ? 'border-sky-600 text-sky-700 font-semibold'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <span>Activity &amp; Audit History</span>
+              <span className="px-2 py-0.5 text-[10px] font-mono bg-slate-100 text-slate-700 rounded-full font-bold">
+                {(workOrder.events?.length || auditChain?.chain_length || 0)} Logs
+              </span>
+            </button>
+          )}
 
           {canViewAuditVault && (
             <button
@@ -972,7 +1081,7 @@ export default function WorkOrderDetailPage() {
                     {/* Inline Budget Editor */}
                     {isEditingBudget && (
                       <div className="mt-2 p-2.5 bg-sky-50/70 rounded-lg border border-sky-200 space-y-2">
-                        <div className="text-[11px] font-semibold text-sky-900">Update Approved Budget ($)</div>
+                        <div className="text-[11px] font-semibold text-sky-900">Update Approved Budget (R)</div>
                         <input
                           type="number"
                           value={budgetInput}
@@ -1101,8 +1210,8 @@ export default function WorkOrderDetailPage() {
           </div>
         )}
 
-        {/* TAB 2: UNIFIED ACTIVITY & AUDIT HISTORY TIMELINE (Accessible to all roles) */}
-        {activeTab === 'timeline' && (
+        {/* TAB 2: UNIFIED ACTIVITY & AUDIT HISTORY TIMELINE (Admin & Auditor Only) */}
+        {activeTab === 'timeline' && canViewAuditVault && (
           <div className="space-y-6">
             {/* Header Summary Card */}
             <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -1406,70 +1515,81 @@ export default function WorkOrderDetailPage() {
                 </div>
               )}
 
-              {/* When Approver Approves: Allow setting/confirming Approved Estimated Budget */}
+              {/* When Work Approver Approves: Simple minimal scope confirmation */}
               {targetStatus === 'approved' && (
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Approved Estimated Budget ($)
-                  </label>
-                  <input
-                    type="number"
-                    value={actualCostInput}
-                    onChange={(e) => setActualCostInput(e.target.value === '' ? '' : Number(e.target.value))}
-                    placeholder="e.g. 1000"
-                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                  />
+                <div className="p-3 bg-sky-50 border border-sky-200 rounded-md text-xs text-sky-800 font-medium">
+                  Approve this work order scope for contractor quotation.
                 </div>
               )}
 
               {targetStatus === 'assigned' && (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-semibold text-gray-700">
-                      Select Maintenance Contractor / Specialist *
-                    </label>
-                    {workOrder?.category && (
-                      <span className="text-[11px] font-medium text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                        Category: {workOrder.category}
-                      </span>
-                    )}
+                <div className="space-y-3">
+                  {/* Contractor Quoted Price Review */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-gray-700">
+                        Contractor Price / Approved Budget (R) *
+                      </label>
+                      {workOrder?.estimated_cost ? (
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          Quoted by Contractor: {formatCurrency(workOrder.estimated_cost)}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          Pending Contractor Quote
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative rounded-md shadow-xs">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                        <span className="text-gray-500 text-sm font-medium">R</span>
+                      </div>
+                      <input
+                        type="number"
+                        value={actualCostInput}
+                        onChange={(e) => setActualCostInput(e.target.value === '' ? '' : Number(e.target.value))}
+                        placeholder="e.g. 1200"
+                        className="w-full pl-7 pr-3 py-2 bg-white border border-gray-300 rounded-md text-sm font-bold text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Review and confirm the approved cost for this contractor assignment.
+                    </p>
                   </div>
 
-                  {(() => {
-                    const activeContractors = contractors.filter((c) => c.approval_status === 'active' || !c.approval_status);
-                    const matchedList = activeContractors.filter((c) => matchesSpecialty(workOrder?.category, c.specialty));
-                    const isStrictMatched = matchedList.length > 0;
-                    const displayList = isStrictMatched ? matchedList : activeContractors;
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-gray-700">
+                        Maintenance Contractor / Specialist *
+                      </label>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        Assigned Specialist
+                      </span>
+                    </div>
 
-                    return (
-                      <>
-                        <select
-                          value={assignedTechnician}
-                          onChange={(e) => setAssignedTechnician(e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                        >
-                          {displayList.length === 0 ? (
-                            <option value="usr_contractor_01">Apex BioMed Solutions (Field Engineer)</option>
-                          ) : (
-                            displayList.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name} — {c.specialty || 'General Maintenance'}
-                              </option>
-                            ))
-                          )}
-                        </select>
-                        {isStrictMatched ? (
-                          <p className="text-[11px] text-emerald-600 mt-1 font-medium">
-                            Showing {matchedList.length} approved contractor(s) matching &quot;{workOrder?.category}&quot; specialty.
-                          </p>
-                        ) : (
-                          <p className="text-[11px] text-amber-600 mt-1">
-                            No specialized active contractor found for &quot;{workOrder?.category}&quot;. Showing all approved partners.
-                          </p>
-                        )}
-                      </>
-                    );
-                  })()}
+                    {(() => {
+                      const activeContractors = contractors.filter((c) => c.approval_status === 'active' || !c.approval_status);
+                      const matchedList = activeContractors.filter((c) => matchesSpecialty(workOrder?.category, c.specialty));
+                      const selected = matchedList.find((c) => c.id === assignedTechnician) || matchedList[0] || activeContractors[0] || {
+                        id: 'usr_contractor_01',
+                        name: 'Apex BioMed Solutions',
+                        specialty: workOrder?.category || 'Biomedical Equipment'
+                      };
+
+                      return (
+                        <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm font-medium text-slate-900 flex items-center justify-between select-none">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900">{selected.name}</span>
+                            <span className="text-gray-400">—</span>
+                            <span className="text-xs text-gray-600">{selected.specialty || 'Specialist'}</span>
+                          </div>
+                          <span className="text-[11px] font-mono text-sky-700 bg-sky-100/70 px-1.5 py-0.5 rounded">
+                            Auto-Selected
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
 
@@ -1478,7 +1598,7 @@ export default function WorkOrderDetailPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-semibold text-gray-700">
-                      Approved Repair Cost ($)
+                      Approved Repair Cost (R)
                     </label>
                     <span className="inline-flex items-center text-[11px] font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                       Locked by Approver
@@ -1486,7 +1606,7 @@ export default function WorkOrderDetailPage() {
                   </div>
                   <div className="relative rounded-md shadow-xs">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                      <span className="text-gray-500 text-sm font-medium">$</span>
+                      <span className="text-gray-500 text-sm font-medium">R</span>
                     </div>
                     <input
                       type="number"
@@ -1676,7 +1796,7 @@ export default function WorkOrderDetailPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Approved Service Base ($) *
+                    Approved Service Base (R) *
                   </label>
                   <input
                     type="number"
@@ -1689,7 +1809,7 @@ export default function WorkOrderDetailPage() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Tax / VAT ($)
+                    Tax / VAT (R)
                   </label>
                   <input
                     type="number"
@@ -1905,6 +2025,85 @@ export default function WorkOrderDetailPage() {
                   className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors disabled:opacity-50"
                 >
                   {createInspectionMutation.isPending ? 'Submitting...' : 'Submit Inspection Sign-Off'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Contractor Price Quote Submission Modal */}
+        {isQuoteModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Submit Maintenance Price Quote
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Provide your estimated service cost for Work Order #{workOrder.tracking_number}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsQuoteModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {quoteError && (
+                <div className="p-3 rounded bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                  {quoteError}
+                </div>
+              )}
+
+              {/* Work Order Info Card */}
+              <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1">
+                <div className="font-semibold text-slate-800">{workOrder.title}</div>
+                <div className="text-slate-500">
+                  Category: <strong className="text-slate-700">{workOrder.category}</strong> &bull; Facility: {workOrder.facility_name}
+                </div>
+              </div>
+
+              {/* Price Quote Input */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Your Estimated Price Quote (R) *
+                </label>
+                <div className="relative rounded-md shadow-xs">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <span className="text-slate-500 text-sm font-medium">R</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    value={quotePrice}
+                    onChange={(e) => setQuotePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="e.g. 1500"
+                    className="w-full pl-7 pr-3 py-2 bg-white border border-slate-300 rounded-md text-sm font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Contractor Approver will review this amount before assigning the job.
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsQuoteModalOpen(false)}
+                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={submitQuoteMutation.isPending || quotePrice === '' || Number(quotePrice) <= 0}
+                  onClick={() => submitQuoteMutation.mutate()}
+                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 rounded-md hover:bg-emerald-700 transition disabled:opacity-50 shadow-sm"
+                >
+                  {submitQuoteMutation.isPending ? 'Submitting...' : 'Submit Price Quote'}
                 </button>
               </div>
             </div>

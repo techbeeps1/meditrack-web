@@ -251,11 +251,6 @@ export default function ContractorProfilePage() {
               >
                 {aBadge.label}
               </span>
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${cBadge.bg} ${cBadge.text} ${cBadge.border}`}
-              >
-                {cBadge.label}
-              </span>
             </div>
             <h1 className="text-xl font-bold text-gray-900 mt-2">
               {contractor.name}

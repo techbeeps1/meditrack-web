@@ -268,10 +268,10 @@ export default function ContractorsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-              Contractor Registry &amp; Compliance Vault
+              Contractor Management
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Qualified medical engineering partners, governance approvals, and compliance certifications.
+              Registered engineering partners, approval governance, and assigned tasks.
             </p>
           </div>
           {canRegister && (
@@ -299,7 +299,7 @@ export default function ContractorsPage() {
           <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
             {/* Approval Status Tabs */}
             <div className="flex space-x-1 overflow-x-auto pb-1 md:pb-0">
-              <span className="text-xs font-semibold text-gray-500 self-center mr-1">Approval:</span>
+              <span className="text-xs font-semibold text-gray-500 self-center mr-1">Status:</span>
               {[
                 { key: 'all', label: 'All' },
                 { key: 'active', label: 'Approved' },
@@ -319,24 +319,6 @@ export default function ContractorsPage() {
                 </button>
               ))}
             </div>
-
-            {/* Compliance Status Tabs */}
-            <div className="flex space-x-1 overflow-x-auto pb-1 md:pb-0">
-              <span className="text-xs font-semibold text-gray-500 self-center mr-1">Compliance:</span>
-              {['all', 'compliant', 'warning', 'non_compliant'].map((st) => (
-                <button
-                  key={st}
-                  onClick={() => setComplianceFilter(st)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md capitalize transition-colors ${
-                    complianceFilter === st
-                      ? 'bg-slate-800 text-white font-semibold'
-                      : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  {st.replace('_', ' ')}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 
@@ -352,32 +334,30 @@ export default function ContractorsPage() {
                   <th className="px-4 py-3">Governance Status</th>
                   <th className="px-4 py-3 text-center">Active Jobs</th>
                   <th className="px-4 py-3 text-center">Docs</th>
-                  <th className="px-4 py-3">Compliance</th>
                   <th className="px-4 py-3 text-center w-24">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                    <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
                       Loading contractor directory...
                     </td>
                   </tr>
                 ) : isError ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-red-600">
+                    <td colSpan={7} className="px-4 py-12 text-center text-red-600">
                       Error loading contractors. Please check backend connection.
                     </td>
                   </tr>
                 ) : contractors.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-gray-500">
+                    <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
                       No contractors found matching criteria.
                     </td>
                   </tr>
                 ) : (
                   contractors.map((c) => {
-                    const cBadge = COMPLIANCE_BADGES[c.compliance_status] || COMPLIANCE_BADGES.compliant;
                     const aBadge = APPROVAL_BADGES[c.approval_status || 'active'] || APPROVAL_BADGES.active;
 
                     return (
@@ -418,13 +398,6 @@ export default function ContractorsPage() {
                         </td>
                         <td className="px-4 py-3 text-center font-mono text-xs text-sky-700 whitespace-nowrap">
                           {c.document_count || 0}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${cBadge.bg} ${cBadge.text} ${cBadge.border}`}
-                          >
-                            {cBadge.label}
-                          </span>
                         </td>
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1.5">

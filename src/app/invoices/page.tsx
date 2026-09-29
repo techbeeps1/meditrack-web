@@ -420,7 +420,7 @@ function InvoicesContent() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Approved Base Amount ($) *</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Approved Base Amount (R) *</label>
                     <input
                       type="number"
                       step="0.01"
@@ -432,7 +432,7 @@ function InvoicesContent() {
                     <p className="text-[10px] text-slate-400 mt-1">Locked to approved budget</p>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tax / VAT ($)</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Tax / VAT (R)</label>
                     <input
                       type="number"
                       step="0.01"
