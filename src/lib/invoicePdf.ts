@@ -33,6 +33,8 @@ export function downloadInvoicePdf(invoice: InvoicePdfData) {
   const totalFee = Number(invoice.total_amount || (baseFee + taxFee));
   const isPaid = invoice.status?.toLowerCase() === 'paid';
   const isApproved = invoice.status?.toLowerCase() === 'approved';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const logoUrl = `${origin}/images/logo.png`;
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -68,24 +70,20 @@ export function downloadInvoicePdf(invoice: InvoicePdfData) {
     .header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: center;
       border-bottom: 2px solid #0284c7;
-      padding-bottom: 20px;
+      padding-bottom: 18px;
       margin-bottom: 24px;
     }
-    .brand-logo {
-      font-size: 24px;
-      font-weight: 800;
-      color: #0369a1;
-      letter-spacing: -0.5px;
+    .brand-section {
+      display: flex;
+      align-items: center;
     }
-    .brand-sub {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #64748b;
-      font-weight: 600;
-      margin-top: 2px;
+    .brand-logo-img {
+      height: 72px;
+      width: auto;
+      max-width: 200px;
+      object-fit: contain;
     }
     .invoice-meta {
       text-align: right;
@@ -276,12 +274,8 @@ export function downloadInvoicePdf(invoice: InvoicePdfData) {
   <div class="invoice-container">
     <!-- Header -->
     <div class="header">
-      <div>
-        <div class="brand-logo">MediTrack+</div>
-        <div class="brand-sub">Healthcare Infrastructure Operations</div>
-        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
-          Hospital Engineering & Facilities Disbursement Command
-        </div>
+      <div class="brand-section">
+        <img src="${logoUrl}" alt="Hospital Logo" class="brand-logo-img" />
       </div>
       <div class="invoice-meta">
         <div class="invoice-title">INVOICE CLAIM</div>
