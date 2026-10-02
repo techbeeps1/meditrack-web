@@ -70,5 +70,19 @@ export const workOrderApi = {
       }
     });
     return res.data.data;
+  },
+
+  submitAssessment: async (
+    id: string,
+    payload: {
+      assessment_type: 'offsite' | 'onsite';
+      assessor_estimate: number;
+      charge_code: 'PRE' | 'ONS' | 'TRV' | 'FIN';
+      assessment_notes?: string;
+    }
+  ) => {
+    const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/assessment`, payload);
+    return res.data.data;
   }
 };
+

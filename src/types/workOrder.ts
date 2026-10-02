@@ -1,4 +1,10 @@
 export type WorkOrderPriority = 'low' | 'medium' | 'high' | 'critical';
+export type UrgencyCategory =
+  | 'Critical 0–24h'
+  | 'Very urgent 2–4 days'
+  | 'Urgent 4–8 days'
+  | '8+ days or statutory';
+export type FundingRoute = 'route_a' | 'route_b';
 export type WorkOrderStatus =
   | 'reported'
   | 'approved'
@@ -8,6 +14,9 @@ export type WorkOrderStatus =
   | 'verified'
   | 'closed'
   | 'cancelled';
+
+export type AssessmentType = 'offsite' | 'onsite';
+export type ChargeCode = 'PRE' | 'ONS' | 'TRV' | 'FIN';
 
 export interface WorkOrderPhoto {
   id: string;
@@ -33,6 +42,8 @@ export interface WorkOrder {
   location_details?: string | null;
   category: string;
   priority: WorkOrderPriority;
+  urgency_category?: UrgencyCategory;
+  funding_route?: FundingRoute;
   status: WorkOrderStatus;
   reported_by: string;
   reported_by_name?: string;
@@ -41,6 +52,16 @@ export interface WorkOrder {
   assigned_to_name?: string | null;
   assigned_to_email?: string | null;
   contractor_id?: string | null;
+  contractor_name?: string | null;
+  assessment_type?: AssessmentType | null;
+  assessor_id?: string | null;
+  assessor_name?: string | null;
+  assessor_email?: string | null;
+  assessor_estimate?: number | null;
+  charge_code?: ChargeCode | null;
+  assessment_notes?: string | null;
+  assessment_date?: string | null;
+  is_blind_quoted?: boolean;
   estimated_cost: number;
   actual_cost: number;
   due_date?: string | null;
@@ -90,6 +111,16 @@ export interface CreateWorkOrderInput {
   location_details?: string;
   category?: string;
   priority?: WorkOrderPriority;
+  urgency_category?: UrgencyCategory;
+  funding_route?: FundingRoute;
   estimated_cost?: number;
   due_date?: string;
 }
+
+export interface SubmitAssessmentInput {
+  assessment_type: AssessmentType;
+  assessor_estimate: number;
+  charge_code: ChargeCode;
+  assessment_notes?: string;
+}
+

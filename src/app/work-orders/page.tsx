@@ -12,7 +12,7 @@ import { workOrderApi } from '@/services/work-orders';
 import { facilityApi } from '@/services/facilities';
 import { workCategoryApi } from '@/services/work-categories';
 import { useAuth } from '@/hooks/useAuth';
-import { WorkOrderPriority, WorkOrderStatus } from '@/types/workOrder';
+import { WorkOrderPriority, WorkOrderStatus, UrgencyCategory, FundingRoute } from '@/types/workOrder';
 import { formatDate, formatCurrency } from '@/lib/utils';
 
 const createWOSchema = z.object({
@@ -22,11 +22,24 @@ const createWOSchema = z.object({
   location_details: z.string().optional(),
   category: z.string().min(1, 'Category is required'),
   priority: z.enum(['low', 'medium', 'high', 'critical']),
+  urgency_category: z.enum([
+    'Critical 0–24h',
+    'Very urgent 2–4 days',
+    'Urgent 4–8 days',
+    '8+ days or statutory'
+  ]),
   estimated_cost: z.coerce.number().min(0).optional(),
   due_date: z.string().optional()
 });
 
 type CreateWOFormData = z.infer<typeof createWOSchema>;
+
+const URGENCY_BADGES: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  'Critical 0–24h': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', label: 'Critical 0–24h' },
+  'Very urgent 2–4 days': { bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200', label: 'Very urgent 2–4 days' },
+  'Urgent 4–8 days': { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200', label: 'Urgent 4–8 days' },
+  '8+ days or statutory': { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-200', label: '8+ days or statutory' }
+};
 
 const PRIORITY_BADGES: Record<WorkOrderPriority, { bg: string; text: string; border: string }> = {
   critical: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
@@ -107,15 +120,34 @@ function WorkOrdersContent() {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isSubmitting }
   } = useForm<CreateWOFormData>({
     resolver: zodResolver(createWOSchema),
     defaultValues: {
       category: 'Biomedical Equipment',
       priority: 'medium',
+      urgency_category: 'Urgent 4–8 days',
       estimated_cost: 0
     }
   });
+
+  const selectedUrgency = watch('urgency_category');
+
+  // Sync priority when urgency changes
+  const handleUrgencyChange = (urgency: 'Critical 0–24h' | 'Very urgent 2–4 days' | 'Urgent 4–8 days' | '8+ days or statutory') => {
+    setValue('urgency_category', urgency);
+    if (urgency === 'Critical 0–24h') {
+      setValue('priority', 'critical');
+    } else if (urgency === 'Very urgent 2–4 days') {
+      setValue('priority', 'high');
+    } else if (urgency === 'Urgent 4–8 days') {
+      setValue('priority', 'medium');
+    } else if (urgency === '8+ days or statutory') {
+      setValue('priority', 'low');
+    }
+  };
 
   // Create Mutation
   const createMutation = useMutation({
@@ -157,6 +189,7 @@ function WorkOrdersContent() {
       location_details: '',
       category: 'Biomedical Equipment',
       priority: 'medium',
+      urgency_category: 'Urgent 4–8 days',
       estimated_cost: 0,
       due_date: ''
     });
@@ -189,10 +222,10 @@ function WorkOrdersContent() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-              Work Orders & Maintenance Tickets
+              Work Orders &amp; Maintenance Tickets
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Track infrastructure issues, biomedical device repairs, and contractor assignments.
+              NC DOH &amp; Quantum Built HVAC Maintenance SLA: Fast-Track Route B Advance Funding &amp; Statutory Schedule.
             </p>
           </div>
           {(user?.role === 'STAFF' || user?.role === 'ADMIN') && (
@@ -203,6 +236,26 @@ function WorkOrdersContent() {
               + Report Work Order
             </button>
           )}
+        </div>
+
+        {/* Urgency SLA Overview Bar */}
+        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm grid grid-cols-2 md:grid-cols-4 gap-4 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+          <div className="px-2 pt-2 md:pt-0">
+            <div className="text-xs font-semibold text-gray-900">Critical 0–24h</div>
+            <div className="text-[11px] text-gray-500 mt-0.5">Fast-Track Bypass • 24h Advance Funded</div>
+          </div>
+          <div className="px-2 pt-2 md:pt-0 md:pl-4">
+            <div className="text-xs font-semibold text-gray-900">Very urgent 2–4 days</div>
+            <div className="text-[11px] text-gray-500 mt-0.5">Fast-Track Bypass • Expedited 2–4 Days</div>
+          </div>
+          <div className="px-2 pt-2 md:pt-0 md:pl-4">
+            <div className="text-xs font-semibold text-gray-900">Urgent 4–8 days</div>
+            <div className="text-[11px] text-gray-500 mt-0.5">Fast-Track Bypass • Direct 4–8 Days</div>
+          </div>
+          <div className="px-2 pt-2 md:pt-0 md:pl-4">
+            <div className="text-xs font-semibold text-gray-900">8+ days or statutory</div>
+            <div className="text-[11px] text-gray-500 mt-0.5">Statutory Schedule • 30d &amp; 15d Pre-Notice</div>
+          </div>
         </div>
 
         {/* Filter Controls */}
@@ -221,10 +274,10 @@ function WorkOrdersContent() {
               className="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
             >
               <option value="all">All Priorities</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
+              <option value="Critical 0–24h">Critical 0–24h</option>
+              <option value="Very urgent 2–4 days">Very urgent 2–4 days</option>
+              <option value="Urgent 4–8 days">Urgent 4–8 days</option>
+              <option value="8+ days or statutory">8+ days or statutory</option>
             </select>
           </div>
 
@@ -250,7 +303,7 @@ function WorkOrdersContent() {
                     : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                {st === 'active' ? '⚡ Active Pipeline' : st.replace('_', ' ')}
+                {st === 'active' ? 'Active Pipeline' : st.replace('_', ' ')}
               </button>
             ))}
           </div>
@@ -264,8 +317,8 @@ function WorkOrdersContent() {
                 <tr>
                   <th className="px-4 py-3">Tracking #</th>
                   <th className="px-4 py-3">Work Order Title</th>
-                  <th className="px-4 py-3">Facility & Location</th>
-                  <th className="px-4 py-3">Priority</th>
+                  <th className="px-4 py-3">Facility &amp; Location</th>
+                  <th className="px-4 py-3">Urgency &amp; Funding</th>
                   <th className="px-4 py-3">Category</th>
                   {user?.role !== 'STAFF' && <th className="px-4 py-3">Est. Cost</th>}
                   <th className="px-4 py-3">Status</th>
@@ -293,8 +346,15 @@ function WorkOrdersContent() {
                   </tr>
                 ) : (
                   workOrders.map((wo) => {
-                    const pBadge = PRIORITY_BADGES[wo.priority] || PRIORITY_BADGES.medium;
+                    const urgency = wo.urgency_category || (
+                      wo.priority === 'critical' ? 'Critical 0–24h' :
+                      wo.priority === 'high' ? 'Very urgent 2–4 days' :
+                      wo.priority === 'medium' ? 'Urgent 4–8 days' : '8+ days or statutory'
+                    );
+                    const uBadge = URGENCY_BADGES[urgency] || URGENCY_BADGES['Urgent 4–8 days'];
                     const sBadge = STATUS_BADGES[wo.status] || STATUS_BADGES.reported;
+                    const isRouteB = wo.funding_route === 'route_b' || urgency === 'Critical 0–24h';
+                    const isStatutory = urgency === '8+ days or statutory';
 
                     return (
                       <tr key={wo.id} className="hover:bg-gray-50/80 transition-colors">
@@ -319,11 +379,23 @@ function WorkOrdersContent() {
                           <div className="text-xs text-gray-400 truncate max-w-xs">{wo.location_details || 'Main Building'}</div>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize border ${pBadge.bg} ${pBadge.text} ${pBadge.border}`}
-                          >
-                            {wo.priority}
-                          </span>
+                          <div className="flex flex-col gap-1 items-start">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${uBadge.bg} ${uBadge.text} ${uBadge.border}`}
+                            >
+                              {urgency}
+                            </span>
+                            {isRouteB && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                Route B (QB Advance)
+                              </span>
+                            )}
+                            {isStatutory && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                                Statutory Notice (30d/15d)
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-600 font-medium whitespace-nowrap">
                           {wo.category}
@@ -364,11 +436,14 @@ function WorkOrdersContent() {
         {/* Create Work Order Modal */}
         {isModalOpen && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl border border-gray-200 max-w-xl w-full p-6">
+            <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-2xl w-full p-6 max-h-[92vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-bold text-gray-900">
-                  Report New Maintenance Issue
-                </h3>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">
+                    Report New Maintenance Issue
+                  </h3>
+                  <p className="text-xs text-gray-500">NC DOH &amp; Quantum Built Maintenance Intake</p>
+                </div>
                 <button
                   onClick={closeModal}
                   className="text-gray-400 hover:text-gray-600 text-sm font-semibold"
@@ -384,6 +459,75 @@ function WorkOrdersContent() {
               )}
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                {/* 1. Priority Level & Urgency Selection */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                    Priority Level &amp; Urgency SLA *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {[
+                      {
+                        value: 'Critical 0–24h' as const,
+                        label: 'Critical 0–24h',
+                        desc: 'Fast-Track Bypass • 24h Route B Advance Funded'
+                      },
+                      {
+                        value: 'Very urgent 2–4 days' as const,
+                        label: 'Very urgent 2–4 days',
+                        desc: 'Fast-Track Bypass • 2 to 4 Days SLA'
+                      },
+                      {
+                        value: 'Urgent 4–8 days' as const,
+                        label: 'Urgent 4–8 days',
+                        desc: 'Fast-Track Bypass • 4 to 8 Days SLA'
+                      },
+                      {
+                        value: '8+ days or statutory' as const,
+                        label: '8+ days or statutory',
+                        desc: 'Statutory Planned • 30d/15d Pre-Notices'
+                      }
+                    ].map((item) => {
+                      const isSelected = selectedUrgency === item.value;
+                      return (
+                        <div
+                          key={item.value}
+                          onClick={() => handleUrgencyChange(item.value)}
+                          className={`p-3 rounded-lg border cursor-pointer transition-all flex flex-col justify-between ${
+                            isSelected
+                              ? 'border-sky-600 bg-sky-50/50 ring-1 ring-sky-600'
+                              : 'border-gray-200 hover:border-gray-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs font-semibold ${isSelected ? 'text-sky-900 font-bold' : 'text-gray-900'}`}>{item.label}</span>
+                            <input
+                              type="radio"
+                              value={item.value}
+                              checked={isSelected}
+                              onChange={() => handleUrgencyChange(item.value)}
+                              className="text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
+                            />
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-1 leading-tight">{item.desc}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Informational SLA Banner */}
+                  {selectedUrgency !== '8+ days or statutory' && (
+                    <div className="mt-2.5 p-3 rounded-md bg-slate-50 border border-slate-200 text-xs text-slate-700">
+                      <strong className="text-gray-900 font-semibold">Fast-Track Route B Bypass:</strong> This urgent work order bypasses routine statutory 30-day/15-day pre-notice delays and standard procurement bottlenecks for immediate technical dispatch.
+                    </div>
+                  )}
+
+                  {selectedUrgency === '8+ days or statutory' && (
+                    <div className="mt-2.5 p-3 rounded-md bg-sky-50/60 border border-sky-200 text-xs text-sky-800">
+                      <strong className="text-sky-900 font-semibold">Statutory Pre-Notice Workflow:</strong> Automatically triggers formal 30-day and 15-day pre-maintenance notices to NC DOH, facility directors, and QB technical management.
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Issue Title *
@@ -460,32 +604,15 @@ function WorkOrdersContent() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Specific Location / Room
-                    </label>
-                    <input
-                      {...register('location_details')}
-                      placeholder="e.g. 3rd Floor, Trauma Room 302"
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Priority Level *
-                    </label>
-                    <select
-                      {...register('priority')}
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                    >
-                      <option value="low">Low (Standard Maintenance)</option>
-                      <option value="medium">Medium (Requires attention)</option>
-                      <option value="high">High (Urgent clinical equipment)</option>
-                      <option value="critical">Critical (Life Support / Facility Outage)</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Specific Location / Room
+                  </label>
+                  <input
+                    {...register('location_details')}
+                    placeholder="e.g. 3rd Floor, Trauma Room 302"
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  />
                 </div>
 
                 <div>
