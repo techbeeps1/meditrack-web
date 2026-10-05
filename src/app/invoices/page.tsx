@@ -9,6 +9,7 @@ import { workOrderApi } from '@/services/work-orders';
 import { contractorApi } from '@/services/contractors';
 import { Invoice, InvoiceStatus, CreateInvoiceInput } from '@/types/invoice';
 import { downloadInvoicePdf } from '@/lib/invoicePdf';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import AppLayout from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -272,9 +273,18 @@ function InvoicesContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {invoices.map((inv) => (
+                  {invoices.map((inv) => {
+                    const isFloatSla = Number(inv.total_amount) <= 50000;
+                    return (
                     <tr key={inv.id} className="hover:bg-slate-50/60 transition">
-                      <td className="py-3 px-3 font-mono font-medium text-slate-900 whitespace-nowrap">{inv.invoice_number}</td>
+                      <td className="py-3 px-3 font-mono font-medium text-slate-900 whitespace-nowrap">
+                        <div>{inv.invoice_number}</div>
+                        {isFloatSla && (
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200 uppercase mt-0.5">
+                            24h Float SLA
+                          </span>
+                        )}
+                      </td>
                       <td className="py-3 px-3">
                         <div className="font-medium text-slate-800 text-xs">{inv.work_order_tracking || 'N/A'}</div>
                         <div className="text-xs text-slate-400 truncate max-w-xs">{inv.work_order_title}</div>
@@ -284,15 +294,15 @@ function InvoicesContent() {
                         <div className="text-xs text-slate-400 truncate max-w-xs">{inv.facility_name}</div>
                       </td>
                       <td className="py-3 px-3 text-xs font-mono text-slate-500 whitespace-nowrap">
-                        <div>Base: ${Number(inv.amount).toFixed(2)}</div>
-                        <div>Tax: ${Number(inv.tax_amount).toFixed(2)}</div>
+                        <div>Base: {formatCurrency(inv.amount)}</div>
+                        <div>Tax: {formatCurrency(inv.tax_amount)}</div>
                       </td>
                       <td className="py-3 px-3 font-bold text-slate-900 font-mono whitespace-nowrap">
-                        ${Number(inv.total_amount).toFixed(2)}
+                        {formatCurrency(inv.total_amount)}
                       </td>
                       <td className="py-3 px-3 whitespace-nowrap">{getStatusBadge(inv.status)}</td>
                       <td className="py-3 px-3 text-xs text-slate-500 whitespace-nowrap">
-                        {new Date(inv.due_date).toLocaleDateString()}
+                        {formatDate(inv.due_date)}
                       </td>
                       <td className="py-3 px-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
@@ -326,7 +336,8 @@ function InvoicesContent() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -534,18 +545,27 @@ function InvoicesContent() {
                   </div>
                 </div>
 
+                {Number(selectedInvoice.total_amount) <= 50000 && (
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-purple-900 text-xs">
+                    <div className="font-bold uppercase tracking-wider text-[10px] text-purple-700">24-Hour Advance Float Settlement SLA Active</div>
+                    <div className="mt-0.5 text-[11px] text-purple-800">
+                      Disbursed directly from Quantum Built&apos;s advance float pool within 24h of contractor submission.
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2 border-t border-b border-slate-100 py-3">
                   <div className="flex justify-between">
                     <span className="text-slate-600">Base Services Fee:</span>
-                    <span className="font-mono font-medium">${Number(selectedInvoice.amount).toFixed(2)}</span>
+                    <span className="font-mono font-medium">{formatCurrency(selectedInvoice.amount)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-600">Taxes & Surcharges:</span>
-                    <span className="font-mono font-medium">${Number(selectedInvoice.tax_amount).toFixed(2)}</span>
+                    <span className="text-slate-600">Taxes &amp; Surcharges:</span>
+                    <span className="font-mono font-medium">{formatCurrency(selectedInvoice.tax_amount)}</span>
                   </div>
                   <div className="flex justify-between text-sm font-bold text-slate-900 pt-1 border-t border-slate-200">
                     <span>Total Disbursed:</span>
-                    <span className="font-mono text-sky-700">${Number(selectedInvoice.total_amount).toFixed(2)}</span>
+                    <span className="font-mono text-sky-700">{formatCurrency(selectedInvoice.total_amount)}</span>
                   </div>
                 </div>
 

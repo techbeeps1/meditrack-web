@@ -7,14 +7,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { userApi, CreateUserInput, UpdateUserInput } from '@/services/users';
 import { facilityApi } from '@/services/facilities';
 import { workCategoryApi, WorkCategory } from '@/services/work-categories';
-import { User, UserRole, ApproverScope } from '@/types';
+import { User, UserRole, ApproverScope, InspectorScope } from '@/types';
 import { formatDate } from '@/lib/utils';
 
 const ROLES_LIST: { role: UserRole; label: string; desc: string; color: string }[] = [
   { role: 'ADMIN', label: 'Admin', desc: 'Full platform control, user management, audit verification', color: 'bg-rose-50 text-rose-700 border-rose-200' },
   { role: 'APPROVER', label: 'Approver', desc: 'Approves work orders, assigns contractors, closes tickets, settles invoices', color: 'bg-purple-50 text-purple-700 border-purple-200' },
   { role: 'CONTRACTOR', label: 'Contractor', desc: 'Executes repair work, updates status, generates invoice claims', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  { role: 'INSPECTOR', label: 'Inspector', desc: 'Conducts quality inspections, verifies or rejects completed work', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+  { role: 'INSPECTOR', label: 'Inspector / Engineer', desc: 'Conducts engineering scoping or quality QC inspections', color: 'bg-teal-50 text-teal-700 border-teal-200' },
   { role: 'STAFF', label: 'Staff / Nurse', desc: 'Reports medical equipment issues, tracks resolution milestones', color: 'bg-sky-50 text-sky-700 border-sky-200' },
   { role: 'AUDITOR', label: 'Auditor', desc: 'Inspects SHA-256 cryptographic logs, verifies hash proofs', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
 ];
@@ -23,6 +23,12 @@ const APPROVER_SCOPES_LIST: { scope: ApproverScope; label: string; desc: string;
   { scope: 'wo_approver', label: 'Work Order Approver', desc: 'Reviews issue details and approves work order budgets', color: 'bg-sky-50 text-sky-700 border-sky-200' },
   { scope: 'contractor_approver', label: 'Contractor Approver', desc: 'Assigns contractors to approved work orders and manages contractor reviews', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   { scope: 'payment_approver', label: 'Payment Approver', desc: 'Reviews invoice claims and authorizes payment settlements', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+];
+
+const INSPECTOR_SCOPES_LIST: { scope: InspectorScope; label: string; desc: string; color: string }[] = [
+  { scope: 'works_engineer', label: 'Works Engineer (Scoping & Technical Estimates)', desc: 'Conducts offsite/onsite technical assessments, specifies charge codes, and computes preliminary budget estimates', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+  { scope: 'works_inspector', label: 'Works Inspector (QC Sign-Off & Verification)', desc: 'Performs post-repair physical inspection checklists and issues QC Pass/Fail compliance certifications', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  { scope: 'both', label: 'Dual Scope (Scoping & QC Inspector)', desc: 'Full engineering technical permissions across both pre-work scoping and post-work QC verification', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' }
 ];
 
 export default function SettingsPage() {
@@ -55,6 +61,7 @@ export default function SettingsPage() {
     password: string;
     role: UserRole;
     approver_scope: ApproverScope;
+    inspector_scope: InspectorScope;
     phone: string;
     facility_id: string;
     status: 'active' | 'inactive';
@@ -64,6 +71,7 @@ export default function SettingsPage() {
     password: '',
     role: 'STAFF',
     approver_scope: 'wo_approver',
+    inspector_scope: 'both',
     phone: '',
     facility_id: '',
     status: 'active'
@@ -221,6 +229,7 @@ export default function SettingsPage() {
       password: '',
       role: 'STAFF',
       approver_scope: 'wo_approver',
+      inspector_scope: 'both',
       phone: '',
       facility_id: '',
       status: 'active'
@@ -241,6 +250,7 @@ export default function SettingsPage() {
       password: '',
       role: u.role,
       approver_scope: u.approver_scope || 'general',
+      inspector_scope: u.inspector_scope || 'both',
       phone: u.phone || '',
       facility_id: u.facility_id || '',
       status: u.status
@@ -267,6 +277,7 @@ export default function SettingsPage() {
         email: formData.email.trim(),
         role: formData.role,
         approver_scope: formData.role === 'APPROVER' ? formData.approver_scope : null,
+        inspector_scope: formData.role === 'INSPECTOR' ? formData.inspector_scope : null,
         phone: formData.phone.trim() || null,
         facility_id: formData.facility_id || null,
         status: formData.status
@@ -290,6 +301,7 @@ export default function SettingsPage() {
         password: formData.password,
         role: formData.role,
         approver_scope: formData.role === 'APPROVER' ? formData.approver_scope : null,
+        inspector_scope: formData.role === 'INSPECTOR' ? formData.inspector_scope : null,
         phone: formData.phone.trim() || null,
         facility_id: formData.facility_id || null
       });
@@ -503,6 +515,13 @@ export default function SettingsPage() {
                                     APPROVER_SCOPES_LIST.find((s) => s.scope === u.approver_scope)?.color || 'bg-slate-50 text-slate-600 border-slate-200'
                                   }`}>
                                     {APPROVER_SCOPES_LIST.find((s) => s.scope === u.approver_scope)?.label || 'General Approver'}
+                                  </span>
+                                )}
+                                {u.role === 'INSPECTOR' && (
+                                  <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium border ${
+                                    INSPECTOR_SCOPES_LIST.find((s) => s.scope === u.inspector_scope)?.color || 'bg-slate-50 text-slate-600 border-slate-200'
+                                  }`}>
+                                    {INSPECTOR_SCOPES_LIST.find((s) => s.scope === u.inspector_scope)?.label.split(' (')[0] || 'Dual Scope'}
                                   </span>
                                 )}
                               </div>
@@ -765,6 +784,25 @@ export default function SettingsPage() {
                         className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-sky-500 text-slate-900"
                       >
                         {APPROVER_SCOPES_LIST.map((s) => (
+                          <option key={s.scope} value={s.scope}>
+                            {s.label} — {s.desc}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {formData.role === 'INSPECTOR' && (
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Technical Scope <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={formData.inspector_scope}
+                        onChange={(e) => setFormData({ ...formData, inspector_scope: e.target.value as InspectorScope })}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-sky-500 text-slate-900"
+                      >
+                        {INSPECTOR_SCOPES_LIST.map((s) => (
                           <option key={s.scope} value={s.scope}>
                             {s.label} — {s.desc}
                           </option>

@@ -1,6 +1,7 @@
 export type UserRole = 'ADMIN' | 'STAFF' | 'APPROVER' | 'CONTRACTOR' | 'INSPECTOR' | 'AUDITOR';
 
 export type ApproverScope = 'wo_approver' | 'contractor_approver' | 'payment_approver' | 'procurement' | 'line_manager' | 'general';
+export type InspectorScope = 'works_engineer' | 'works_inspector' | 'both';
 
 export interface User {
   id: string;
@@ -8,6 +9,7 @@ export interface User {
   email: string;
   role: UserRole;
   approver_scope?: ApproverScope | null;
+  inspector_scope?: InspectorScope | null;
   facility_id?: string | null;
   facility_name?: string | null;
   phone?: string | null;

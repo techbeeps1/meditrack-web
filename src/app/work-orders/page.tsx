@@ -178,6 +178,45 @@ function WorkOrdersContent() {
     }
   });
 
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      return workOrderApi.clearAllWorkOrders();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['inspections'] });
+    }
+  });
+
+  const handleClearAll = () => {
+    if (window.confirm('Are you sure you want to delete all test work orders and reset test data? This action cannot be undone.')) {
+      clearAllMutation.mutate();
+    }
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return workOrderApi.deleteWorkOrder(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-work-orders'] });
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to delete work order');
+    }
+  });
+
+  const handleDeleteWorkOrder = (id: string, trackingNumber: string) => {
+    if (window.confirm(`Are you sure you want to delete work order ${trackingNumber}?`)) {
+      deleteMutation.mutate(id);
+    }
+  };
+
   const [photoError, setPhotoError] = useState<string | null>(null);
 
   const openModal = () => {
@@ -225,17 +264,31 @@ function WorkOrdersContent() {
               Work Orders &amp; Maintenance Tickets
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              NC DOH &amp; Quantum Built HVAC Maintenance SLA: Fast-Track Route B Advance Funding &amp; Statutory Schedule.
+              NC DOH &amp; Quantum Built HVAC Maintenance SLA: Fast-Track Advance Float Funding &amp; Statutory Schedule.
             </p>
           </div>
-          {(user?.role === 'STAFF' || user?.role === 'ADMIN') && (
-            <button
-              onClick={openModal}
-              className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors shrink-0"
-            >
-              + Report Work Order
-            </button>
-          )}
+          <div className="flex items-center gap-2.5 shrink-0">
+            {user?.role === 'ADMIN' && (
+              <button
+                type="button"
+                onClick={handleClearAll}
+                disabled={clearAllMutation.isPending}
+                className="px-3.5 py-2 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 text-xs font-semibold rounded-lg shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                title="Delete all test work orders and linked test data"
+              >
+                {clearAllMutation.isPending ? 'Clearing...' : '🧹 Clear All Test Orders'}
+              </button>
+            )}
+
+            {(user?.role === 'STAFF' || user?.role === 'ADMIN') && (
+              <button
+                onClick={openModal}
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+              >
+                + Report Work Order
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Urgency SLA Overview Bar */}
@@ -383,7 +436,7 @@ function WorkOrdersContent() {
                             </span>
                             {isRouteB && (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                                Route B (QB Advance)
+                                Advance Float Funded
                               </span>
                             )}
                             {isStatutory && (
@@ -409,16 +462,31 @@ function WorkOrdersContent() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center whitespace-nowrap">
-                          <Link
-                            href={`/work-orders/${wo.id}`}
-                            title="View Work Order Details & SHA-256 Audit Vault"
-                            className="inline-flex items-center justify-center p-1.5 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:text-sky-900 rounded-md border border-sky-200 transition-colors shadow-2xs"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                          </Link>
+                          <div className="inline-flex items-center justify-center gap-1.5">
+                            <Link
+                              href={`/work-orders/${wo.id}`}
+                              title="View Work Order Details & SHA-256 Audit Vault"
+                              className="inline-flex items-center justify-center p-1.5 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:text-sky-900 rounded-md border border-sky-200 transition-colors shadow-2xs"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </Link>
+                            {user?.role === 'ADMIN' && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteWorkOrder(wo.id, wo.tracking_number)}
+                                disabled={deleteMutation.isPending}
+                                title="Admin: Delete this test work order"
+                                className="inline-flex items-center justify-center p-1.5 text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-800 rounded-md border border-red-200 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

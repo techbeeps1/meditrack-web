@@ -1,6 +1,6 @@
 import api from './api';
 import { ApiResponse } from '@/types';
-import { WorkOrder, WorkOrderPhoto, WorkOrderStatus } from '@/types/workOrder';
+import { WorkOrder, WorkOrderPhoto, WorkOrderStatus, SubmitAssessmentInput } from '@/types/workOrder';
 import { AuditChainResponse } from '@/types/audit';
 
 export const workOrderApi = {
@@ -44,6 +44,8 @@ export const workOrderApi = {
       assigned_to?: string;
       contractor_id?: string;
       actual_cost?: number;
+      contractor_quote_ref?: string;
+      direct_issue_justification?: string;
     }
   ) => {
     const res = await api.patch<ApiResponse<{ workOrder: WorkOrder; event: any }>>(
@@ -72,17 +74,19 @@ export const workOrderApi = {
     return res.data.data;
   },
 
-  submitAssessment: async (
-    id: string,
-    payload: {
-      assessment_type: 'offsite' | 'onsite';
-      assessor_estimate: number;
-      charge_code: 'PRE' | 'ONS' | 'TRV' | 'FIN';
-      assessment_notes?: string;
-    }
-  ) => {
+  submitAssessment: async (id: string, payload: SubmitAssessmentInput) => {
     const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/assessment`, payload);
     return res.data.data;
+  },
+
+  deleteWorkOrder: async (id: string) => {
+    const res = await api.delete<ApiResponse<{ success: boolean; message: string }>>(`/work-orders/${id}`);
+    return res.data;
+  },
+
+  clearAllWorkOrders: async () => {
+    const res = await api.delete<ApiResponse<{ success: boolean; message: string }>>('/work-orders/clear-all');
+    return res.data;
   }
 };
 

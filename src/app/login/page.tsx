@@ -14,14 +14,15 @@ const loginFormSchema = z.object({
 type LoginFormData = z.infer<typeof loginFormSchema>;
 
 const DEMO_ROLES = [
-  { role: 'Admin', email: 'admin@meditrack.com' },
   { role: 'Staff', email: 'staff@meditrack.com' },
   { role: 'Work Approver', email: 'approver1@meditrack.com' },
+  { role: 'Site Inspector', email: 'inspector@meditrack.com' },
+  { role: 'Site Engineer', email: 'engineer@meditrack.com' },
   { role: 'Contractor Approver', email: 'approver2@meditrack.com' },
-  { role: 'Payment Approver', email: 'approver3@meditrack.com' },
   { role: 'Contractor', email: 'contractor@meditrack.com' },
-  { role: 'Inspector', email: 'inspector@meditrack.com' },
-  { role: 'Auditor', email: 'auditor@meditrack.com' }
+  { role: 'Payment Approver', email: 'approver3@meditrack.com' },
+  { role: 'Auditor', email: 'auditor@meditrack.com' },
+  { role: 'Admin', email: 'admin@meditrack.com' }
 ];
 
 export default function LoginPage() {

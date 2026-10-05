@@ -16,7 +16,7 @@ export type WorkOrderStatus =
   | 'cancelled';
 
 export type AssessmentType = 'offsite' | 'onsite';
-export type ChargeCode = 'PRE' | 'ONS' | 'TRV' | 'FIN';
+export type ChargeCode = 'PRE' | 'ONS' | 'TRV' | 'EVI' | 'FIN';
 
 export interface WorkOrderPhoto {
   id: string;
@@ -54,6 +54,7 @@ export interface WorkOrder {
   contractor_id?: string | null;
   contractor_name?: string | null;
   assessment_type?: AssessmentType | null;
+  assessor_role?: 'works_engineer' | 'works_inspector' | null;
   assessor_id?: string | null;
   assessor_name?: string | null;
   assessor_email?: string | null;
@@ -61,6 +62,23 @@ export interface WorkOrder {
   charge_code?: ChargeCode | null;
   assessment_notes?: string | null;
   assessment_date?: string | null;
+  system_quote_no?: string | null;
+  contractor_quote_ref?: string | null;
+  direct_issue_justification?: string | null;
+  quote_status?: 'under_review' | 'awaiting_client' | 'client_approved' | 'client_declined' | null;
+  client_approved_by?: string | null;
+  client_approved_at?: string | null;
+  client_decline_reason?: string | null;
+  signoff_engineer_by?: string | null;
+  signoff_engineer_at?: string | null;
+  signoff_fm_by?: string | null;
+  signoff_fm_at?: string | null;
+  signoff_inspector_by?: string | null;
+  signoff_inspector_at?: string | null;
+  completion_cert_no?: string | null;
+  client_recovery_invoice_no?: string | null;
+  client_recovery_status?: 'pending' | 'submitted' | 'recovered' | null;
+  signoff_rejection_reason?: string | null;
   is_blind_quoted?: boolean;
   estimated_cost: number;
   actual_cost: number;
@@ -119,8 +137,11 @@ export interface CreateWorkOrderInput {
 
 export interface SubmitAssessmentInput {
   assessment_type: AssessmentType;
-  assessor_estimate: number;
+  assessor_role?: 'works_engineer' | 'works_inspector';
+  assessor_estimate?: number;
   charge_code: ChargeCode;
   assessment_notes?: string;
+  route_b_override?: boolean;
+  refer_to_engineer?: boolean;
 }
 
