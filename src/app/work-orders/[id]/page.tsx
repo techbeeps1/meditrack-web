@@ -1146,23 +1146,23 @@ export default function WorkOrderDetailPage() {
                   <>
                     {workOrder.assessment_type ? (
                       <div className="space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                           <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                             <div className="text-[11px] text-slate-500 font-medium">Assessment Mode</div>
                             <div className="text-xs font-bold text-slate-900 mt-0.5 capitalize">
-                              {workOrder.assessment_type === 'offsite' ? 'Offsite (Evidence Photos)' : 'Onsite (Physical Site Visit)'}
+                              {workOrder.assessment_type === 'offsite' ? 'Offsite (Evidence Photos)' : 'Onsite (Site Visit)'}
                             </div>
                           </div>
 
                           <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                             <div className="text-[11px] text-slate-500 font-medium">Charge Code</div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
+                            <div className="flex items-center gap-1 mt-0.5">
                               <span className="font-mono font-bold text-slate-900 text-xs">{workOrder.charge_code || 'PRE'}</span>
-                              <span className="text-[10px] text-slate-500">
-                                {workOrder.charge_code === 'PRE' && '(Preliminary Review)'}
-                                {workOrder.charge_code === 'ONS' && '(Onsite Inspection)'}
-                                {workOrder.charge_code === 'TRV' && '(Travel & Assessment)'}
-                                {workOrder.charge_code === 'FIN' && '(Final Assessment)'}
+                              <span className="text-[10px] text-slate-500 truncate">
+                                {workOrder.charge_code === 'PRE' && '(Preliminary)'}
+                                {workOrder.charge_code === 'ONS' && '(Onsite)'}
+                                {workOrder.charge_code === 'TRV' && '(Travel)'}
+                                {workOrder.charge_code === 'FIN' && '(Final)'}
                               </span>
                             </div>
                           </div>
@@ -1173,31 +1173,21 @@ export default function WorkOrderDetailPage() {
                               {formatCurrency(workOrder.assessor_estimate || workOrder.estimated_cost || 0)}
                             </div>
                           </div>
-                        </div>
 
-                        {/* Automated Threshold Routing Indicator */}
-                        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-xs font-bold text-slate-900">
-                              Automated Funding Routing (R50,000 Threshold)
-                            </span>
-                            {workOrder.funding_route === 'route_b' || urgency === 'Critical 0–24h' ? (
-                              <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-slate-200 text-slate-800">
-                                Route B: Advance Funded (Float)
-                              </span>
-                            ) : (
-                              <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-sky-100 text-sky-800">
-                                Route A: Client Funded (Quote Gateway)
-                              </span>
-                            )}
+                          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                            <div className="text-[11px] text-slate-500 font-medium">Funding Route</div>
+                            <div className="mt-0.5">
+                              {workOrder.funding_route === 'route_b' || urgency === 'Critical 0–24h' ? (
+                                <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-slate-200 text-slate-800">
+                                  Route B (QB Float)
+                                </span>
+                              ) : (
+                                <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                                  Route A (Client Gateway)
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <p className="text-xs text-slate-600 leading-relaxed">
-                            {urgency === 'Critical 0–24h'
-                              ? 'Critical 0–24h urgency directly triggers Route B advance funding float for immediate specialist dispatch.'
-                              : (workOrder.assessor_estimate || workOrder.estimated_cost || 0) <= 50000
-                              ? 'Estimate is within the R50,000 threshold. Automatically routed to Route B for Quantum Built advance float and 24-hour contractor payout.'
-                              : 'Estimate exceeds the R50,000 threshold. Automatically routed to Route A requiring formal NC DOH quote approval gateway.'}
-                          </p>
                         </div>
 
                         {/* Assessor Details & Notes */}
@@ -2532,26 +2522,17 @@ export default function WorkOrderDetailPage() {
               </div>
 
               {/* Dynamic Live Automated Funding Dispatch Preview */}
-              <div className="p-3.5 rounded-xl border text-xs space-y-1 bg-slate-50 border-slate-200">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-700">Automated Dispatch Result:</span>
-                  {urgency === 'Critical 0–24h' || (assessmentEstimate !== '' && Number(assessmentEstimate) <= 50000) ? (
-                    <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-200 text-slate-800">
-                      Route B (Advance Funded Float)
-                    </span>
-                  ) : (
-                    <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
-                      Route A (Client Funded Gateway)
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  {urgency === 'Critical 0–24h'
-                    ? 'Critical priority work orders directly provision Route B advance float for immediate dispatch.'
-                    : (assessmentEstimate !== '' && Number(assessmentEstimate) <= 50000)
-                    ? 'Estimate is within the R50,000 threshold. Provisioned under Quantum Built advance float with 24h contractor settlement.'
-                    : 'Estimate exceeds R50,000 threshold. Requires formal NC DOH quotation review and approval gateway.'}
-                </p>
+              <div className="p-3 rounded-xl border text-xs bg-slate-50 border-slate-200 flex items-center justify-between">
+                <span className="font-semibold text-slate-700">Automated Dispatch Route:</span>
+                {urgency === 'Critical 0–24h' || (assessmentEstimate !== '' && Number(assessmentEstimate) <= 50000) ? (
+                  <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-slate-200 text-slate-800">
+                    Route B (Advance Float)
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                    Route A (Client Gateway)
+                  </span>
+                )}
               </div>
 
               {/* Assessment Notes */}

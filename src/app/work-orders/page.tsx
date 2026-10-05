@@ -239,22 +239,18 @@ function WorkOrdersContent() {
         </div>
 
         {/* Urgency SLA Overview Bar */}
-        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm grid grid-cols-2 md:grid-cols-4 gap-4 divide-y md:divide-y-0 md:divide-x divide-gray-100">
-          <div className="px-2 pt-2 md:pt-0">
+        <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 divide-y md:divide-y-0 md:divide-x divide-gray-100 text-center md:text-left">
+          <div className="px-2 py-1.5 md:py-0">
             <div className="text-xs font-semibold text-gray-900">Critical 0–24h</div>
-            <div className="text-[11px] text-gray-500 mt-0.5">Fast-Track Bypass • 24h Advance Funded</div>
           </div>
-          <div className="px-2 pt-2 md:pt-0 md:pl-4">
+          <div className="px-2 py-1.5 md:py-0 md:pl-4">
             <div className="text-xs font-semibold text-gray-900">Very urgent 2–4 days</div>
-            <div className="text-[11px] text-gray-500 mt-0.5">Fast-Track Bypass • Expedited 2–4 Days</div>
           </div>
-          <div className="px-2 pt-2 md:pt-0 md:pl-4">
+          <div className="px-2 py-1.5 md:py-0 md:pl-4">
             <div className="text-xs font-semibold text-gray-900">Urgent 4–8 days</div>
-            <div className="text-[11px] text-gray-500 mt-0.5">Fast-Track Bypass • Direct 4–8 Days</div>
           </div>
-          <div className="px-2 pt-2 md:pt-0 md:pl-4">
+          <div className="px-2 py-1.5 md:py-0 md:pl-4">
             <div className="text-xs font-semibold text-gray-900">8+ days or statutory</div>
-            <div className="text-[11px] text-gray-500 mt-0.5">Statutory Schedule • 30d &amp; 15d Pre-Notice</div>
           </div>
         </div>
 
@@ -468,23 +464,19 @@ function WorkOrdersContent() {
                     {[
                       {
                         value: 'Critical 0–24h' as const,
-                        label: 'Critical 0–24h',
-                        desc: 'Fast-Track Bypass • 24h Route B Advance Funded'
+                        label: 'Critical 0–24h'
                       },
                       {
                         value: 'Very urgent 2–4 days' as const,
-                        label: 'Very urgent 2–4 days',
-                        desc: 'Fast-Track Bypass • 2 to 4 Days SLA'
+                        label: 'Very urgent 2–4 days'
                       },
                       {
                         value: 'Urgent 4–8 days' as const,
-                        label: 'Urgent 4–8 days',
-                        desc: 'Fast-Track Bypass • 4 to 8 Days SLA'
+                        label: 'Urgent 4–8 days'
                       },
                       {
                         value: '8+ days or statutory' as const,
-                        label: '8+ days or statutory',
-                        desc: 'Statutory Planned • 30d/15d Pre-Notices'
+                        label: '8+ days or statutory'
                       }
                     ].map((item) => {
                       const isSelected = selectedUrgency === item.value;
@@ -492,40 +484,26 @@ function WorkOrdersContent() {
                         <div
                           key={item.value}
                           onClick={() => handleUrgencyChange(item.value)}
-                          className={`p-3 rounded-lg border cursor-pointer transition-all flex flex-col justify-between ${
+                          className={`p-3 rounded-lg border cursor-pointer transition-all flex items-center justify-between ${
                             isSelected
                               ? 'border-sky-600 bg-sky-50/50 ring-1 ring-sky-600'
                               : 'border-gray-200 hover:border-gray-300 bg-white'
                           }`}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className={`text-xs font-semibold ${isSelected ? 'text-sky-900 font-bold' : 'text-gray-900'}`}>{item.label}</span>
-                            <input
-                              type="radio"
-                              value={item.value}
-                              checked={isSelected}
-                              onChange={() => handleUrgencyChange(item.value)}
-                              className="text-sky-600 focus:ring-sky-500 h-3.5 w-3.5"
-                            />
-                          </div>
-                          <p className="text-[11px] text-gray-500 mt-1 leading-tight">{item.desc}</p>
+                          <span className={`text-xs font-semibold ${isSelected ? 'text-sky-900 font-bold' : 'text-gray-900'}`}>
+                            {item.label}
+                          </span>
+                          <input
+                            type="radio"
+                            value={item.value}
+                            checked={isSelected}
+                            onChange={() => handleUrgencyChange(item.value)}
+                            className="text-sky-600 focus:ring-sky-500 h-3.5 w-3.5 cursor-pointer"
+                          />
                         </div>
                       );
                     })}
                   </div>
-
-                  {/* Informational SLA Banner */}
-                  {selectedUrgency !== '8+ days or statutory' && (
-                    <div className="mt-2.5 p-3 rounded-md bg-slate-50 border border-slate-200 text-xs text-slate-700">
-                      <strong className="text-gray-900 font-semibold">Fast-Track Route B Bypass:</strong> This urgent work order bypasses routine statutory 30-day/15-day pre-notice delays and standard procurement bottlenecks for immediate technical dispatch.
-                    </div>
-                  )}
-
-                  {selectedUrgency === '8+ days or statutory' && (
-                    <div className="mt-2.5 p-3 rounded-md bg-sky-50/60 border border-sky-200 text-xs text-sky-800">
-                      <strong className="text-sky-900 font-semibold">Statutory Pre-Notice Workflow:</strong> Automatically triggers formal 30-day and 15-day pre-maintenance notices to NC DOH, facility directors, and QB technical management.
-                    </div>
-                  )}
                 </div>
 
                 <div>
