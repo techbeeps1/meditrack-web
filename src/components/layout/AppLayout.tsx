@@ -36,11 +36,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const [mounted, setMounted] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   // Sync System Settings & Currency
   const { data: systemSettings } = useQuery({
@@ -119,27 +125,38 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex font-sans" suppressHydrationWarning>
-      {/* Fixed Left Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between shrink-0 fixed inset-y-0 left-0 z-30">
+    <div className="min-h-screen bg-slate-50 flex font-sans overflow-x-hidden" suppressHydrationWarning>
+      {/* Mobile Backdrop Overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/50 z-30 md:hidden backdrop-blur-xs transition-opacity"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Responsive Sidebar (Slide-in on mobile, fixed on desktop) */}
+      <aside
+        className={`w-64 bg-white border-r border-slate-200 flex flex-col justify-between shrink-0 fixed inset-y-0 left-0 z-40 transition-transform duration-200 ease-in-out ${
+          mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
         {/* Brand Section */}
         <div>
-          <div className="h-16 flex items-center px-6 border-b border-slate-200">
+          <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200">
             <Link href="/dashboard" className="flex items-center space-x-2.5">
               <img
                 src="/images/logo.png"
                 alt="HES Logo"
-                className="h-20 w-20 max-w-[200px] object-contain rounded"
+                className="h-16 w-16 max-w-[160px] object-contain rounded"
               />
-              {/* <div>
-                <span className="font-bold text-sm text-slate-900 tracking-tight block leading-tight">
-                  HES
-                </span>
-                <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">
-                  Healthcare Ops
-                </span>
-              </div> */}
             </Link>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
 
           {/* Vertical Menu Links */}
@@ -181,7 +198,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => logout()}
               title="Sign Out"
-              className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-rose-700 bg-white border border-slate-200 rounded hover:bg-rose-50 transition shrink-0"
+              className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-rose-700 bg-white border border-slate-200 rounded hover:bg-rose-50 transition shrink-0 cursor-pointer"
             >
               Sign Out
             </button>
@@ -190,21 +207,36 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col pl-64 min-w-0">
+      <div className="flex-1 flex flex-col pl-0 md:pl-64 min-w-0 w-full overflow-x-hidden">
         {/* Top Minimal Header */}
-        <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-20 flex items-center justify-between px-8">
-          <div className="flex items-center space-x-3">
-            <h2 className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
-              Hospital Infrastructure Operations Command
+        <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 md:px-8">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+            {/* Mobile Hamburger Button */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg md:hidden focus:outline-none cursor-pointer shrink-0"
+              title="Toggle Menu"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {mobileMenuOpen ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
+            <h2 className="text-xs font-semibold text-slate-600 tracking-wide uppercase truncate max-w-[170px] sm:max-w-none">
+              Hospital Ops Command
             </h2>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
             {/* Notification Bell Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className="relative p-2 text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition focus:outline-none"
+                className="relative p-2 text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition focus:outline-none cursor-pointer"
                 title="Notifications"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -224,10 +256,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
               {/* Notification Tray Dropdown */}
               {isNotifOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                     <div className="flex items-center space-x-2">
-                      <span className="text-xs font-bold text-slate-900">Alerts & Notifications</span>
+                      <span className="text-xs font-bold text-slate-900">Alerts</span>
                       {unreadCount > 0 && (
                         <span className="text-[10px] font-semibold bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded">
                           {unreadCount} new
@@ -237,7 +269,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     {unreadCount > 0 && (
                       <button
                         onClick={() => markAllReadMutation.mutate()}
-                        className="text-[11px] text-sky-600 hover:text-sky-800 font-medium"
+                        className="text-[11px] text-sky-600 hover:text-sky-800 font-medium cursor-pointer"
                       >
                         Mark all read
                       </button>
@@ -293,15 +325,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               )}
             </div>
 
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
               System Online
             </span>
-            <span className="text-xs text-slate-500 font-mono">{user.email}</span>
+            <span className="hidden md:inline text-xs text-slate-500 font-mono truncate max-w-[160px]">{user.email}</span>
           </div>
         </header>
 
         {/* Page Content Container */}
-        <main className="flex-1 p-6 lg:p-8 w-full max-w-7xl mx-auto min-w-0">{children}</main>
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto min-w-0">{children}</main>
       </div>
     </div>
   );

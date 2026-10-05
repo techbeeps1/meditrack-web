@@ -539,9 +539,9 @@ export default function WorkOrderDetailPage() {
         </div>
 
         {/* Top Header Card */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <span className="font-mono font-bold text-sky-700 text-sm">
                 {workOrder.tracking_number}
               </span>
@@ -577,7 +577,7 @@ export default function WorkOrderDetailPage() {
                 {workOrder.status.replace('_', ' ')}
               </span>
             </div>
-            <h1 className="text-xl font-bold text-gray-900 mt-2">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900 mt-2">
               {workOrder.title}
             </h1>
             <p className="text-xs text-gray-500 mt-1">
@@ -587,20 +587,22 @@ export default function WorkOrderDetailPage() {
           </div>
 
           {/* Workflow Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             {canAssess && (
               <button
+                type="button"
                 onClick={openAssessmentModal}
-                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                className="px-4 py-2 bg-slate-900 hover:bg-black active:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
               >
-                {workOrder.assessment_type ? 'Update Assessment' : 'Conduct Assessment'}
+                {workOrder.assessment_type ? 'Edit Assessment' : 'Conduct Assessment'}
               </button>
             )}
 
             {canApprove && (
               <button
+                type="button"
                 onClick={() => openTransitionModal('approved')}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
               >
                 Approve Work Order
               </button>
@@ -609,8 +611,9 @@ export default function WorkOrderDetailPage() {
             {/* When Approved: Contractor can submit price quote ONLY for Route A (Client Funded / Multi-Quote) */}
             {status === 'approved' && role === 'CONTRACTOR' && !isRouteB && (
               <button
+                type="button"
                 onClick={openQuoteModal}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded shadow-sm transition-colors flex items-center gap-1.5"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
               >
                 {workOrder.estimated_cost ? `Update Price Quote (${formatCurrency(workOrder.estimated_cost)})` : 'Submit Price Quote (R)'}
               </button>
@@ -618,8 +621,9 @@ export default function WorkOrderDetailPage() {
 
             {canAssign && (
               <button
+                type="button"
                 onClick={() => openTransitionModal('assigned')}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
               >
                 Assign Specialist Contractor
               </button>
@@ -628,7 +632,7 @@ export default function WorkOrderDetailPage() {
             {status === 'approved' && isSameApproverForAssignment && (
               <span
                 title="Segregation of Duties: You approved this work order scope/budget. To prevent single-point control, contractor assignment must be completed by Procurement or another authorized officer."
-                className="px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium rounded"
+                className="px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium rounded-lg"
               >
                 Assignment Delegated to Procurement (SoD)
               </span>
@@ -636,8 +640,9 @@ export default function WorkOrderDetailPage() {
 
             {canStartWork && (
               <button
+                type="button"
                 onClick={() => openTransitionModal('in_progress')}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
               >
                 Start Field Work
               </button>
@@ -645,8 +650,9 @@ export default function WorkOrderDetailPage() {
 
             {canComplete && (
               <button
+                type="button"
                 onClick={() => openTransitionModal('completed')}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
               >
                 Mark Work Completed
               </button>
@@ -655,14 +661,16 @@ export default function WorkOrderDetailPage() {
             {canVerify && (
               <>
                 <button
+                  type="button"
                   onClick={() => openInspectionModal('PASS')}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
                 >
                   Pass Inspection & Verify
                 </button>
                 <button
+                  type="button"
                   onClick={() => openInspectionModal('FAIL')}
-                  className="px-3 py-2 bg-white border border-red-300 hover:bg-red-50 text-red-700 text-xs font-semibold rounded transition-colors"
+                  className="px-3 py-2 bg-white border border-rose-300 hover:bg-rose-50 active:bg-rose-100 text-rose-700 text-xs font-semibold rounded-lg transition-all active:scale-95 cursor-pointer"
                 >
                   Fail QC (Return to In Progress)
                 </button>
@@ -671,8 +679,9 @@ export default function WorkOrderDetailPage() {
 
             {canClose && (
               <button
+                type="button"
                 onClick={() => openTransitionModal('closed')}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
               >
                 Close Work Order
               </button>
@@ -683,7 +692,7 @@ export default function WorkOrderDetailPage() {
               <button
                 disabled
                 title="Invoice generation will be enabled after quality inspection and verification"
-                className="px-4 py-2 bg-slate-100 text-slate-400 border border-slate-200 text-xs font-semibold rounded cursor-not-allowed select-none"
+                className="px-4 py-2 bg-slate-100 text-slate-400 border border-slate-200 text-xs font-semibold rounded-lg cursor-not-allowed select-none"
               >
                 Waiting for Verification
               </button>
@@ -693,8 +702,9 @@ export default function WorkOrderDetailPage() {
             {/* Contractor sees button to Generate Invoice Claim */}
             {role === 'CONTRACTOR' && ['verified', 'closed'].includes(workOrder.status) && !workOrder.invoice_id && (
               <button
+                type="button"
                 onClick={openInvoiceModal}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded shadow-sm transition-colors"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
               >
                 Generate Invoice Claim ({formatCurrency(workOrder.actual_cost || workOrder.estimated_cost || 0)})
               </button>
@@ -703,12 +713,13 @@ export default function WorkOrderDetailPage() {
             {/* Approver / Admin sees button to Request Invoice from Contractor */}
             {canRequestInvoice && (
               <button
+                type="button"
                 onClick={() => requestInvoiceMutation.mutate()}
                 disabled={requestInvoiceMutation.isPending || invoiceRequestSuccess}
-                className={`px-3.5 py-2 text-xs font-semibold rounded shadow-sm transition-colors flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 text-xs font-semibold rounded-lg shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 ${
                   invoiceRequestSuccess
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-300'
-                    : 'bg-amber-600 hover:bg-amber-700 text-white'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 cursor-default'
+                    : 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white'
                 }`}
               >
                 {requestInvoiceMutation.isPending
@@ -725,21 +736,23 @@ export default function WorkOrderDetailPage() {
                 {canApproveOrPayInvoice && ['pending', 'approved'].includes(workOrder.invoice_status || '') && (
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => invoiceStatusMutation.mutate({ status: 'paid' })}
                       disabled={invoiceStatusMutation.isPending}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded shadow-sm transition-colors"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                     >
                       {invoiceStatusMutation.isPending
                         ? 'Settling Payment...'
                         : `Approve & Pay Invoice (${formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)})`}
                     </button>
                     <button
+                      type="button"
                       onClick={() => {
                         const reason = window.prompt('Enter reason for rejecting invoice claim:');
                         if (reason) invoiceStatusMutation.mutate({ status: 'rejected', notes: reason });
                       }}
                       disabled={invoiceStatusMutation.isPending}
-                      className="px-3 py-2 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 text-xs font-medium rounded transition-colors"
+                      className="px-3 py-2 bg-white border border-rose-300 hover:bg-rose-50 active:bg-rose-100 text-rose-700 text-xs font-medium rounded-lg transition-all active:scale-95 cursor-pointer"
                     >
                       Reject Claim
                     </button>
@@ -749,7 +762,7 @@ export default function WorkOrderDetailPage() {
                 {isSodViolationForInvoice && ['pending', 'approved'].includes(workOrder.invoice_status || '') && (
                   <span
                     title="Segregation of Duties: You approved or assigned this work order. To prevent conflict of interest, invoice settlement must be completed by Finance / Payment Approver."
-                    className="px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium rounded"
+                    className="px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium rounded-lg"
                   >
                     Settlement Delegated to Finance (SoD)
                   </span>
@@ -760,12 +773,12 @@ export default function WorkOrderDetailPage() {
                   canViewInvoiceDetails ? (
                     <Link
                       href="/invoices"
-                      className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-xs font-semibold transition-colors"
+                      className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer inline-block"
                     >
                       Invoice {workOrder.invoice_number} (PAID & SETTLED) — {formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)} &rarr;
                     </Link>
                   ) : (
-                    <span className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded text-xs font-semibold">
+                    <span className="px-3 py-2 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-semibold">
                       Payment Settled
                     </span>
                   )
@@ -775,7 +788,7 @@ export default function WorkOrderDetailPage() {
                 {workOrder.invoice_status === 'rejected' && canViewInvoiceDetails && (
                   <Link
                     href="/invoices"
-                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 rounded text-xs font-semibold transition-colors"
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-800 border border-rose-300 rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer inline-block"
                   >
                     Invoice {workOrder.invoice_number} (REJECTED) &rarr;
                   </Link>
@@ -802,7 +815,7 @@ export default function WorkOrderDetailPage() {
                       })
                     }
                     title="Download and Print Official Invoice PDF"
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded shadow-xs transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 border border-sky-200 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -815,8 +828,9 @@ export default function WorkOrderDetailPage() {
 
             {canReject && (
               <button
+                type="button"
                 onClick={() => openTransitionModal('cancelled')}
-                className="px-3 py-2 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 text-xs font-medium rounded transition-colors"
+                className="px-3.5 py-2 bg-white border border-rose-300 hover:bg-rose-50 active:bg-rose-100 text-rose-700 text-xs font-medium rounded-lg transition-all active:scale-95 cursor-pointer"
               >
                 Cancel / Reject
               </button>
@@ -979,7 +993,7 @@ export default function WorkOrderDetailPage() {
         )}
 
         {/* Workflow Pipeline Stepper */}
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">
               Workflow Progress Pipeline
@@ -990,44 +1004,47 @@ export default function WorkOrderDetailPage() {
               </span>
             )}
           </div>
-          <div className="grid grid-cols-7 gap-2">
-            {WORKFLOW_STEPS.map((step, idx) => {
-              const isPast = currentStepIdx >= idx;
-              const isCurrent = currentStepIdx === idx;
+          <div className="overflow-x-auto pb-2 scrollbar-thin">
+            <div className="grid grid-cols-7 gap-2 min-w-[540px] md:min-w-0">
+              {WORKFLOW_STEPS.map((step, idx) => {
+                const isPast = currentStepIdx >= idx;
+                const isCurrent = currentStepIdx === idx;
 
-              return (
-                <div key={step.status} className="text-center">
-                  <div
-                    className={`h-2 rounded-full mb-2 transition-all ${
-                      isCurrent
-                        ? 'bg-sky-600 ring-2 ring-sky-300'
-                        : isPast
-                        ? 'bg-emerald-500'
-                        : 'bg-gray-200'
-                    }`}
-                  />
-                  <div
-                    className={`text-xs font-medium capitalize truncate ${
-                      isCurrent
-                        ? 'text-sky-700 font-bold'
-                        : isPast
-                        ? 'text-gray-800'
-                        : 'text-gray-400'
-                    }`}
-                  >
-                    {step.label}
+                return (
+                  <div key={step.status} className="text-center">
+                    <div
+                      className={`h-2 rounded-full mb-2 transition-all ${
+                        isCurrent
+                          ? 'bg-sky-600 ring-2 ring-sky-300'
+                          : isPast
+                          ? 'bg-emerald-500'
+                          : 'bg-gray-200'
+                      }`}
+                    />
+                    <div
+                      className={`text-[11px] sm:text-xs font-medium capitalize truncate ${
+                        isCurrent
+                          ? 'text-sky-700 font-bold'
+                          : isPast
+                          ? 'text-gray-800'
+                          : 'text-gray-400'
+                      }`}
+                    >
+                      {step.label}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
 
         {/* Tab Navigation (Details vs Unified Activity History vs SHA-256 Vault) */}
-        <div className="flex border-b border-gray-200">
+        <div className="flex border-b border-gray-200 overflow-x-auto scrollbar-none gap-1 sm:gap-2">
           <button
+            type="button"
             onClick={() => setActiveTab('details')}
-            className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors ${
+            className={`py-2.5 sm:py-3 px-3.5 sm:px-6 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
               activeTab === 'details'
                 ? 'border-sky-600 text-sky-700 font-semibold'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -1038,8 +1055,9 @@ export default function WorkOrderDetailPage() {
 
           {canViewAuditVault && (
             <button
+              type="button"
               onClick={() => setActiveTab('timeline')}
-              className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              className={`py-2.5 sm:py-3 px-3.5 sm:px-6 text-xs sm:text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === 'timeline'
                   ? 'border-sky-600 text-sky-700 font-semibold'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -1054,8 +1072,9 @@ export default function WorkOrderDetailPage() {
 
           {canViewAuditVault && (
             <button
+              type="button"
               onClick={() => setActiveTab('audit')}
-              className={`py-3 px-6 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              className={`py-2.5 sm:py-3 px-3.5 sm:px-6 text-xs sm:text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === 'audit'
                   ? 'border-sky-600 text-sky-700 font-semibold'
                   : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -1098,8 +1117,9 @@ export default function WorkOrderDetailPage() {
 
                   {canAssess && (
                     <button
+                      type="button"
                       onClick={openAssessmentModal}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded transition shrink-0"
+                      className="px-3.5 py-2 bg-slate-900 hover:bg-black active:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-all shadow-xs hover:shadow active:scale-95 cursor-pointer shrink-0"
                     >
                       {workOrder.assessment_type ? 'Edit Assessment' : 'Record Assessment'} &rarr;
                     </button>
@@ -2089,16 +2109,22 @@ export default function WorkOrderDetailPage() {
               {/* Amount Breakdown */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Approved Service Base (R) *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Approved Service Base (R) *
+                    </label>
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Fixed Contract Price
+                    </span>
+                  </div>
                   <input
                     type="number"
+                    readOnly
+                    disabled
                     value={invoiceAmount}
-                    onChange={(e) => setInvoiceAmount(e.target.value === '' ? 0 : Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-md text-sm font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-sm font-bold text-slate-900 cursor-not-allowed select-none"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">Pre-filled with approved budget</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Locked to approved quote / allocated budget</p>
                 </div>
 
                 <div>
@@ -2406,53 +2432,51 @@ export default function WorkOrderDetailPage() {
 
         {/* Engineering Assessor Scope & Cost Estimation Modal */}
         {isAssessmentModalOpen && (
-          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4">
-              <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-start pb-3 border-b border-slate-100">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase tracking-wider">
+                      Technical Scope
+                    </span>
+                    <span className="text-xs font-mono text-slate-500">{workOrder.tracking_number}</span>
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mt-1">
                     Engineering Assessment &amp; Scope Estimation
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Evaluate maintenance scope, assign charge code, and dispatch funding route
+                    Evaluate repair scope, charge code, and automated R50,000 threshold routing
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsAssessmentModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 text-sm font-bold transition cursor-pointer active:scale-95"
                 >
                   ✕
                 </button>
               </div>
 
               {assessmentError && (
-                <div className="p-3 rounded bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
                   {assessmentError}
                 </div>
               )}
 
-              {/* Target Work Order info */}
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1">
-                <div className="flex justify-between">
-                  <span className="font-mono font-bold text-sky-700">{workOrder.tracking_number}</span>
-                  <span className="font-semibold text-slate-700">{urgency}</span>
-                </div>
-                <div className="font-semibold text-slate-800">{workOrder.title}</div>
-              </div>
-
-              {/* Assessment Mode */}
+              {/* Assessment Mode (Segmented Pill Switcher) */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Assessment Mode *
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-100 p-1 rounded-xl grid grid-cols-2 gap-1 border border-slate-200/80">
                   <button
                     type="button"
                     onClick={() => setAssessmentType('offsite')}
-                    className={`py-2 px-3 text-xs font-bold rounded-lg border text-center transition ${
+                    className={`py-2 px-3 text-xs rounded-lg text-center transition-all cursor-pointer ${
                       assessmentType === 'offsite'
-                        ? 'bg-sky-50 text-sky-800 border-sky-400 ring-2 ring-sky-200'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        ? 'bg-slate-900 text-white font-bold shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80 font-medium active:scale-95'
                     }`}
                   >
                     Offsite (Evidence Photos)
@@ -2460,10 +2484,10 @@ export default function WorkOrderDetailPage() {
                   <button
                     type="button"
                     onClick={() => setAssessmentType('onsite')}
-                    className={`py-2 px-3 text-xs font-bold rounded-lg border text-center transition ${
+                    className={`py-2 px-3 text-xs rounded-lg text-center transition-all cursor-pointer ${
                       assessmentType === 'onsite'
-                        ? 'bg-sky-50 text-sky-800 border-sky-400 ring-2 ring-sky-200'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        ? 'bg-slate-900 text-white font-bold shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80 font-medium active:scale-95'
                     }`}
                   >
                     Onsite (Physical Site Visit)
@@ -2479,7 +2503,7 @@ export default function WorkOrderDetailPage() {
                 <select
                   value={chargeCode}
                   onChange={(e) => setChargeCode(e.target.value as 'PRE' | 'ONS' | 'TRV' | 'FIN')}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none shadow-2xs cursor-pointer"
                 >
                   <option value="PRE">PRE &mdash; Preliminary / Remote Offsite Review</option>
                   <option value="ONS">ONS &mdash; Onsite Technical Inspection</option>
@@ -2493,34 +2517,39 @@ export default function WorkOrderDetailPage() {
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Assessor Estimated Cost (R) *
                 </label>
-                <input
-                  type="number"
-                  value={assessmentEstimate}
-                  onChange={(e) => setAssessmentEstimate(e.target.value === '' ? '' : Number(e.target.value))}
-                  placeholder="e.g. 35000"
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono"
-                />
+                <div className="relative rounded-xl shadow-2xs">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <span className="text-slate-400 text-sm font-mono font-bold">R</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={assessmentEstimate}
+                    onChange={(e) => setAssessmentEstimate(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="e.g. 35000"
+                    className="w-full pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono"
+                  />
+                </div>
               </div>
 
               {/* Dynamic Live Automated Funding Dispatch Preview */}
-              <div className="p-3 rounded-lg border text-xs space-y-1 bg-slate-50 border-slate-200">
+              <div className="p-3.5 rounded-xl border text-xs space-y-1 bg-slate-50 border-slate-200">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-700">Automated Dispatch Result:</span>
                   {urgency === 'Critical 0–24h' || (assessmentEstimate !== '' && Number(assessmentEstimate) <= 50000) ? (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-200 text-slate-800">
+                    <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-200 text-slate-800">
                       Route B (Advance Funded Float)
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-sky-100 text-sky-800">
+                    <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
                       Route A (Client Funded Gateway)
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
                   {urgency === 'Critical 0–24h'
-                    ? 'Critical priority work orders bypass standard thresholds directly to Route B advance float.'
+                    ? 'Critical priority work orders directly provision Route B advance float for immediate dispatch.'
                     : (assessmentEstimate !== '' && Number(assessmentEstimate) <= 50000)
-                    ? 'Estimate is <= R50,000 threshold. Direct advance funding by Quantum Built with 24h contractor settlement.'
+                    ? 'Estimate is within the R50,000 threshold. Provisioned under Quantum Built advance float with 24h contractor settlement.'
                     : 'Estimate exceeds R50,000 threshold. Requires formal NC DOH quotation review and approval gateway.'}
                 </p>
               </div>
@@ -2531,19 +2560,19 @@ export default function WorkOrderDetailPage() {
                   Technical Assessment Notes (Optional)
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={assessmentNotes}
                   onChange={(e) => setAssessmentNotes(e.target.value)}
-                  placeholder="Detail scope of repairs, required components, safety protocols, or site constraints..."
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  placeholder="Detail scope of repairs, required components, or site constraints..."
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none shadow-2xs"
                 />
               </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-200">
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAssessmentModalOpen(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+                  className="px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 active:bg-slate-200 transition-all active:scale-95 cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -2551,7 +2580,11 @@ export default function WorkOrderDetailPage() {
                   type="button"
                   disabled={assessmentEstimate === '' || assessmentMutation.isPending}
                   onClick={() => assessmentMutation.mutate()}
-                  className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition disabled:opacity-50 shadow-sm"
+                  className={`px-4 py-2.5 text-xs font-bold rounded-lg transition-all shadow-sm ${
+                    assessmentEstimate === '' || assessmentMutation.isPending
+                      ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed'
+                      : 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white hover:shadow active:scale-95 cursor-pointer'
+                  }`}
                 >
                   {assessmentMutation.isPending ? 'Recording...' : 'Record Assessment & Route Funding'}
                 </button>
