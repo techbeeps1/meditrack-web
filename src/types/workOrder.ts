@@ -58,6 +58,17 @@ export interface WorkOrder {
   assessor_id?: string | null;
   assessor_name?: string | null;
   assessor_email?: string | null;
+  lead_assessor_id?: string | null;
+  lead_assessor_name?: string | null;
+  lead_assessor_role?: 'works_engineer' | 'works_inspector' | null;
+  assessor_request_engineer?: number | boolean | null;
+  assessor_request_reason?: string | null;
+  assessor_request_status?: 'pending' | 'fulfilled' | 'declined' | null;
+  assessor_request_engineer_id?: string | null;
+  assessor_request_engineer_name?: string | null;
+  assessment_hours?: number | null;
+  assessment_review_status?: 'pending' | 'approved' | 'adjusted' | 'rejected' | null;
+  assessment_adjustment_notes?: string | null;
   assessor_estimate?: number | null;
   charge_code?: ChargeCode | null;
   assessment_notes?: string | null;
@@ -76,12 +87,17 @@ export interface WorkOrder {
   signoff_inspector_by?: string | null;
   signoff_inspector_at?: string | null;
   completion_cert_no?: string | null;
+  timesheet_data?: string | null;
+  timesheet_total_hours?: number | string | null;
+  timesheet_submitted_by?: string | null;
+  timesheet_submitted_at?: string | null;
   client_recovery_invoice_no?: string | null;
   client_recovery_status?: 'pending' | 'submitted' | 'recovered' | null;
   signoff_rejection_reason?: string | null;
   is_blind_quoted?: boolean;
   estimated_cost: number;
   actual_cost: number;
+  estimated_days?: number | null;
   due_date?: string | null;
   completed_at?: string | null;
   verified_at?: string | null;
@@ -143,5 +159,8 @@ export interface SubmitAssessmentInput {
   assessment_notes?: string;
   route_b_override?: boolean;
   refer_to_engineer?: boolean;
+  assessment_hours?: number;
+  estimated_days?: number;
+  due_date?: string;
 }
 

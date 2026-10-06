@@ -55,6 +55,42 @@ export default function DashboardPage() {
   const completedWorkOrders = allWorkOrders.filter((wo) => (wo.status || '').toLowerCase() === 'completed');
   const staffWorkOrders = allWorkOrders.slice(0, 5);
 
+  // Inspector & Works Engineer Assessment Filtering (Part 1)
+  const isWorksEngineer = user?.role === 'INSPECTOR' && user?.inspector_scope === 'works_engineer';
+  const isWorksInspector = user?.role === 'INSPECTOR' && (user?.inspector_scope === 'works_inspector' || user?.inspector_scope === 'both');
+
+  const assessorQueueWorkOrders = allWorkOrders.filter((wo) => {
+    const s = (wo.status || '').toLowerCase();
+    if (['closed', 'cancelled'].includes(s)) return false;
+
+    // Explicitly assigned as Lead Assessor to this user
+    if (wo.lead_assessor_id === user?.id) return true;
+
+    // Adjustment requested by QB review
+    if (wo.assessment_review_status === 'adjusted') {
+      if (wo.lead_assessor_id === user?.id || wo.assessor_id === user?.id) return true;
+      if (isWorksEngineer && wo.assessor_role === 'works_engineer') return true;
+      if (isWorksInspector && wo.assessor_role === 'works_inspector') return true;
+    }
+
+    // If Works Engineer: show if referred or request engineer fulfilled with this user or pending engineer scoping
+    if (isWorksEngineer) {
+      if (wo.assessor_request_engineer_id === user?.id) return true;
+      if (wo.assessor_role === 'works_engineer' && (wo.assessor_estimate === null || wo.assessor_estimate === undefined)) return true;
+    }
+
+    // If Works Inspector and status is reported without assessment
+    if (isWorksInspector && s === 'reported' && !wo.assessment_type && !wo.assessment_date) {
+      if (!wo.lead_assessor_id || wo.lead_assessor_id === user?.id) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+
+  const assessorPendingCount = assessorQueueWorkOrders.length;
+
   // -------------------------------------------------------------
   // 1. AUDITOR SPECIFIC VIEW (Cryptographic & Compliance Only)
   // -------------------------------------------------------------
@@ -541,7 +577,7 @@ export default function DashboardPage() {
   }
 
   // -------------------------------------------------------------
-  // 4. INSPECTOR SPECIFIC VIEW (Quality Control & Verification)
+  // 4. INSPECTOR SPECIFIC VIEW (Quality Control & Technical Assessment)
   // -------------------------------------------------------------
   if (user?.role === 'INSPECTOR') {
     return (
@@ -552,40 +588,70 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-center space-x-2">
                 <h1 className="text-xl font-bold text-slate-900">
-                  Clinical Safety & QC Inspector Center
+                  {isWorksEngineer
+                    ? 'Works Engineer Technical Scoping & QC Center'
+                    : 'Clinical Safety & Works Inspector Center'}
                 </h1>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-teal-50 text-teal-700 border border-teal-200 uppercase">
-                  INSPECTOR
+                  {user?.inspector_scope === 'works_engineer' ? 'WORKS ENGINEER' : 'WORKS INSPECTOR'}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Conduct clinical audits, test biomedical calibrations, and verify completed repairs
+                Conduct preliminary assessments, engineer scoping, biomedical calibration, and QC sign-offs
               </p>
             </div>
             <div className="flex items-center gap-2">
               <Link
-                href="/inspections"
-                className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition shadow-sm"
+                href="/work-orders"
+                className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-black rounded-lg transition shadow-sm"
               >
-                + Record QC Inspection
+                Assessor Queue ({assessorPendingCount})
               </Link>
               <Link
                 href="/work-orders?status=completed"
                 className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
               >
-                Verify Tickets
+                Verify Tickets ({completedCount})
               </Link>
             </div>
           </div>
 
-          {/* 3 Focused Inspector Metric Cards (Clickable) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* 4 Focused Inspector Metric Cards (Clickable) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1: Lead Assessment Queue */}
+            <Link
+              href="/work-orders"
+              className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${
+                assessorPendingCount > 0
+                  ? 'bg-sky-50/80 border-sky-300 hover:border-sky-400'
+                  : 'bg-white border-slate-200 hover:border-sky-300'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-sky-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>Lead Assessment Queue</span>
+                  <span className="text-xs text-sky-600 group-hover:translate-x-0.5 transition">&rarr;</span>
+                </span>
+                {assessorPendingCount > 0 && (
+                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-sky-600 text-white animate-pulse">
+                    Action Required
+                  </span>
+                )}
+              </div>
+              <div className="text-2xl font-bold text-sky-700 mt-2 font-mono">
+                {isLoading ? '...' : assessorPendingCount}
+              </div>
+              <div className="text-xs text-slate-500 mt-1">Lead assessor &amp; technical scoping &bull; Assess now</div>
+            </Link>
+
+            {/* Card 2: Awaiting QC Verification */}
             <Link
               href="/work-orders?status=completed"
-              className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${completedCount > 0
+              className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${
+                completedCount > 0
                   ? 'bg-amber-50/70 border-amber-300 hover:border-amber-400'
                   : 'bg-white border-slate-200 hover:border-amber-300'
-                }`}
+              }`}
             >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider flex items-center gap-1.5">
@@ -604,6 +670,7 @@ export default function DashboardPage() {
               <div className="text-xs text-slate-400 mt-1">Contractor work ready for audit &bull; Inspect now</div>
             </Link>
 
+            {/* Card 3: Verified (QC Passed) */}
             <Link
               href="/work-orders?status=verified"
               className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-teal-300 hover:shadow-md transition group cursor-pointer block"
@@ -620,6 +687,7 @@ export default function DashboardPage() {
               <div className="text-xs text-slate-400 mt-1">Safety-certified work orders &bull; View list</div>
             </Link>
 
+            {/* Card 4: Safety Verification Logs */}
             <Link
               href="/inspections"
               className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md transition group cursor-pointer block"
@@ -635,12 +703,101 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* Quality Audit Queue */}
+          {/* Part 1: Assessor Technical Scoping & Estimation Queue */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <span>Quality Audit Queue</span>
+                  <span>Assessor Technical Scoping &amp; Estimation Queue</span>
+                  {assessorQueueWorkOrders.length > 0 && (
+                    <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-sky-100 text-sky-800">
+                      {assessorQueueWorkOrders.length}
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Work orders assigned to you as Lead Assessor or referred for engineering cost calculation
+                </p>
+              </div>
+              <Link href="/work-orders" className="text-xs font-semibold text-sky-600 hover:text-sky-800">
+                View All in Work Orders &rarr;
+              </Link>
+            </div>
+
+            {assessorQueueWorkOrders.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-100">
+                <div className="text-2xl mb-1">📋</div>
+                <div className="text-xs font-semibold text-slate-700">No pending technical assessments.</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  When Quantum Built assigns tickets to you as Lead Assessor, they will appear here.
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {assessorQueueWorkOrders.map((wo) => (
+                  <div key={wo.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1.5 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-bold text-xs text-sky-700">{wo.tracking_number}</span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${
+                            wo.priority === 'critical'
+                              ? 'bg-red-50 text-red-700 border border-red-200'
+                              : wo.priority === 'high'
+                              ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}
+                        >
+                          {wo.priority}
+                        </span>
+
+                        {wo.assessment_review_status === 'adjusted' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                            🔄 QB Revision Requested
+                          </span>
+                        ) : wo.lead_assessor_id === user?.id ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-900 border border-sky-300">
+                            ⭐ Lead Assessor
+                          </span>
+                        ) : wo.assessor_role === 'works_engineer' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
+                            ⚙️ Engineer Scoping
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                            Preliminary Assessment
+                          </span>
+                        )}
+
+                        <span className="text-xs font-semibold text-slate-900">{wo.title}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-1">{wo.description}</p>
+                      <div className="text-[11px] text-slate-400 flex items-center gap-3">
+                        <span>🏥 {wo.facility_name || 'Hospital Facility'}</span>
+                        <span>📂 Category: <strong className="text-slate-700">{wo.category}</strong></span>
+                        <span>🕒 {formatDate(wo.created_at)}</span>
+                      </div>
+                    </div>
+                    <Link
+                      href={`/work-orders/${wo.id}`}
+                      className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-black rounded-lg transition shadow-sm shrink-0 text-center"
+                    >
+                      {wo.assessment_review_status === 'adjusted'
+                        ? 'Revise Assessment &rarr;'
+                        : 'Conduct Assessment &rarr;'}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Quality Audit Queue (For Completed Jobs Verification) */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <span>Quality Audit Queue (Repairs Verification)</span>
                   {completedWorkOrders.length > 0 && (
                     <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-amber-100 text-amber-800">
                       {completedWorkOrders.length}

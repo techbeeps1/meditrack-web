@@ -455,11 +455,21 @@ function WorkOrdersContent() {
                           </td>
                         )}
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium capitalize border ${sBadge.bg} ${sBadge.text} ${sBadge.border}`}
-                          >
-                            {wo.status.replace('_', ' ')}
-                          </span>
+                          <div className="flex flex-col gap-1 items-start">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium capitalize border ${sBadge.bg} ${sBadge.text} ${sBadge.border}`}
+                            >
+                              {wo.status.replace('_', ' ')}
+                            </span>
+                            {wo.lead_assessor_name && (
+                              <span
+                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200"
+                                title={`Lead Assessor: ${wo.lead_assessor_name}`}
+                              >
+                                Lead: {wo.lead_assessor_name}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="inline-flex items-center justify-center gap-1.5">

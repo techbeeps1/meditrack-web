@@ -79,6 +79,35 @@ export const workOrderApi = {
     return res.data.data;
   },
 
+  assignLeadAssessor: async (
+    id: string,
+    payload: { leadAssessorId: string; leadAssessorRole: 'works_inspector' | 'works_engineer' }
+  ) => {
+    const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/assign-lead-assessor`, payload);
+    return res.data.data;
+  },
+
+  requestEngineer: async (id: string, payload: { reason: string }) => {
+    const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/request-engineer`, payload);
+    return res.data.data;
+  },
+
+  handleEngineerRequest: async (
+    id: string,
+    payload: { action: 'fulfill' | 'decline'; engineerId?: string; declineReason?: string }
+  ) => {
+    const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/handle-engineer-request`, payload);
+    return res.data.data;
+  },
+
+  reviewEstimate: async (
+    id: string,
+    payload: { action: 'approve' | 'adjust' | 'reject'; adjustmentNotes?: string }
+  ) => {
+    const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/review-estimate`, payload);
+    return res.data.data;
+  },
+
   deleteWorkOrder: async (id: string) => {
     const res = await api.delete<ApiResponse<{ success: boolean; message: string }>>(`/work-orders/${id}`);
     return res.data;

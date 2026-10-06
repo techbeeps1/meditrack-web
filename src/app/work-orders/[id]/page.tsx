@@ -9,11 +9,15 @@ import { workOrderApi } from '@/services/work-orders';
 import { contractorApi } from '@/services/contractors';
 import { invoiceService } from '@/services/invoices';
 import { inspectionApi } from '@/services/inspections';
+import { userApi } from '@/services/users';
 import { API_SERVER_URL } from '@/services/api';
 import { WorkOrderPriority, WorkOrderStatus } from '@/types/workOrder';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { downloadInvoicePdf } from '@/lib/invoicePdf';
 import { downloadCompletionCertificatePdf } from '@/lib/completionCertificatePdf';
+import { downloadQuotePdf } from '@/lib/quotePdf';
+import { downloadTimesheetPdf } from '@/lib/timesheetPdf';
+import { downloadEstimatePdf } from '@/lib/estimatePdf';
 import { useAuth } from '@/hooks/useAuth';
 
 const WORKFLOW_STEPS: { status: WorkOrderStatus; label: string }[] = [
@@ -110,15 +114,34 @@ export function matchesSpecialty(category: string | undefined | null, specialty:
   return cWords.some((cw) => sWords.some((sw) => sw.includes(cw) || cw.includes(sw)));
 }
 
-const EVENT_CONFIG: Record<string, { title: string; color: string; badge: string }> = {
-  reported: { title: 'Work Order Reported & Created', color: 'border-sky-500 text-sky-600', badge: 'bg-sky-50 text-sky-700 border-sky-200' },
-  approved: { title: 'Budget & Scope Approved', color: 'border-blue-500 text-blue-600', badge: 'bg-blue-50 text-blue-700 border-blue-200' },
-  assigned: { title: 'Contractor Assigned', color: 'border-indigo-500 text-indigo-600', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  in_progress: { title: 'Work Started / In Progress', color: 'border-amber-500 text-amber-600', badge: 'bg-amber-50 text-amber-700 border-amber-200' },
-  completed: { title: 'Repair Completed & Submitted for QC', color: 'border-purple-500 text-purple-600', badge: 'bg-purple-50 text-purple-700 border-purple-200' },
-  verified: { title: 'QC Safety Inspection Passed', color: 'border-teal-500 text-teal-600', badge: 'bg-teal-50 text-teal-700 border-teal-200' },
-  closed: { title: 'Work Order Closed & Settled', color: 'border-emerald-500 text-emerald-600', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  cancelled: { title: 'Work Order Cancelled / Rejected', color: 'border-rose-500 text-rose-600', badge: 'bg-rose-50 text-rose-700 border-rose-200' }
+const EVENT_CONFIG: Record<string, { title: string; color: string; badge: string; label?: string }> = {
+  reported: { title: 'Work Order Reported & Created', color: 'border-sky-500 text-sky-600', badge: 'bg-sky-50 text-sky-700 border-sky-200', label: 'Reported' },
+  lead_assigned: { title: 'Lead Works Assessor Designated', color: 'border-blue-500 text-blue-600', badge: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Assessor Designated' },
+  engineer_requested: { title: 'Works Engineer Referral Requested', color: 'border-amber-500 text-amber-600', badge: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Engineer Requested' },
+  engineer_fulfilled: { title: 'Works Engineer Referral Fulfilled', color: 'border-blue-500 text-blue-600', badge: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Engineer Joined' },
+  engineer_declined: { title: 'Works Engineer Referral Declined', color: 'border-rose-500 text-rose-600', badge: 'bg-rose-50 text-rose-700 border-rose-200', label: 'Engineer Declined' },
+  assessment_submitted: { title: 'Technical Scoping & Estimate Submitted', color: 'border-indigo-500 text-indigo-600', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200', label: 'Scoping Completed' },
+  assessment_adjusted: { title: 'Estimate Adjustment Requested by QB', color: 'border-amber-500 text-amber-600', badge: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Revision Requested' },
+  assessment_rejected: { title: 'Estimate Scoping Rejected by QB', color: 'border-rose-500 text-rose-600', badge: 'bg-rose-50 text-rose-700 border-rose-200', label: 'Scoping Rejected' },
+  approved: { title: 'Budget & Scope Approved by QB', color: 'border-blue-600 text-blue-700', badge: 'bg-blue-50 text-blue-800 border-blue-200', label: 'Approved' },
+  assigned: { title: 'Contractor Assigned', color: 'border-indigo-600 text-indigo-700', badge: 'bg-indigo-50 text-indigo-800 border-indigo-200', label: 'Assigned' },
+  quote_submitted: { title: 'Contractor Price Quotation Submitted', color: 'border-sky-600 text-sky-700', badge: 'bg-sky-50 text-sky-800 border-sky-200', label: 'Quote Submitted' },
+  quote_client_gateway: { title: 'Quote Submitted to NC DOH Gateway', color: 'border-indigo-500 text-indigo-600', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200', label: 'Client Gateway' },
+  client_approved: { title: 'NC DOH Client Gateway Approved', color: 'border-blue-700 text-blue-800', badge: 'bg-blue-100 text-blue-900 border-blue-300', label: 'Client Approved' },
+  client_declined: { title: 'NC DOH Client Gateway Declined', color: 'border-rose-500 text-rose-600', badge: 'bg-rose-50 text-rose-700 border-rose-200', label: 'Client Declined' },
+  in_progress: { title: 'Work Started / In Progress', color: 'border-amber-500 text-amber-600', badge: 'bg-amber-50 text-amber-700 border-amber-200', label: 'In Progress' },
+  completed: { title: 'Repair Completed & Submitted for QC', color: 'border-purple-500 text-purple-600', badge: 'bg-purple-50 text-purple-700 border-purple-200', label: 'Completed' },
+  signoff_engineer: { title: '3-Way Sign-off: Works Engineer Pass', color: 'border-sky-600 text-sky-700', badge: 'bg-sky-50 text-sky-800 border-sky-200', label: 'Engineer Sign-off' },
+  signoff_fm: { title: '3-Way Sign-off: Facilities Manager Pass', color: 'border-blue-600 text-blue-700', badge: 'bg-blue-50 text-blue-800 border-blue-200', label: 'FM Site Sign-off' },
+  signoff_inspector: { title: '3-Way Sign-off: Works Inspector Pass', color: 'border-indigo-600 text-indigo-700', badge: 'bg-indigo-50 text-indigo-800 border-indigo-200', label: 'Inspector QC Pass' },
+  signoff_rejected: { title: '3-Way Sign-off Rejected (Rework Required)', color: 'border-rose-500 text-rose-600', badge: 'bg-rose-50 text-rose-700 border-rose-200', label: 'Sign-off Rejected' },
+  verified: { title: 'QC & Statutory Compliance Passed', color: 'border-blue-700 text-blue-800', badge: 'bg-blue-100 text-blue-900 border-blue-300', label: 'Verified' },
+  cert_issued: { title: 'Statutory Certificate of Completion Issued', color: 'border-sky-700 text-sky-800', badge: 'bg-sky-100 text-sky-900 border-sky-300', label: 'Cert Issued' },
+  client_recovery_submitted: { title: 'NC DOH Client Recovery Invoice Created', color: 'border-slate-600 text-slate-700', badge: 'bg-slate-100 text-slate-800 border-slate-300', label: 'Client Recovery' },
+  invoice_submitted: { title: 'Contractor Invoice Claim Submitted', color: 'border-indigo-600 text-indigo-700', badge: 'bg-indigo-50 text-indigo-800 border-indigo-200', label: 'Invoice Claim' },
+  invoice_approved: { title: 'Contractor Invoice Claim Approved', color: 'border-blue-600 text-blue-700', badge: 'bg-blue-50 text-blue-800 border-blue-200', label: 'Invoice Approved' },
+  closed: { title: 'Work Order Closed & Settled', color: 'border-slate-800 text-slate-900', badge: 'bg-slate-100 text-slate-900 border-slate-300', label: 'Closed & Settled' },
+  cancelled: { title: 'Work Order Cancelled / Rejected', color: 'border-rose-500 text-rose-600', badge: 'bg-rose-50 text-rose-700 border-rose-200', label: 'Cancelled' }
 };
 
 export default function WorkOrderDetailPage() {
@@ -182,10 +205,50 @@ export default function WorkOrderDetailPage() {
   const [assessmentType, setAssessmentType] = useState<'offsite' | 'onsite'>('offsite');
   const [referToEngineer, setReferToEngineer] = useState(false);
   const [assessmentEstimate, setAssessmentEstimate] = useState<number | ''>('');
+  const [assessmentHours, setAssessmentHours] = useState<number | ''>('');
+  const [estimatedDays, setEstimatedDays] = useState<number | ''>('');
   const [chargeCode, setChargeCode] = useState<'PRE' | 'ONS' | 'TRV' | 'EVI' | 'FIN'>('PRE');
   const [routeBOverride, setRouteBOverride] = useState(false);
   const [assessmentNotes, setAssessmentNotes] = useState('');
   const [assessmentError, setAssessmentError] = useState<string | null>(null);
+
+  // Part 1: Assign Lead Assessor State
+  const [isAssignLeadModalOpen, setIsAssignLeadModalOpen] = useState(false);
+  const [leadAssessorRoleInput, setLeadAssessorRoleInput] = useState<'works_inspector' | 'works_engineer'>('works_inspector');
+  const [leadAssessorIdInput, setLeadAssessorIdInput] = useState<string>('');
+  const [assignLeadError, setAssignLeadError] = useState<string | null>(null);
+
+  // Part 1: Request Works Engineer State (by Works Inspector)
+  const [isRequestEngineerModalOpen, setIsRequestEngineerModalOpen] = useState(false);
+  const [engineerRequestReasonInput, setEngineerRequestReasonInput] = useState('');
+  const [engineerRequestError, setEngineerRequestError] = useState<string | null>(null);
+
+  // Part 1: Fulfill / Decline Engineer Request State (by Quantum Built Approver/Admin)
+  const [isFulfillEngineerModalOpen, setIsFulfillEngineerModalOpen] = useState(false);
+  const [fulfillEngineerIdInput, setFulfillEngineerIdInput] = useState('');
+  const [declineEngineerReasonInput, setDeclineEngineerReasonInput] = useState('');
+  const [handleEngineerRequestError, setHandleEngineerRequestError] = useState<string | null>(null);
+
+  // Part 1: QB 3-Way Estimate Review State (Approve, Request Adjustment, Reject)
+  const [isAdjustEstimateModalOpen, setIsAdjustEstimateModalOpen] = useState(false);
+  const [adjustmentNotesInput, setAdjustmentNotesInput] = useState('');
+  const [reviewEstimateError, setReviewEstimateError] = useState<string | null>(null);
+
+  // Part 2: Site Engineer / Inspector Timesheet State
+  const [isTimesheetModalOpen, setIsTimesheetModalOpen] = useState(false);
+  const [timesheetWeekStart, setTimesheetWeekStart] = useState<string>('');
+  const [timesheetDays, setTimesheetDays] = useState<
+    { day: string; date: string; task: string; hours: string }[]
+  >([
+    { day: 'Monday', date: '', task: '', hours: '' },
+    { day: 'Tuesday', date: '', task: '', hours: '' },
+    { day: 'Wednesday', date: '', task: '', hours: '' },
+    { day: 'Thursday', date: '', task: '', hours: '' },
+    { day: 'Friday', date: '', task: '', hours: '' },
+    { day: 'Saturday', date: '', task: '', hours: '' },
+    { day: 'Sunday', date: '', task: '', hours: '' }
+  ]);
+  const [timesheetSaveError, setTimesheetSaveError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'details' | 'timeline' | 'audit'>('details');
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
@@ -211,6 +274,20 @@ export default function WorkOrderDetailPage() {
   });
 
   const contractors = contractorsData?.data || [];
+
+  // Fetch Users List for Lead Assessor & Works Engineer Assignment
+  const { data: usersData } = useQuery({
+    queryKey: ['users-list'],
+    queryFn: () => userApi.getUsers({ limit: 100 })
+  });
+
+  const allUsers = usersData?.data || [];
+  const worksInspectors = allUsers.filter(
+    (u) => u.role === 'INSPECTOR' && ['works_inspector', 'both'].includes(u.inspector_scope || '')
+  );
+  const worksEngineers = allUsers.filter(
+    (u) => u.role === 'INSPECTOR' && ['works_engineer', 'both'].includes(u.inspector_scope || '')
+  );
 
   // Upload Photo Mutation
   const uploadPhotoMutation = useMutation({
@@ -580,7 +657,7 @@ export default function WorkOrderDetailPage() {
     setIsInspectionModalOpen(true);
   };
 
-  // Engineering Assessment Mutation (Scope, Charge Code, Assessor Estimate, and Automated Routing)
+  // Engineering Assessment Mutation (Scope, Charge Code, Assessor Estimate, Session Hours, and Automated Routing)
   const assessmentMutation = useMutation({
     mutationFn: async () => {
       const isInspector = user?.inspector_scope === 'works_inspector';
@@ -592,6 +669,8 @@ export default function WorkOrderDetailPage() {
           assessor_role: 'works_engineer',
           charge_code: chargeCode,
           assessment_notes: assessmentNotes || 'Referred to Works Engineer for scope & cost estimation.',
+          assessment_hours: assessmentHours !== '' ? Number(assessmentHours) : undefined,
+          estimated_days: estimatedDays !== '' ? Number(estimatedDays) : undefined,
           refer_to_engineer: true
         });
       }
@@ -604,6 +683,8 @@ export default function WorkOrderDetailPage() {
         assessment_type: assessmentType,
         assessor_role: effectiveRole,
         assessor_estimate: Number(assessmentEstimate),
+        assessment_hours: assessmentHours !== '' ? Number(assessmentHours) : undefined,
+        estimated_days: estimatedDays !== '' ? Number(estimatedDays) : undefined,
         charge_code: chargeCode,
         assessment_notes: assessmentNotes || undefined,
         route_b_override: routeBOverride
@@ -624,11 +705,22 @@ export default function WorkOrderDetailPage() {
 
   const openAssessmentModal = () => {
     setAssessmentType(workOrder?.assessment_type || 'offsite');
-    const isCurrentlyReferred = workOrder?.assessor_role === 'works_engineer' && (workOrder?.assessor_estimate === null || workOrder?.assessor_estimate === undefined);
-    setReferToEngineer(isCurrentlyReferred);
+    setReferToEngineer(false);
     setAssessmentEstimate(
       workOrder?.assessor_estimate !== null && workOrder?.assessor_estimate !== undefined
         ? workOrder.assessor_estimate
+        : ''
+    );
+    setAssessmentHours(
+      workOrder?.assessment_hours !== null && workOrder?.assessment_hours !== undefined
+        ? workOrder.assessment_hours
+        : ''
+    );
+    setEstimatedDays(
+      workOrder?.estimated_days !== null && workOrder?.estimated_days !== undefined
+        ? workOrder.estimated_days
+        : workOrder?.due_date
+        ? Math.max(1, Math.ceil((new Date(workOrder.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : ''
     );
     setChargeCode(workOrder?.charge_code || 'PRE');
@@ -637,6 +729,172 @@ export default function WorkOrderDetailPage() {
     setAssessmentError(null);
     setIsAssessmentModalOpen(true);
   };
+
+  // Part 1: Assign Lead Assessor Mutation
+  const assignLeadMutation = useMutation({
+    mutationFn: async () => {
+      if (!leadAssessorIdInput) throw new Error('Please select an assessor from the list');
+      return workOrderApi.assignLeadAssessor(id, {
+        leadAssessorId: leadAssessorIdInput,
+        leadAssessorRole: leadAssessorRoleInput
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      setIsAssignLeadModalOpen(false);
+      setAssignLeadError(null);
+    },
+    onError: (err: any) => {
+      setAssignLeadError(err.response?.data?.message || err.message || 'Failed to assign lead assessor');
+    }
+  });
+
+  const openAssignLeadModal = () => {
+    const defaultRole = workOrder?.lead_assessor_role || 'works_inspector';
+    setLeadAssessorRoleInput(defaultRole);
+    if (defaultRole === 'works_inspector') {
+      setLeadAssessorIdInput(workOrder?.lead_assessor_id || worksInspectors[0]?.id || '');
+    } else {
+      setLeadAssessorIdInput(workOrder?.lead_assessor_id || worksEngineers[0]?.id || '');
+    }
+    setAssignLeadError(null);
+    setIsAssignLeadModalOpen(true);
+  };
+
+  // Part 1: Request Works Engineer Mutation (Works Inspector)
+  const requestEngineerMutation = useMutation({
+    mutationFn: async () => {
+      if (!engineerRequestReasonInput.trim()) {
+        throw new Error('Please enter a justification reason for requesting Works Engineer');
+      }
+      return workOrderApi.requestEngineer(id, { reason: engineerRequestReasonInput.trim() });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      setIsRequestEngineerModalOpen(false);
+      setEngineerRequestReasonInput('');
+      setEngineerRequestError(null);
+    },
+    onError: (err: any) => {
+      setEngineerRequestError(err.response?.data?.message || err.message || 'Failed to request works engineer');
+    }
+  });
+
+  // Part 1: Handle Engineer Request Mutation (QB Approver/Admin Fulfill or Decline)
+  const handleEngineerRequestMutation = useMutation({
+    mutationFn: async ({
+      action,
+      engineerId,
+      declineReason
+    }: {
+      action: 'fulfill' | 'decline';
+      engineerId?: string;
+      declineReason?: string;
+    }) => {
+      return workOrderApi.handleEngineerRequest(id, { action, engineerId, declineReason });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      setIsFulfillEngineerModalOpen(false);
+      setDeclineEngineerReasonInput('');
+      setHandleEngineerRequestError(null);
+    },
+    onError: (err: any) => {
+      setHandleEngineerRequestError(err.response?.data?.message || err.message || 'Failed to process engineer request');
+    }
+  });
+
+  // Part 1: QB 3-Way Estimate Review Mutation
+  const reviewEstimateMutation = useMutation({
+    mutationFn: async ({
+      action,
+      adjustmentNotes
+    }: {
+      action: 'approve' | 'adjust' | 'reject';
+      adjustmentNotes?: string;
+    }) => {
+      return workOrderApi.reviewEstimate(id, { action, adjustmentNotes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      setIsAdjustEstimateModalOpen(false);
+      setAdjustmentNotesInput('');
+      setReviewEstimateError(null);
+    },
+    onError: (err: any) => {
+      setReviewEstimateError(err.response?.data?.message || err.message || 'Failed to review estimate');
+    }
+  });
+
+  // Part 2: Open Timesheet Modal & Save Mutation
+  const openTimesheetModal = () => {
+    let parsed: any[] = [];
+    try {
+      if (workOrder?.timesheet_data) {
+        parsed = JSON.parse(workOrder.timesheet_data);
+      }
+    } catch (_) {}
+
+    const defaultWeekStart = workOrder?.assessment_date
+      ? new Date(workOrder.assessment_date).toISOString().split('T')[0]
+      : workOrder?.created_at
+      ? new Date(workOrder.created_at).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
+    setTimesheetWeekStart(defaultWeekStart);
+
+    if (parsed && parsed.length > 0) {
+      setTimesheetDays(parsed);
+    } else {
+      // Auto-generate rows matching the Turnaround (Days) entered in assessment
+      const turnaroundCount = Math.max(1, Math.min(30, Number(workOrder?.estimated_days || 3)));
+      const baseDate = new Date(defaultWeekStart);
+      const generatedDays = [];
+      for (let i = 0; i < turnaroundCount; i++) {
+        const rowDate = new Date(baseDate);
+        rowDate.setDate(baseDate.getDate() + i);
+        const dayName = rowDate.toLocaleDateString('en-GB', { weekday: 'short' });
+        generatedDays.push({
+          day: `Day ${i + 1} (${dayName})`,
+          date: rowDate.toISOString().split('T')[0],
+          task: i === 0 ? 'Onsite diagnostic inspection & scoping' : 'Technical assessment & engineering verification',
+          hours: '4.0'
+        });
+      }
+      setTimesheetDays(generatedDays);
+    }
+
+    setTimesheetSaveError(null);
+    setIsTimesheetModalOpen(true);
+  };
+
+  const saveTimesheetMutation = useMutation({
+    mutationFn: async () => {
+      const totalHrs = timesheetDays.reduce((acc, d) => acc + (Number(d.hours) || 0), 0);
+      return workOrderApi.updateWorkOrder(id, {
+        timesheet_data: JSON.stringify(timesheetDays),
+        timesheet_total_hours: totalHrs,
+        timesheet_submitted_by: user?.name || 'Site Assessor',
+        timesheet_submitted_at: new Date().toISOString()
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      setIsTimesheetModalOpen(false);
+      setTimesheetSaveError(null);
+    },
+    onError: (err: any) => {
+      setTimesheetSaveError(err.response?.data?.message || err.message || 'Failed to save timesheet');
+    }
+  });
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -710,29 +968,30 @@ export default function WorkOrderDetailPage() {
   const canAssess =
     (role === 'ADMIN' ||
       isWorksInspector ||
-      (isWorksEngineer && (isReferredToEngineer || !!workOrder.assessment_type))) &&
-    status !== 'closed' &&
-    status !== 'cancelled';
+      (isWorksEngineer && (isReferredToEngineer || !!workOrder.assessment_type || workOrder.lead_assessor_id === user?.id || workOrder.assessor_request_engineer_id === user?.id))) &&
+    status === 'reported';
   const isContractor = role === 'CONTRACTOR' || !!workOrder.is_blind_quoted;
 
-  const canApprove = hasWoApproveScope && status === 'reported';
+  // In Part 1 standard flow: Approval is done through the Quantum Built 3-Way Estimate Review stage after assessment & cost calculation.
+  // Direct approval on reported status is only for Critical (0–24h) Emergency Fast-Track Bypass.
+  const canApprove = hasWoApproveScope && status === 'reported' && urgency === 'Critical 0–24h';
   const canAssign = hasAssignScope && !isSameApproverForAssignment && status === 'approved' && (isRouteB || workOrder.quote_status === 'client_approved');
-  const canStartWork = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'assigned';
-  const canComplete = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'in_progress';
-  const canVerify = (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope))) && status === 'completed';
-  const canClose = (role === 'APPROVER' || role === 'ADMIN') && status === 'verified' && !workOrder.invoice_id;
-  const canReject = (role === 'APPROVER' || role === 'ADMIN') && status === 'reported';
-  const canGenerateInvoice = (role === 'CONTRACTOR' || role === 'ADMIN') && ['verified', 'closed'].includes(status) && !workOrder.invoice_id;
-  const canRequestInvoice = hasPaymentScope && ['verified', 'closed'].includes(status) && !workOrder.invoice_id;
-  const canApproveOrPayInvoice = hasPaymentScope && !isSodViolationForInvoice && !!workOrder.invoice_id;
-  const canViewAuditVault = role === 'ADMIN' || role === 'AUDITOR';
-
   // 3-Way Tri-Signoff Permissions (PDF Page 5)
   // Strictly: 1. Works Engineer only, 2. Facilities Manager/Staff only, 3. Works Inspector only
   const canSignEngineer = (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_engineer', 'both'].includes(inspectorScope))) && ['completed', 'verified', 'closed'].includes(status);
   const canSignFm = (role === 'ADMIN' || role === 'STAFF') && ['completed', 'verified', 'closed'].includes(status);
   const canSignInspector = (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope))) && ['completed', 'verified', 'closed'].includes(status);
   const isTriSignoffComplete = !!(workOrder.signoff_engineer_by && workOrder.signoff_fm_by && workOrder.signoff_inspector_by);
+
+  const canStartWork = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'assigned';
+  const canComplete = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'in_progress';
+  const canVerify = (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope))) && status === 'completed' && isTriSignoffComplete;
+  const canClose = (role === 'APPROVER' || role === 'ADMIN') && status === 'verified' && !workOrder.invoice_id;
+  const canReject = (role === 'APPROVER' || role === 'ADMIN') && status === 'reported';
+  const canGenerateInvoice = (role === 'CONTRACTOR' || role === 'ADMIN') && ['verified', 'closed'].includes(status) && isTriSignoffComplete && !workOrder.invoice_id;
+  const canRequestInvoice = hasPaymentScope && ['verified', 'closed'].includes(status) && isTriSignoffComplete && !workOrder.invoice_id;
+  const canApproveOrPayInvoice = hasPaymentScope && !isSodViolationForInvoice && !!workOrder.invoice_id;
+  const canViewAuditVault = role === 'ADMIN' || role === 'AUDITOR';
 
   return (
     <AppLayout>
@@ -788,6 +1047,16 @@ export default function WorkOrderDetailPage() {
                 </span>
               )}
 
+              {/* Part 1: Lead Assessor Badge */}
+              {workOrder.lead_assessor_name && (
+                <span
+                  className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200"
+                  title={`Lead Assessor explicitly assigned by Quantum Built: ${workOrder.lead_assessor_name}`}
+                >
+                  Lead: {workOrder.lead_assessor_name} ({workOrder.lead_assessor_role === 'works_engineer' ? 'Works Engineer' : 'Works Inspector'})
+                </span>
+              )}
+
               <span
                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${sBadge.bg} ${sBadge.text} ${sBadge.border}`}
               >
@@ -805,6 +1074,32 @@ export default function WorkOrderDetailPage() {
 
           {/* Workflow Action Buttons */}
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end shrink-0">
+            {/* Part 1: QB Assign Lead Assessor Button */}
+            {hasWoApproveScope && status === 'reported' && (
+              <button
+                type="button"
+                onClick={openAssignLeadModal}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+              >
+                {workOrder.lead_assessor_id ? 'Reassign Lead Assessor' : 'Assign Lead Assessor'}
+              </button>
+            )}
+
+            {/* Part 1: Works Inspector Request Works Engineer Button */}
+            {status === 'reported' && isWorksInspector && !['pending', 'fulfilled'].includes(workOrder.assessor_request_status || '') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEngineerRequestReasonInput('');
+                  setEngineerRequestError(null);
+                  setIsRequestEngineerModalOpen(true);
+                }}
+                className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+              >
+                Request Works Engineer
+              </button>
+            )}
+
             {canAssess && (
               <button
                 type="button"
@@ -825,9 +1120,9 @@ export default function WorkOrderDetailPage() {
               <button
                 type="button"
                 onClick={() => openTransitionModal('approved')}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer whitespace-nowrap"
               >
-                Approve Work Order
+                Approve Emergency Fast-Track
               </button>
             )}
 
@@ -938,6 +1233,12 @@ export default function WorkOrderDetailPage() {
               >
                 Mark Work Completed
               </button>
+            )}
+
+            {status === 'completed' && !isTriSignoffComplete && (
+              <span className="px-3.5 py-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold rounded-lg select-none">
+                Awaiting 3-Way Tri-Signoff ({[workOrder.signoff_engineer_by, workOrder.signoff_fm_by, workOrder.signoff_inspector_by].filter(Boolean).length}/3)
+              </span>
             )}
 
             {canVerify && (
@@ -1076,6 +1377,95 @@ export default function WorkOrderDetailPage() {
                   </Link>
                 )}
 
+                {/* Direct Download Quote PDF button (Route A only when quote submitted) */}
+                {!isRouteB && workOrder.estimated_cost && Number(workOrder.estimated_cost) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadQuotePdf({
+                        quote_number: `QTE-${new Date().getFullYear()}-${workOrder.tracking_number?.replace(/\D/g, '').slice(-4) || '1001'}`,
+                        issued_date: workOrder.assessment_date || workOrder.created_at,
+                        work_order_tracking: workOrder.tracking_number,
+                        work_order_title: workOrder.title,
+                        client_name: workOrder.reported_by_name || 'Muzikayise Nkosi',
+                        facility_name: workOrder.facility_name,
+                        contractor_name: workOrder.assigned_to_name || 'Apex BioMed Solutions',
+                        quote_amount: Number(workOrder.estimated_cost || 0),
+                        quote_notes: workOrder.assessment_notes || workOrder.description
+                      })
+                    }
+                    title="Download and Print Official Formal Quote PDF"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Quote PDF
+                  </button>
+                )}
+
+                {/* Direct Download Estimate PDF button */}
+                {(workOrder.assessor_estimate !== null && workOrder.assessor_estimate !== undefined && Number(workOrder.assessor_estimate) > 0 || isAssessmentDone) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadEstimatePdf({
+                        estimate_number: `EST-${new Date().getFullYear()}-${workOrder.tracking_number?.replace(/\D/g, '').slice(-4) || '1001'}`,
+                        estimate_date: workOrder.assessment_date || workOrder.created_at,
+                        work_order_tracking: workOrder.tracking_number,
+                        work_order_title: workOrder.title,
+                        customer_name: 'Northern Cape Department of Health',
+                        facility_name: workOrder.facility_name,
+                        facility_address: 'Northern Cape Provincial Campus',
+                        estimate_by_name: workOrder.assessor_name || workOrder.lead_assessor_name || 'David Vance (Site Works Assessor)',
+                        estimate_by_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer (HVAC Specialist)' : 'Works Inspector (Quality Officer)',
+                        estimate_by_charge_code: workOrder.charge_code || 'ONS',
+                        subtotal: Number(workOrder.assessor_estimate || workOrder.estimated_cost || 0),
+                        comments: workOrder.assessment_notes || `Technical assessment and scope estimation for ${workOrder.tracking_number} (${workOrder.title}). All works to adhere to SANS healthcare engineering standards.`
+                      })
+                    }
+                    title="Download and Print Official Assessment Estimate PDF"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Estimate PDF
+                  </button>
+                )}
+
+                {/* Direct Download Timesheet PDF button */}
+                {(workOrder.timesheet_total_hours || workOrder.assessment_hours || workOrder.timesheet_data || isAssessmentDone) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      let entries: any[] = [];
+                      try {
+                        if (workOrder.timesheet_data) entries = JSON.parse(workOrder.timesheet_data);
+                      } catch (_) {}
+                      downloadTimesheetPdf({
+                        employee_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
+                        employee_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer' : 'Works Inspector',
+                        week_start: workOrder.created_at ? formatDate(workOrder.created_at) : new Date().toLocaleDateString('en-GB'),
+                        work_order_tracking: workOrder.tracking_number,
+                        work_order_title: workOrder.title,
+                        facility_name: workOrder.facility_name,
+                        entries,
+                        total_hours: workOrder.timesheet_total_hours || workOrder.assessment_hours || '0.0',
+                        signature_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
+                        signature_date: workOrder.assessment_date ? formatDate(workOrder.assessment_date) : new Date().toLocaleDateString('en-GB')
+                      });
+                    }}
+                    title="Download and Print Official Time Sheet PDF"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Timesheet PDF
+                  </button>
+                )}
+
                 {/* Direct Download Invoice PDF button (Payment Approver, Admin, Contractor, Auditor only) */}
                 {canViewInvoiceDetails && (
                   <button
@@ -1087,8 +1477,6 @@ export default function WorkOrderDetailPage() {
                         created_at: workOrder.created_at,
                         status: workOrder.invoice_status || 'pending',
                         amount: Number(workOrder.actual_cost || workOrder.estimated_cost || 0),
-                        tax_amount: 0,
-                        total_amount: Number(workOrder.invoice_total_amount || workOrder.actual_cost || workOrder.estimated_cost || 0),
                         notes: `Invoice claim for completed maintenance on ${workOrder.tracking_number} (${workOrder.title})`,
                         contractor_name: workOrder.assigned_to_name || 'Apex BioMed Solutions',
                         work_order_tracking: workOrder.tracking_number,
@@ -1135,6 +1523,212 @@ export default function WorkOrderDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Part 1: Critical SLA Emergency Bypass Notice */}
+        {urgency === 'Critical 0–24h' && (
+          <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-1 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-200 text-rose-800 uppercase tracking-wide">
+                ⚡ Critical SLA Emergency Bypass
+              </span>
+              <span className="text-xs font-bold text-rose-900">
+                0–24h Immediate Containment Active
+              </span>
+            </div>
+            <p className="text-xs text-rose-800 leading-relaxed mt-1">
+              Under the HVAC Maintenance Framework, Critical 0–24h work orders bypass standard pre-assessment gating for rapid containment. A retrospective engineering review and assessment log are automatically tracked.
+            </p>
+          </div>
+        )}
+
+        {/* Part 1: Works Inspector Engineer Assistance Request Banner */}
+        {workOrder.assessor_request_status === 'pending' && !workOrder.assessor_estimate && workOrder.assessment_review_status !== 'pending' && workOrder.assessment_review_status !== 'approved' && (
+          <div className="p-5 bg-amber-50/90 border border-amber-300 rounded-xl space-y-3 shadow-xs">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-600 animate-pulse" />
+                <h3 className="text-sm font-bold text-amber-950">
+                  Lead Inspector Technical Assistance Request
+                </h3>
+              </div>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200 text-amber-900 uppercase">
+                Awaiting QB Decision
+              </span>
+            </div>
+            <div className="bg-white p-3.5 rounded-lg border border-amber-200 text-xs space-y-2">
+              <p className="text-slate-700 leading-relaxed">
+                The Lead Works Inspector has requested on-site / joint engineering scoping assistance from Quantum Built:
+              </p>
+              <div className="p-2.5 bg-amber-50/60 rounded-md border border-amber-200 text-amber-900 font-medium italic">
+                &ldquo;{workOrder.assessor_request_reason || 'Engineering scoping required for complex HVAC/Biomedical assessment.'}&rdquo;
+              </div>
+            </div>
+            {hasWoApproveScope && (
+              <div className="flex items-center gap-2 pt-1 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFulfillEngineerIdInput(worksEngineers[0]?.id || '');
+                    setHandleEngineerRequestError(null);
+                    setIsFulfillEngineerModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 cursor-pointer"
+                >
+                  Fulfill &amp; Assign Works Engineer &rarr;
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const reason = window.prompt('Enter reason for declining engineering request (Inspector will continue alone):');
+                    if (reason !== null) {
+                      handleEngineerRequestMutation.mutate({ action: 'decline', declineReason: reason });
+                    }
+                  }}
+                  disabled={handleEngineerRequestMutation.isPending}
+                  className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition active:scale-95 cursor-pointer"
+                >
+                  Decline Request (Inspector Continues)
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Part 1: Joint Session Fulfilled Notice */}
+        {workOrder.assessor_request_status === 'fulfilled' && (
+          <div className="p-4 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-900 shadow-2xs flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-200 text-sky-800 uppercase">
+                Joint Assessment Session
+              </span>
+              <span className="font-semibold">
+                Works Engineer {workOrder.assessor_request_engineer_name ? `(${workOrder.assessor_request_engineer_name})` : ''} joined the lead inspection session.
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Part 1: QB 3-Way Estimate Review Stage Banner (Approve, Adjust, Reject) */}
+        {workOrder.assessment_review_status === 'pending' && hasWoApproveScope && (
+          <div className="p-5 bg-sky-50/90 border border-sky-300 rounded-xl space-y-3 shadow-xs">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-sky-600 animate-pulse" />
+                <h3 className="text-sm font-bold text-sky-950">
+                  Step 1.3: Quantum Built 3-Way Preliminary Estimate Review
+                </h3>
+              </div>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-200 text-sky-800 uppercase">
+                Review Required
+              </span>
+            </div>
+
+            {reviewEstimateError && (
+              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                {reviewEstimateError}
+              </div>
+            )}
+            <div className="bg-white p-4 rounded-lg border border-sky-100 text-xs space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-slate-700">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Assessor</span>
+                  <span className="font-bold text-slate-900">{workOrder.assessor_name || workOrder.lead_assessor_name || 'Lead Assessor'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Estimate Amount</span>
+                  <span className="font-bold text-slate-900 font-mono text-sm">{formatCurrency(workOrder.assessor_estimate || 0)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Turnaround Days</span>
+                  <span className="font-bold text-slate-900 font-mono">
+                    {workOrder.estimated_days
+                      ? `${workOrder.estimated_days} Days`
+                      : workOrder.due_date
+                      ? `${Math.max(1, Math.ceil((new Date(workOrder.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} Days`
+                      : 'Not Specified'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Charge Code</span>
+                  <span className="font-bold text-slate-900 font-mono">{workOrder.charge_code || 'PRE'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">Funding Route</span>
+                  <span className="font-bold text-sky-700 font-mono">
+                    {workOrder.funding_route === 'route_b' ? 'Advance Float (Route B)' : 'Client Gateway (Route A)'}
+                  </span>
+                </div>
+              </div>
+              {workOrder.assessment_notes && (
+                <div className="p-2.5 bg-slate-50 rounded-md border border-slate-200 text-slate-700 text-[11px]">
+                  <strong className="text-slate-900">Assessor Scope Notes:</strong> {workOrder.assessment_notes}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => reviewEstimateMutation.mutate({ action: 'approve' })}
+                disabled={reviewEstimateMutation.isPending}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                {reviewEstimateMutation.isPending ? 'Approving...' : 'Approve Estimate & Advance'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdjustmentNotesInput('');
+                  setReviewEstimateError(null);
+                  setIsAdjustEstimateModalOpen(true);
+                }}
+                className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 cursor-pointer"
+              >
+                Request Adjustment
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to reject this estimate and reassign assessment?')) {
+                    reviewEstimateMutation.mutate({ action: 'reject' });
+                  }
+                }}
+                disabled={reviewEstimateMutation.isPending}
+                className="px-3 py-2 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 text-xs font-semibold rounded-lg transition active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                Reject &amp; Reassign
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Part 1: Adjustment Requested Banner */}
+        {workOrder.assessment_review_status === 'adjusted' && (
+          <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl space-y-2 text-xs text-amber-950 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="font-bold flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                Quantum Built Requested Estimate Adjustment
+              </span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200 text-amber-900 uppercase">
+                Adjustment Pending
+              </span>
+            </div>
+            <p className="text-amber-800 leading-relaxed">
+              <strong>QB Reviewer Notes:</strong> {workOrder.assessment_adjustment_notes || 'Please revise preliminary repair scope and cost calculation.'}
+            </p>
+            {canAssess && (
+              <div className="pt-1 flex justify-end">
+                <button
+                  type="button"
+                  onClick={openAssessmentModal}
+                  className="px-3.5 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold rounded-lg shadow-xs transition active:scale-95 cursor-pointer"
+                >
+                  Revise Assessment &amp; Resubmit &rarr;
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Fast-Track Advance Float Notice (Quantum Built Direct Advance Funded) */}
         {isRouteB && (
@@ -1449,7 +2043,7 @@ export default function WorkOrderDetailPage() {
                   <>
                     {workOrder.assessment_type ? (
                       <div className="space-y-4">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                           <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                             <div className="text-[11px] text-slate-500 font-medium">Assessment Mode</div>
                             <div className="text-xs font-bold text-slate-900 mt-0.5 capitalize">
@@ -1477,6 +2071,17 @@ export default function WorkOrderDetailPage() {
                               {workOrder.assessor_estimate !== null && workOrder.assessor_estimate !== undefined
                                 ? formatCurrency(workOrder.assessor_estimate)
                                 : <span className="text-amber-700 font-sans font-medium text-[11px]">Pending Engineer Scoping</span>}
+                            </div>
+                          </div>
+
+                          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                            <div className="text-[11px] text-slate-500 font-medium">Turnaround Days</div>
+                            <div className="text-xs font-bold text-slate-900 mt-0.5 font-mono">
+                              {workOrder.estimated_days
+                                ? `${workOrder.estimated_days} Days`
+                                : workOrder.due_date
+                                ? `${Math.max(1, Math.ceil((new Date(workOrder.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} Days`
+                                : 'Not Specified'}
                             </div>
                           </div>
 
@@ -1537,6 +2142,95 @@ export default function WorkOrderDetailPage() {
                             )}
                           </div>
                         )}
+
+                        {/* Part 2: Site Assessment Time Sheet Card (All Routes) */}
+                        <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-900">
+                                Site Assessment Time Sheet
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-800">
+                                {workOrder.timesheet_total_hours ? `${Number(workOrder.timesheet_total_hours).toFixed(1)} hrs Logged` : workOrder.assessment_hours ? `${Number(workOrder.assessment_hours).toFixed(1)} hrs` : '0.0 hrs Logged'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Diagnostic testing, on-site scoping, and travel time breakdown (Mon–Sun)
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {(isWorksInspector || isWorksEngineer || role === 'ADMIN' || role === 'APPROVER') && (
+                              <button
+                                type="button"
+                                onClick={openTimesheetModal}
+                                className="px-3 py-1.5 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                {workOrder.timesheet_data ? 'Edit Timesheet' : 'Fill Timesheet'}
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                let entries: any[] = [];
+                                try {
+                                  if (workOrder.timesheet_data) entries = JSON.parse(workOrder.timesheet_data);
+                                } catch (_) {}
+                                downloadTimesheetPdf({
+                                  employee_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
+                                  employee_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer' : 'Works Inspector',
+                                  week_start: workOrder.created_at ? formatDate(workOrder.created_at) : new Date().toLocaleDateString('en-GB'),
+                                  work_order_tracking: workOrder.tracking_number,
+                                  work_order_title: workOrder.title,
+                                  facility_name: workOrder.facility_name,
+                                  entries,
+                                  total_hours: workOrder.timesheet_total_hours || workOrder.assessment_hours || '0.0',
+                                  signature_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
+                                  signature_date: workOrder.assessment_date ? formatDate(workOrder.assessment_date) : new Date().toLocaleDateString('en-GB')
+                                });
+                              }}
+                              className="px-3 py-1.5 bg-slate-900 hover:bg-black active:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Download Timesheet (PDF)
+                            </button>
+
+                            {/* Estimate PDF download in Assessment Card */}
+                            {(workOrder.assessor_estimate !== null && workOrder.assessor_estimate !== undefined || isAssessmentDone) && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  downloadEstimatePdf({
+                                    estimate_number: `EST-${new Date().getFullYear()}-${workOrder.tracking_number?.replace(/\D/g, '').slice(-4) || '1001'}`,
+                                    estimate_date: workOrder.assessment_date || workOrder.created_at,
+                                    work_order_tracking: workOrder.tracking_number,
+                                    work_order_title: workOrder.title,
+                                    customer_name: 'Northern Cape Department of Health',
+                                    facility_name: workOrder.facility_name,
+                                    facility_address: 'Northern Cape Provincial Campus',
+                                    estimate_by_name: workOrder.assessor_name || workOrder.lead_assessor_name || 'David Vance (Site Works Assessor)',
+                                    estimate_by_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer (HVAC Specialist)' : 'Works Inspector (Quality Officer)',
+                                    estimate_by_charge_code: workOrder.charge_code || 'ONS',
+                                    subtotal: Number(workOrder.assessor_estimate || workOrder.estimated_cost || 0),
+                                    comments: workOrder.assessment_notes || `Technical assessment and scope estimation for ${workOrder.tracking_number} (${workOrder.title}). All works to adhere to SANS healthcare engineering standards.`
+                                  })
+                                }
+                                className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-800 border border-sky-300 rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Estimate Form (PDF)
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ) : urgency === 'Critical 0–24h' ? (
                       <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-left space-y-2.5">
@@ -1589,15 +2283,42 @@ export default function WorkOrderDetailPage() {
                       </p>
                     </div>
 
-                    {status === 'approved' && role === 'CONTRACTOR' && (
-                      <button
-                        type="button"
-                        onClick={openQuoteModal}
-                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
-                      >
-                        {workOrder.estimated_cost ? 'Update Price Quote' : 'Submit Price Quote'} &rarr;
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {workOrder.estimated_cost && Number(workOrder.estimated_cost) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadQuotePdf({
+                              quote_number: `QTE-${new Date().getFullYear()}-${workOrder.tracking_number?.replace(/\D/g, '').slice(-4) || '1001'}`,
+                              issued_date: workOrder.assessment_date || workOrder.created_at,
+                              work_order_tracking: workOrder.tracking_number,
+                              work_order_title: workOrder.title,
+                              client_name: workOrder.reported_by_name || 'Muzikayise Nkosi',
+                              facility_name: workOrder.facility_name,
+                              contractor_name: workOrder.assigned_to_name || 'Apex BioMed Solutions',
+                              quote_amount: Number(workOrder.estimated_cost || 0),
+                              quote_notes: workOrder.assessment_notes || workOrder.description
+                            })
+                          }
+                          className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-700 border border-sky-200 text-xs font-semibold rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer shrink-0 inline-flex items-center gap-1.5"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Download Formal Quote (PDF)
+                        </button>
+                      )}
+
+                      {status === 'approved' && role === 'CONTRACTOR' && (
+                        <button
+                          type="button"
+                          onClick={openQuoteModal}
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+                        >
+                          {workOrder.estimated_cost ? 'Update Price Quote' : 'Submit Price Quote'} &rarr;
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* 3-Step Live Pipeline */}
@@ -1816,14 +2537,26 @@ export default function WorkOrderDetailPage() {
                           )}
                         </div>
                       ) : canSignEngineer ? (
-                        <div className="pt-1">
+                        <div className="pt-2 flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => signoffMutation.mutate({ roleType: 'engineer', action: 'sign' })}
                             disabled={signoffMutation.isPending}
-                            className="w-full py-1.5 px-3 bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold rounded-md shadow-xs active:scale-95 transition-all cursor-pointer text-center"
+                            className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
                           >
-                            Sign as Works Engineer
+                            ✓ Sign Off
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSignoffRejectionReasonInput('');
+                              setSignoffError(null);
+                              setIsSignoffRejectModalOpen(true);
+                            }}
+                            disabled={signoffMutation.isPending}
+                            className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 cursor-pointer text-center whitespace-nowrap"
+                          >
+                            ✕ Reject
                           </button>
                         </div>
                       ) : (
@@ -1850,14 +2583,26 @@ export default function WorkOrderDetailPage() {
                           )}
                         </div>
                       ) : canSignFm ? (
-                        <div className="pt-1">
+                        <div className="pt-2 flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => signoffMutation.mutate({ roleType: 'fm', action: 'sign' })}
                             disabled={signoffMutation.isPending}
-                            className="w-full py-1.5 px-3 bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold rounded-md shadow-xs active:scale-95 transition-all cursor-pointer text-center"
+                            className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
                           >
-                            Sign as Facilities Manager
+                            ✓ Sign Off
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSignoffRejectionReasonInput('');
+                              setSignoffError(null);
+                              setIsSignoffRejectModalOpen(true);
+                            }}
+                            disabled={signoffMutation.isPending}
+                            className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 cursor-pointer text-center whitespace-nowrap"
+                          >
+                            ✕ Reject
                           </button>
                         </div>
                       ) : (
@@ -1884,14 +2629,26 @@ export default function WorkOrderDetailPage() {
                           )}
                         </div>
                       ) : canSignInspector ? (
-                        <div className="pt-1">
+                        <div className="pt-2 flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => signoffMutation.mutate({ roleType: 'inspector', action: 'sign' })}
                             disabled={signoffMutation.isPending}
-                            className="w-full py-1.5 px-3 bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold rounded-md shadow-xs active:scale-95 transition-all cursor-pointer text-center"
+                            className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
                           >
-                            Sign as Works Inspector
+                            ✓ Sign Off
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSignoffRejectionReasonInput('');
+                              setSignoffError(null);
+                              setIsSignoffRejectModalOpen(true);
+                            }}
+                            disabled={signoffMutation.isPending}
+                            className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 cursor-pointer text-center whitespace-nowrap"
+                          >
+                            ✕ Reject
                           </button>
                         </div>
                       ) : (
@@ -1899,23 +2656,6 @@ export default function WorkOrderDetailPage() {
                       )}
                     </div>
                   </div>
-
-                  {/* Rejection / Request Rework Action */}
-                  {!isTriSignoffComplete && (canSignEngineer || canSignFm || canSignInspector) && (
-                    <div className="flex justify-end pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSignoffRejectionReasonInput('');
-                          setSignoffError(null);
-                          setIsSignoffRejectModalOpen(true);
-                        }}
-                        className="text-xs text-rose-700 hover:text-rose-900 hover:underline font-semibold cursor-pointer"
-                      >
-                        Request Physical Rectification / Return to In Progress &rarr;
-                      </button>
-                    </div>
-                  )}
 
                   {/* Rejection Reason Notice */}
                   {workOrder.signoff_rejection_reason && (
@@ -2416,7 +3156,7 @@ export default function WorkOrderDetailPage() {
                                 {cfg.title}
                               </span>
                               <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${cfg.badge}`}>
-                                {evt.status.replace('_', ' ')}
+                                {cfg.label || evt.status.replace(/_/g, ' ')}
                               </span>
                               {isRejection && (
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 uppercase">
@@ -3240,27 +3980,29 @@ export default function WorkOrderDetailPage() {
 
         {/* Engineering Assessor Scope & Cost Estimation Modal */}
         {isAssessmentModalOpen && (
-          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 sm:p-7 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+              {/* Modal Header */}
+              <div className="flex justify-between items-start pb-4 border-b border-slate-100">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase tracking-wider">
-                      Technical Scope
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 uppercase tracking-wider">
+                      Part 1 &bull; Technical Scoping
                     </span>
-                    <span className="text-xs font-mono text-slate-500">{workOrder.tracking_number}</span>
+                    <span className="text-xs font-mono font-bold text-slate-500">{workOrder.tracking_number}</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${uBadge.bg} ${uBadge.text} ${uBadge.border}`}>
+                      {urgency}
+                    </span>
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 mt-1">
+                  <h3 className="text-lg font-bold text-slate-900 mt-1.5 tracking-tight">
                     {isWorksEngineer && (workOrder.assessor_estimate === null || workOrder.assessor_estimate === undefined)
                       ? 'Works Engineer Technical Scoping & Cost Calculation'
                       : workOrder.assessment_type && workOrder.assessor_estimate !== null && workOrder.assessor_estimate !== undefined
-                      ? 'Edit Engineering Assessment & Scope'
-                      : 'Engineering Assessment & Scope Estimation'}
+                      ? 'Edit Engineering Assessment & Preliminary Scope'
+                      : 'Engineering Technical Scoping & Cost Calculation'}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {isWorksEngineer && (workOrder.assessor_estimate === null || workOrder.assessor_estimate === undefined)
-                      ? 'Calculate preliminary repair cost estimate and determine automated R50,000 threshold routing'
-                      : 'Evaluate repair scope, charge code, and automated R50,000 threshold routing'}
+                    Define preliminary repair cost, completion turnaround timeline, and automated R50,000 funding route protocol.
                   </p>
                 </div>
                 <button
@@ -3273,125 +4015,185 @@ export default function WorkOrderDetailPage() {
               </div>
 
               {assessmentError && (
-                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
                   {assessmentError}
                 </div>
               )}
 
-              {/* Optional Referral Checkbox for Inspector */}
-              {user?.inspector_scope === 'works_inspector' && (
-                <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-xs">
-                  <label className="flex items-start gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={referToEngineer}
-                      onChange={(e) => setReferToEngineer(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                    />
-                    <div>
-                      <span className="font-bold text-amber-950 block">
-                        Refer to Works Engineer for Scoping &amp; Estimation
-                      </span>
-                      <span className="text-amber-800 text-[11px] leading-relaxed">
-                        If unchecked, you can directly enter the repair cost estimate below. If checked, an alert will be sent to the Works Engineer to perform technical scoping.
-                      </span>
-                    </div>
-                  </label>
-                </div>
-              )}
-
-              {/* Assessment Mode (Checkbox Selection Cards) */}
+              {/* Assessment Mode (Interactive Selection Cards) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Assessment Mode *
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-2">
+                  1. Assessment Mode &bull; Evaluation Type *
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <label
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div
                     onClick={() => setAssessmentType('offsite')}
-                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                    className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex items-start gap-3 select-none ${
                       assessmentType === 'offsite'
-                        ? 'border-sky-500 bg-sky-50/60 text-slate-900 font-semibold ring-1 ring-sky-500 shadow-2xs'
+                        ? 'border-sky-500 bg-sky-50/70 text-slate-900 ring-2 ring-sky-500 shadow-xs'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={assessmentType === 'offsite'}
-                      onChange={() => setAssessmentType('offsite')}
-                      className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
-                    />
-                    <span className="select-none">Offsite (Evidence Photos)</span>
-                  </label>
-                  <label
+                    <div className="mt-0.5">
+                      <input
+                        type="radio"
+                        checked={assessmentType === 'offsite'}
+                        onChange={() => setAssessmentType('offsite')}
+                        className="h-4 w-4 text-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 text-xs">
+                        Offsite (Evidence Photos)
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        Remote diagnostic review based on uploaded site photographs and telemetry.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
                     onClick={() => setAssessmentType('onsite')}
-                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                    className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex items-start gap-3 select-none ${
                       assessmentType === 'onsite'
-                        ? 'border-sky-500 bg-sky-50/60 text-slate-900 font-semibold ring-1 ring-sky-500 shadow-2xs'
+                        ? 'border-sky-500 bg-sky-50/70 text-slate-900 ring-2 ring-sky-500 shadow-xs'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={assessmentType === 'onsite'}
-                      onChange={() => setAssessmentType('onsite')}
-                      className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-pointer"
-                    />
-                    <span className="select-none">Onsite (Physical Site Visit)</span>
-                  </label>
+                    <div className="mt-0.5">
+                      <input
+                        type="radio"
+                        checked={assessmentType === 'onsite'}
+                        onChange={() => setAssessmentType('onsite')}
+                        className="h-4 w-4 text-sky-600 border-slate-300 focus:ring-sky-500 cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 text-xs">
+                        Onsite (Physical Site Visit)
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        Direct physical inspection, biomedical instrument testing, and site evaluation.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* Charge Code Selection */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Charge Code *
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5">
+                  2. Assessment Charge Code *
                 </label>
                 <select
                   value={chargeCode}
                   onChange={(e) => setChargeCode(e.target.value as 'PRE' | 'ONS' | 'TRV' | 'EVI' | 'FIN')}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none shadow-2xs cursor-pointer"
+                  className="w-full px-3.5 py-2.5 bg-slate-50/60 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none shadow-2xs cursor-pointer"
                 >
-                  <option value="PRE">PRE &mdash; Preliminary / Remote Offsite Review</option>
-                  <option value="ONS">ONS &mdash; Onsite Technical Inspection</option>
-                  <option value="TRV">TRV &mdash; Travel &amp; Remote Site Assessment</option>
-                  <option value="EVI">EVI &mdash; Evidence &amp; Photo Analysis</option>
-                  <option value="FIN">FIN &mdash; Final Comprehensive Assessment</option>
+                  <option value="PRE">PRE &mdash; Preliminary / Remote Offsite Review (Standard Triage)</option>
+                  <option value="ONS">ONS &mdash; Onsite Technical Inspection (Facility Physical Visit)</option>
+                  <option value="TRV">TRV &mdash; Travel &amp; Remote Hospital Site Assessment</option>
+                  <option value="EVI">EVI &mdash; Evidence &amp; Photo Analysis (Specialist Scoping)</option>
+                  <option value="FIN">FIN &mdash; Final Comprehensive Assessment &amp; Cost Confirmation</option>
                 </select>
               </div>
 
-              {/* Assessor Estimate Amount */}
-              {referToEngineer ? (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Assessor Estimated Cost (R)
+              {/* Core Financial & Timeline Metrics Box */}
+              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
+                    3. Scoping Metrics &bull; Cost &amp; Timeline *
                   </label>
-                  <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-medium text-slate-500 italic">
-                    Pending Works Engineer technical evaluation
-                  </div>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Automated threshold: R50,000
+                  </span>
                 </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Assessor Estimated Cost (R) *
-                  </label>
-                  <div className="relative rounded-xl shadow-2xs">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                      <span className="text-slate-400 text-sm font-mono font-bold">R</span>
-                    </div>
-                    <input
-                      type="number"
-                      value={assessmentEstimate}
-                      onChange={(e) => setAssessmentEstimate(e.target.value === '' ? '' : Number(e.target.value))}
-                      placeholder="e.g. 35000"
-                      className="w-full pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono"
-                    />
+
+                {referToEngineer ? (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs font-medium text-amber-800 italic">
+                    Ticket will be escalated to Works Engineer for technical cost calculation.
                   </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {/* Cost / Payment in Rand */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Assessor Cost / Payment (R) *
+                      </label>
+                      <div className="relative rounded-lg shadow-2xs">
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                          <span className="text-slate-400 text-xs font-mono font-bold">R</span>
+                        </div>
+                        <input
+                          type="number"
+                          value={assessmentEstimate}
+                          onChange={(e) => setAssessmentEstimate(e.target.value === '' ? '' : Number(e.target.value))}
+                          placeholder="e.g. 35000"
+                          className="w-full pl-8 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Turnaround Days */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Turnaround (Days)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={estimatedDays}
+                        onChange={(e) => setEstimatedDays(e.target.value === '' ? '' : Number(e.target.value))}
+                        placeholder="e.g. 3"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Dynamic Live Automated Funding Dispatch Preview */}
+                {!referToEngineer && (
+                  <div className="pt-2 border-t border-slate-200/80">
+                    <div className="p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 bg-white border-slate-200">
+                      <span className="font-semibold text-slate-700 text-[11px]">
+                        Automated Funding Protocol:
+                      </span>
+                      {urgency === 'Critical 0–24h' || (assessmentEstimate !== '' && Number(assessmentEstimate) <= 50000) || routeBOverride ? (
+                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200 flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                          {routeBOverride ? 'Advance Float (QB Special Override)' : 'Advance Float Funded (Route B &le; R50k)'}
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-sky-50 text-sky-800 border border-sky-200 flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-sky-600"></span>
+                          Client Gateway (NC DOH Route A &gt; R50k)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Works Inspector Optional Escalation Checkbox */}
+              {isWorksInspector && !isWorksEngineer && (
+                <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/70 text-xs">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={referToEngineer}
+                      onChange={(e) => setReferToEngineer(e.target.checked)}
+                      className="h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-amber-950">
+                      Escalate to Works Engineer for complex technical scoping assistance
+                    </span>
+                  </label>
                 </div>
               )}
 
               {/* Advance Float Emergency Override for jobs over R50k */}
               {!referToEngineer && assessmentEstimate !== '' && Number(assessmentEstimate) > 50000 && urgency !== 'Critical 0–24h' && (
-                <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/80 space-y-1.5">
+                <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/80 space-y-1.5">
                   <label className="flex items-start gap-2.5 cursor-pointer">
                     <input
                       type="checkbox"
@@ -3400,7 +4202,7 @@ export default function WorkOrderDetailPage() {
                       className="mt-0.5 h-4 w-4 rounded border-amber-400 text-slate-900 focus:ring-slate-900 cursor-pointer"
                     />
                     <div className="text-xs">
-                      <span className="font-bold text-amber-900 block">
+                      <span className="font-bold text-amber-950 block">
                         Elect Advance Float Funding (Quantum Built Special Override)
                       </span>
                       <span className="text-amber-800 text-[11px] leading-relaxed">
@@ -3411,41 +4213,26 @@ export default function WorkOrderDetailPage() {
                 </div>
               )}
 
-              {/* Dynamic Live Automated Funding Dispatch Preview */}
-              {!referToEngineer && (
-                <div className="p-3 rounded-xl border text-xs bg-slate-50 border-slate-200 flex items-center justify-between">
-                  <span className="font-semibold text-slate-700">Automated Dispatch Protocol:</span>
-                  {urgency === 'Critical 0–24h' || (assessmentEstimate !== '' && Number(assessmentEstimate) <= 50000) || routeBOverride ? (
-                    <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-slate-200 text-slate-800">
-                      {routeBOverride ? 'Advance Float (Quantum Built Special Override)' : 'Advance Float Funded'}
-                    </span>
-                  ) : (
-                    <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200">
-                      Client Gateway (NC DOH)
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Assessment Notes */}
+              {/* Assessment Scope Notes */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {referToEngineer ? 'Referral / Observation Notes for Engineer *' : 'Technical Assessment Notes (Optional)'}
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5">
+                  4. {referToEngineer ? 'Referral Notes for Works Engineer *' : 'Technical Scope & Observations (Optional)'}
                 </label>
                 <textarea
-                  rows={2}
+                  rows={3}
                   value={assessmentNotes}
                   onChange={(e) => setAssessmentNotes(e.target.value)}
-                  placeholder={referToEngineer ? "Detail equipment failure symptoms, required engineering inspection, or site constraints..." : "Detail scope of repairs, required components, or site constraints..."}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none shadow-2xs"
+                  placeholder={referToEngineer ? "Detail equipment failure symptoms, required engineering inspection, or site constraints..." : "Detail scope of repairs, required components, diagnostics findings, or site constraints..."}
+                  className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none shadow-2xs"
                 />
               </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+              {/* Modal Footer Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAssessmentModalOpen(false)}
-                  className="px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 active:bg-slate-200 transition-all active:scale-95 cursor-pointer"
+                  className="px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -3454,7 +4241,7 @@ export default function WorkOrderDetailPage() {
                     type="button"
                     disabled={assessmentMutation.isPending}
                     onClick={() => assessmentMutation.mutate()}
-                    className={`px-4 py-2.5 text-xs font-bold rounded-lg transition-all shadow-sm ${
+                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all shadow-sm ${
                       assessmentMutation.isPending
                         ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed'
                         : 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white hover:shadow active:scale-95 cursor-pointer'
@@ -3471,21 +4258,364 @@ export default function WorkOrderDetailPage() {
                     type="button"
                     disabled={assessmentEstimate === '' || assessmentMutation.isPending}
                     onClick={() => assessmentMutation.mutate()}
-                    className={`px-4 py-2.5 text-xs font-bold rounded-lg transition-all shadow-sm ${
+                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all shadow-sm ${
                       assessmentEstimate === '' || assessmentMutation.isPending
                         ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed'
-                        : 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white hover:shadow active:scale-95 cursor-pointer'
+                        : 'bg-slate-900 hover:bg-black active:bg-slate-800 text-white hover:shadow active:scale-95 cursor-pointer'
                     }`}
                   >
                     {assessmentMutation.isPending
-                      ? 'Recording...'
+                      ? 'Recording Assessment...'
                       : isWorksEngineer && (workOrder.assessor_estimate === null || workOrder.assessor_estimate === undefined)
-                      ? 'Save Technical Scoping & Calculate Route'
+                      ? 'Save Technical Scoping & Calculate Route →'
                       : workOrder.assessment_type && workOrder.assessor_estimate !== null && workOrder.assessor_estimate !== undefined
-                      ? 'Update Assessment & Route'
-                      : 'Record Assessment & Route Funding'}
+                      ? 'Update Assessment & Route →'
+                      : 'Record Assessment & Route Funding →'}
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Part 1: Assign Lead Assessor Modal (Quantum Built Approver / Admin) */}
+        {isAssignLeadModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase tracking-wider">
+                      Part 1 &bull; Governance Gate
+                    </span>
+                    <span className="text-xs font-mono text-slate-500">{workOrder.tracking_number}</span>
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mt-1">
+                    Assign Lead Assessor (Quantum Built)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Select whether a Works Inspector or Works Engineer will lead preliminary assessment.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAssignLeadModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {assignLeadError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                  {assignLeadError}
+                </div>
+              )}
+
+              {/* Role Selection Tabs */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Lead Assessor Discipline *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLeadAssessorRoleInput('works_inspector');
+                      setLeadAssessorIdInput(worksInspectors[0]?.id || '');
+                    }}
+                    className={`p-3 rounded-xl border text-left text-xs transition-all ${
+                      leadAssessorRoleInput === 'works_inspector'
+                        ? 'border-sky-500 bg-sky-50/60 ring-1 ring-sky-500 text-slate-900 font-bold'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="font-bold text-slate-900">Works Inspector</div>
+                    <div className="text-[11px] text-slate-500 font-normal mt-0.5">
+                      Standard HVAC/Clinical physical inspection
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLeadAssessorRoleInput('works_engineer');
+                      setLeadAssessorIdInput(worksEngineers[0]?.id || '');
+                    }}
+                    className={`p-3 rounded-xl border text-left text-xs transition-all ${
+                      leadAssessorRoleInput === 'works_engineer'
+                        ? 'border-sky-500 bg-sky-50/60 ring-1 ring-sky-500 text-slate-900 font-bold'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="font-bold text-slate-900">Works Engineer</div>
+                    <div className="text-[11px] text-slate-500 font-normal mt-0.5">
+                      Complex engineering scoping &amp; calculation
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* User Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Select {leadAssessorRoleInput === 'works_inspector' ? 'Works Inspector' : 'Works Engineer'} Officer *
+                </label>
+                <select
+                  value={leadAssessorIdInput}
+                  onChange={(e) => setLeadAssessorIdInput(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none shadow-2xs cursor-pointer"
+                >
+                  <option value="">-- Choose Assigned Officer --</option>
+                  {(leadAssessorRoleInput === 'works_inspector' ? worksInspectors : worksEngineers).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.email})
+                    </option>
+                  ))}
+                  {/* Fallback option if user list is empty in dev */}
+                  {allUsers.length === 0 && (
+                    <option value={user?.id || 'usr_inspector_01'}>
+                      {user?.name || 'Default Assigned Assessor'}
+                    </option>
+                  )}
+                </select>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAssignLeadModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!leadAssessorIdInput || assignLeadMutation.isPending}
+                  onClick={() => assignLeadMutation.mutate()}
+                  className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-black rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {assignLeadMutation.isPending ? 'Assigning...' : 'Confirm Assignment & Notify Assessor'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Part 1: Request Works Engineer Modal (Works Inspector) */}
+        {isRequestEngineerModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Request Works Engineer Assistance
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Job #{workOrder.tracking_number} &bull; Lead Assessor Escalation
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRequestEngineerModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {engineerRequestError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                  {engineerRequestError}
+                </div>
+              )}
+
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 leading-relaxed">
+                As the Lead Works Inspector, you can request Quantum Built to assign a Works Engineer to assist on this assessment session if specialized diagnostic or technical scoping is required.
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Reason / Technical Scoping Justification *
+                </label>
+                <textarea
+                  rows={3}
+                  value={engineerRequestReasonInput}
+                  onChange={(e) => setEngineerRequestReasonInput(e.target.value)}
+                  placeholder="Detail why engineering assistance is required (e.g., complex HVAC airflow calculation, biomedical sensor calibration diagnostic)..."
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none shadow-2xs"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsRequestEngineerModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!engineerRequestReasonInput.trim() || requestEngineerMutation.isPending}
+                  onClick={() => requestEngineerMutation.mutate()}
+                  className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {requestEngineerMutation.isPending ? 'Sending Request...' : 'Submit Request to QB'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Part 1: Fulfill Works Engineer Modal (Quantum Built Approver / Admin) */}
+        {isFulfillEngineerModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Fulfill Works Engineer Request
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Assign an engineer to join the session alongside Lead Inspector
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsFulfillEngineerModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {handleEngineerRequestError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                  {handleEngineerRequestError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Select Works Engineer *
+                </label>
+                <select
+                  value={fulfillEngineerIdInput}
+                  onChange={(e) => setFulfillEngineerIdInput(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-2xs cursor-pointer"
+                >
+                  <option value="">-- Choose Works Engineer --</option>
+                  {worksEngineers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.email})
+                    </option>
+                  ))}
+                  {worksEngineers.length === 0 && (
+                    <option value="usr_engineer_01">Default Works Engineer</option>
+                  )}
+                </select>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsFulfillEngineerModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!fulfillEngineerIdInput || handleEngineerRequestMutation.isPending}
+                  onClick={() =>
+                    handleEngineerRequestMutation.mutate({
+                      action: 'fulfill',
+                      engineerId: fulfillEngineerIdInput
+                    })
+                  }
+                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {handleEngineerRequestMutation.isPending ? 'Assigning...' : 'Assign Engineer to Session'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Part 1: Request Estimate Adjustment Modal (Quantum Built Review Gate) */}
+        {isAdjustEstimateModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Request Preliminary Estimate Adjustment
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Job #{workOrder.tracking_number} &bull; Quantum Built 3-Way Review Gate
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAdjustEstimateModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {reviewEstimateError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                  {reviewEstimateError}
+                </div>
+              )}
+
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                <div className="flex justify-between items-center font-mono text-[11px]">
+                  <span className="text-slate-500">Current Assessor Estimate:</span>
+                  <span className="font-bold text-slate-900">{formatCurrency(workOrder.assessor_estimate || 0)}</span>
+                </div>
+                <div className="flex justify-between items-center font-mono text-[11px]">
+                  <span className="text-slate-500">Assigned Assessor:</span>
+                  <span className="font-bold text-sky-700">{workOrder.lead_assessor_name || workOrder.assessor_name || 'Assessor'}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Adjustment Instructions &amp; Review Notes *
+                </label>
+                <textarea
+                  rows={3}
+                  value={adjustmentNotesInput}
+                  onChange={(e) => setAdjustmentNotesInput(e.target.value)}
+                  placeholder="Detail required adjustments, scope corrections, bill of quantities (BOQ) benchmarks, or rate table adjustments..."
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none shadow-2xs"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAdjustEstimateModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!adjustmentNotesInput.trim() || reviewEstimateMutation.isPending}
+                  onClick={() =>
+                    reviewEstimateMutation.mutate({
+                      action: 'adjust',
+                      adjustmentNotes: adjustmentNotesInput.trim()
+                    })
+                  }
+                  className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {reviewEstimateMutation.isPending ? 'Sending...' : 'Send Adjustment to Assessor'}
+                </button>
               </div>
             </div>
           </div>
@@ -3644,6 +4774,234 @@ export default function WorkOrderDetailPage() {
                 >
                   {signoffMutation.isPending ? 'Sending Rectification...' : 'Return to In Progress'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Part 2: Site Assessment Time Sheet Modal (PDF Page / Template) */}
+        {isTimesheetModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Site Assessment Time Sheet
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Job #{workOrder.tracking_number} &bull; Log daily engineering &amp; inspection hours (Monday &ndash; Sunday)
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsTimesheetModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {timesheetSaveError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                  {timesheetSaveError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Employee / Assessor Name
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    value={workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor'}
+                    className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Week Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={timesheetWeekStart}
+                    onChange={(e) => setTimesheetWeekStart(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Dynamic Project Days Entry Table */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-semibold text-slate-700">Project Days Breakdown ({timesheetDays.length} Days):</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextIndex = timesheetDays.length + 1;
+                      const lastDate = timesheetDays.length > 0 && timesheetDays[timesheetDays.length - 1].date
+                        ? new Date(timesheetDays[timesheetDays.length - 1].date)
+                        : new Date();
+                      lastDate.setDate(lastDate.getDate() + 1);
+                      const dayName = lastDate.toLocaleDateString('en-GB', { weekday: 'short' });
+                      setTimesheetDays([
+                        ...timesheetDays,
+                        {
+                          day: `Day ${nextIndex} (${dayName})`,
+                          date: lastDate.toISOString().split('T')[0],
+                          task: 'Technical inspection & compliance check',
+                          hours: '4.0'
+                        }
+                      ]);
+                    }}
+                    className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer inline-flex items-center gap-1"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    + Add Day Row
+                  </button>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[320px] overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold sticky top-0">
+                      <tr>
+                        <th className="py-2 px-3 text-left w-28">Day</th>
+                        <th className="py-2 px-3 text-left w-28">Date</th>
+                        <th className="py-2 px-3 text-left">Task Activity Description</th>
+                        <th className="py-2 px-3 text-right w-20">Hours</th>
+                        <th className="py-2 px-2 text-center w-8"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {timesheetDays.map((d, index) => (
+                        <tr key={index} className="hover:bg-slate-50/70">
+                          <td className="py-2 px-3">
+                            <input
+                              type="text"
+                              value={d.day}
+                              onChange={(e) => {
+                                const updated = [...timesheetDays];
+                                updated[index].day = e.target.value;
+                                setTimesheetDays(updated);
+                              }}
+                              className="w-full px-1.5 py-1 border border-slate-200 rounded text-xs font-semibold text-slate-900 bg-slate-50 focus:ring-1 focus:ring-sky-500"
+                            />
+                          </td>
+                          <td className="py-2 px-3">
+                            <input
+                              type="date"
+                              value={d.date}
+                              onChange={(e) => {
+                                const updated = [...timesheetDays];
+                                updated[index].date = e.target.value;
+                                setTimesheetDays(updated);
+                              }}
+                              className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-900 focus:ring-1 focus:ring-sky-500"
+                            />
+                          </td>
+                          <td className="py-2 px-3">
+                            <input
+                              type="text"
+                              value={d.task}
+                              placeholder="e.g. Diagnostic scoping & inspection"
+                              onChange={(e) => {
+                                const updated = [...timesheetDays];
+                                updated[index].task = e.target.value;
+                                setTimesheetDays(updated);
+                              }}
+                              className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-900 focus:ring-1 focus:ring-sky-500"
+                            />
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              max="24"
+                              placeholder="0.0"
+                              value={d.hours}
+                              onChange={(e) => {
+                                const updated = [...timesheetDays];
+                                updated[index].hours = e.target.value;
+                                setTimesheetDays(updated);
+                              }}
+                              className="w-full text-right px-2 py-1 border border-slate-200 rounded text-xs font-mono font-bold text-slate-900 focus:ring-1 focus:ring-sky-500"
+                            />
+                          </td>
+                          <td className="py-2 px-2 text-center">
+                            {timesheetDays.length > 1 && (
+                              <button
+                                type="button"
+                                title="Remove this day"
+                                onClick={() => {
+                                  const updated = timesheetDays.filter((_, i) => i !== index);
+                                  setTimesheetDays(updated);
+                                }}
+                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer font-bold text-xs"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Total Calculation Bar */}
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <span className="font-semibold text-slate-600">Calculated Total Work Hours:</span>
+                <span className="font-mono text-sm font-bold text-sky-700">
+                  {timesheetDays.reduce((acc, d) => acc + (Number(d.hours) || 0), 0).toFixed(1)} hrs
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadTimesheetPdf({
+                      employee_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
+                      employee_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer' : 'Works Inspector',
+                      week_start: timesheetWeekStart || (workOrder.created_at ? formatDate(workOrder.created_at) : new Date().toLocaleDateString('en-GB')),
+                      work_order_tracking: workOrder.tracking_number,
+                      work_order_title: workOrder.title,
+                      facility_name: workOrder.facility_name,
+                      entries: timesheetDays,
+                      total_hours: timesheetDays.reduce((acc, d) => acc + (Number(d.hours) || 0), 0).toFixed(1),
+                      signature_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
+                      signature_date: new Date().toLocaleDateString('en-GB')
+                    });
+                  }}
+                  className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Preview Timesheet PDF
+                </button>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsTimesheetModalOpen(false)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saveTimesheetMutation.isPending}
+                    onClick={() => saveTimesheetMutation.mutate()}
+                    className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-black active:bg-slate-800 rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {saveTimesheetMutation.isPending ? 'Saving...' : 'Save Time Sheet'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

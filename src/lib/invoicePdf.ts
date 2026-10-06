@@ -8,7 +8,7 @@ export interface InvoicePdfData {
   status: string;
   amount: number;
   tax_amount?: number | null;
-  total_amount: number;
+  total_amount?: number | null;
   notes?: string | null;
   contractor_name?: string | null;
   contractor_email?: string | null;
@@ -17,6 +17,10 @@ export interface InvoicePdfData {
   work_order_title?: string | null;
   facility_name?: string | null;
   facility_address?: string | null;
+  attention_name?: string | null;
+  attention_title?: string | null;
+  client_company?: string | null;
+  payment_terms?: string | null;
 }
 
 export function downloadInvoicePdf(invoice: InvoicePdfData) {
@@ -26,15 +30,20 @@ export function downloadInvoicePdf(invoice: InvoicePdfData) {
     return;
   }
 
-  const invoiceDate = invoice.created_at ? formatDate(invoice.created_at) : new Date().toLocaleDateString();
-  const dueDate = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'Upon Receipt';
+  const invoiceDate = invoice.created_at ? formatDate(invoice.created_at) : new Date().toLocaleDateString('en-GB');
   const baseFee = Number(invoice.amount || 0);
-  const taxFee = Number(invoice.tax_amount || 0);
-  const totalFee = Number(invoice.total_amount || (baseFee + taxFee));
+  const taxFee = (invoice.tax_amount !== undefined && invoice.tax_amount !== null && Number(invoice.tax_amount) > 0)
+    ? Number(invoice.tax_amount)
+    : Math.round(baseFee * 0.15 * 100) / 100;
+  const totalFee = Math.round((baseFee + taxFee) * 100) / 100;
   const isPaid = invoice.status?.toLowerCase() === 'paid';
   const isApproved = invoice.status?.toLowerCase() === 'approved';
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const logoUrl = `${origin}/images/logo.png`;
+
+  // Item split calculations if available or proportional breakdown
+  const labourPortion = Math.round(baseFee * 0.65 * 100) / 100;
+  const materialsPortion = Math.round((baseFee - labourPortion) * 100) / 100;
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -44,7 +53,7 @@ export function downloadInvoicePdf(invoice: InvoicePdfData) {
   <style>
     @page {
       size: A4;
-      margin: 15mm;
+      margin: 15mm 20mm;
     }
     * {
       box-sizing: border-box;
@@ -52,340 +61,325 @@ export function downloadInvoicePdf(invoice: InvoicePdfData) {
       padding: 0;
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: #1e293b;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #334155;
       background: #ffffff;
-      padding: 30px;
+      padding: 40px;
       font-size: 13px;
       line-height: 1.5;
     }
     .invoice-container {
-      max-width: 780px;
+      max-width: 720px;
       margin: 0 auto;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 36px;
       background: #ffffff;
     }
-    .header {
+    .top-accent-bar {
+      height: 4px;
+      background: #2B7A9B;
+      margin-bottom: 24px;
+      border-radius: 2px;
+    }
+    .top-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 2px solid #0284c7;
-      padding-bottom: 18px;
-      margin-bottom: 24px;
+      margin-bottom: 36px;
     }
-    .brand-section {
+    .company-brand {
       display: flex;
       align-items: center;
+      gap: 14px;
     }
-    .brand-logo-img {
-      height: 72px;
+    .company-logo {
+      height: 52px;
       width: auto;
-      max-width: 200px;
+      max-width: 180px;
       object-fit: contain;
     }
-    .invoice-meta {
-      text-align: right;
-    }
-    .invoice-title {
-      font-size: 20px;
+    .company-name {
+      font-size: 17px;
       font-weight: 800;
-      color: #0f172a;
-    }
-    .invoice-number {
-      font-family: monospace;
-      font-size: 14px;
-      font-weight: 700;
-      color: #0284c7;
-      margin-top: 2px;
-    }
-    .status-badge {
-      display: inline-block;
-      margin-top: 6px;
-      padding: 3px 10px;
-      border-radius: 9999px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
+      color: #2B7A9B;
       letter-spacing: 0.5px;
+      text-transform: uppercase;
     }
-    .status-paid {
-      background: #dcfce7;
-      color: #15803d;
-      border: 1px solid #bbf7d0;
-    }
-    .status-approved {
-      background: #e0f2fe;
-      color: #0369a1;
-      border: 1px solid #bae6fd;
-    }
-    .status-pending {
-      background: #fef3c7;
-      color: #b45309;
-      border: 1px solid #fde68a;
-    }
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-      margin-bottom: 28px;
-    }
-    .info-card {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 16px;
-    }
-    .info-label {
+    .company-subtitle {
       font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
       color: #64748b;
-      margin-bottom: 6px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
     }
-    .info-title {
-      font-size: 14px;
-      font-weight: 700;
-      color: #0f172a;
-      margin-bottom: 4px;
+    .invoice-body-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 32px;
+      gap: 30px;
     }
-    .info-detail {
-      font-size: 12px;
+    .invoice-large-title {
+      font-size: 28px;
+      font-weight: 300;
       color: #475569;
-      line-height: 1.4;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      padding-top: 4px;
     }
-    .table {
+    .invoice-meta-details {
+      font-size: 12px;
+      color: #334155;
+      line-height: 1.6;
+      max-width: 420px;
+    }
+    .meta-row {
+      margin-bottom: 2px;
+    }
+    .meta-label {
+      font-weight: 600;
+      color: #1e293b;
+    }
+    .meta-spacer {
+      height: 12px;
+    }
+    .items-table {
       width: 100%;
       border-collapse: collapse;
       margin-bottom: 24px;
     }
-    .table th {
-      background: #f1f5f9;
-      color: #475569;
+    .items-table th {
+      background: #2B7A9B;
+      color: #ffffff;
       font-weight: 700;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      text-align: left;
-      padding: 10px 14px;
-      border-top: 1px solid #e2e8f0;
-      border-bottom: 1px solid #cbd5e1;
-    }
-    .table td {
-      padding: 14px;
-      border-bottom: 1px solid #e2e8f0;
       font-size: 12px;
+      text-align: left;
+      padding: 8px 12px;
+      border: 1px solid #2B7A9B;
     }
-    .text-right {
+    .items-table th.text-right {
       text-align: right;
     }
-    .font-mono {
-      font-family: monospace;
+    .items-table td {
+      padding: 8px 12px;
       font-size: 12px;
+      color: #334155;
+      border-left: 1px dotted #cbd5e1;
+      border-right: 1px dotted #cbd5e1;
+      border-bottom: 1px dotted #cbd5e1;
     }
-    .totals-wrapper {
-      display: flex;
-      justify-content: flex-end;
-      margin-bottom: 28px;
+    .items-table td:first-child {
+      border-left: 1px solid #cbd5e1;
     }
-    .totals-table {
-      width: 320px;
+    .items-table td:last-child {
+      border-right: 1px solid #cbd5e1;
+    }
+    .items-table .text-right {
+      text-align: right;
+    }
+    .summary-section {
+      width: 100%;
       border-collapse: collapse;
     }
-    .totals-table td {
+    .summary-section td {
       padding: 6px 12px;
       font-size: 12px;
     }
-    .total-row {
-      border-top: 2px solid #0f172a;
-      border-bottom: 2px solid #0f172a;
-      font-size: 15px !important;
-      font-weight: 800;
-      color: #0369a1;
-      padding-top: 10px !important;
-      padding-bottom: 10px !important;
+    .subtotal-row td {
+      border-top: 1px dotted #94a3b8;
+      border-bottom: 1px dotted #cbd5e1;
     }
-    .notes-box {
-      background: #f8fafc;
-      border-left: 4px solid #0284c7;
-      padding: 12px 16px;
+    .total-row td {
+      border-top: 1.5px solid #1e293b;
+      border-bottom: 1.5px solid #1e293b;
+      font-weight: 700;
+      font-size: 13px;
+      color: #0f172a;
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+    .footer-note {
+      margin-top: 36px;
+      font-size: 11.5px;
+      color: #475569;
+      line-height: 1.6;
+    }
+    .footer-note p {
+      margin-bottom: 4px;
+    }
+    .status-pill {
+      display: inline-block;
+      padding: 2px 8px;
       border-radius: 4px;
-      margin-bottom: 28px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
     }
-    .notes-box p {
-      font-size: 12px;
-      color: #334155;
+    .status-paid {
+      background: #f1f5f9;
+      color: #2B7A9B;
+      border: 1px solid #cbd5e1;
     }
-    .footer {
+    .status-approved {
+      background: #f1f5f9;
+      color: #0284c7;
+      border: 1px solid #cbd5e1;
+    }
+    .status-pending {
+      background: #fffbeb;
+      color: #b45309;
+      border: 1px solid #fef3c7;
+    }
+    .security-badge {
+      margin-top: 28px;
+      padding-top: 12px;
       border-top: 1px solid #e2e8f0;
-      padding-top: 16px;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      font-size: 11px;
+      font-size: 10px;
       color: #94a3b8;
+      font-family: monospace;
     }
-    .security-stamp {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: #059669;
-      font-weight: 600;
-    }
-    .print-bar {
-      margin-bottom: 20px;
+    .print-actions {
+      margin-bottom: 24px;
       text-align: center;
     }
     .print-btn {
-      background: #0284c7;
+      background: #2B7A9B;
       color: #ffffff;
       border: none;
-      padding: 10px 24px;
-      font-size: 14px;
+      padding: 9px 22px;
+      font-size: 13px;
       font-weight: 700;
       border-radius: 6px;
       cursor: pointer;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .print-btn:hover {
-      background: #0369a1;
+      background: #1E5D88;
     }
     @media print {
       body {
         padding: 0;
       }
-      .invoice-container {
-        border: none;
-        padding: 0;
-      }
-      .print-bar {
+      .print-actions {
         display: none;
       }
     }
   </style>
 </head>
 <body>
-  <div class="print-bar">
-    <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  <div class="print-actions">
+    <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
   </div>
 
   <div class="invoice-container">
-    <!-- Header -->
-    <div class="header">
-      <div class="brand-section">
-        <img src="${logoUrl}" alt="Hospital Logo" class="brand-logo-img" />
-      </div>
-      <div class="invoice-meta">
-        <div class="invoice-title">INVOICE CLAIM</div>
-        <div class="invoice-number">${invoice.invoice_number}</div>
-        <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
-          Date: <strong>${invoiceDate}</strong> &bull; Due: <strong>${dueDate}</strong>
-        </div>
+    <!-- Top Blue Accent Bar -->
+    <div class="top-accent-bar"></div>
+
+    <!-- Company Logo & Brand Header at the Top -->
+    <div class="top-header">
+      <div class="company-brand">
+        <img src="${logoUrl}" alt="Company Logo" class="company-logo" />
         <div>
-          <span class="status-badge ${isPaid ? 'status-paid' : isApproved ? 'status-approved' : 'status-pending'}">
-            ${isPaid ? '✓ Paid & Settled' : isApproved ? 'Approved for Payment' : 'Pending Review'}
-          </span>
+          <div class="company-name">${invoice.contractor_name || 'OMV HOLDINGS (PTY) LTD'}</div>
+          <div class="company-subtitle">Healthcare Engineering & Specialist Maintenance</div>
         </div>
       </div>
-    </div>
-
-    <!-- Info Cards -->
-    <div class="grid-2">
-      <div class="info-card">
-        <div class="info-label">Payee / Service Contractor</div>
-        <div class="info-title">${invoice.contractor_name || 'Engineering Contractor'}</div>
-        <div class="info-detail">Email: ${invoice.contractor_email || 'service@contractor.com'}</div>
-        ${invoice.contractor_registration ? `<div class="info-detail">Reg #: ${invoice.contractor_registration}</div>` : ''}
-      </div>
-
-      <div class="info-card">
-        <div class="info-label">Hospital Work Order Reference</div>
-        <div class="info-title" style="color: #0369a1; font-family: monospace;">${invoice.work_order_tracking || 'WO-REF'}</div>
-        <div class="info-detail" style="font-weight: 600;">${invoice.work_order_title || 'Hospital Maintenance Repair'}</div>
-        <div class="info-detail">🏥 ${invoice.facility_name || 'Main Hospital Facility'}</div>
+      <div>
+        <span class="status-pill ${isPaid ? 'status-paid' : isApproved ? 'status-approved' : 'status-pending'}">
+          ${isPaid ? 'Settled / Paid' : isApproved ? 'Approved for Payment' : 'Under Review'}
+        </span>
       </div>
     </div>
 
-    <!-- Line Items Table -->
-    <table class="table">
+    <!-- Main Invoice Body Header -->
+    <div class="invoice-body-header">
+      <div class="invoice-large-title">INVOICE</div>
+
+      <div class="invoice-meta-details">
+        <div class="meta-row"><span class="meta-label">Attention:</span> ${invoice.attention_name || 'Muzikayise Nkosi'}</div>
+        <div class="meta-row"><span class="meta-label">Title:</span> ${invoice.attention_title || 'Director / Facility Manager'}</div>
+        <div class="meta-row"><span class="meta-label">Company Name:</span> ${invoice.client_company || invoice.facility_name || 'CloudFare (PTY) LTD'}</div>
+        <div class="meta-row">${invoice.facility_address || '188 Bergatellerie Rd, Danville ext 5, 0183'}</div>
+        <div class="meta-row"><span class="meta-label">Date:</span> ${invoiceDate}</div>
+        
+        <div class="meta-spacer"></div>
+
+        <div class="meta-row"><span class="meta-label">Project Title:</span> ${invoice.work_order_title || 'Hospital Maintenance & Specialist Servicing'}</div>
+        <div class="meta-row"><span class="meta-label">Invoice Number:</span> <strong>${invoice.invoice_number}</strong></div>
+        <div class="meta-row"><span class="meta-label">Terms:</span> ${invoice.payment_terms || '6 Days'}</div>
+      </div>
+    </div>
+
+    <!-- Line Item Breakdown Table with Blue Header -->
+    <table class="items-table">
       <thead>
         <tr>
-          <th style="width: 55%;">Service Item / Scope</th>
-          <th style="width: 15%;" class="text-right">Qty</th>
-          <th style="width: 15%;" class="text-right">Rate</th>
-          <th style="width: 15%;" class="text-right">Amount</th>
+          <th style="width: 52%;">Description</th>
+          <th style="width: 14%;" class="text-right">Quantity</th>
+          <th style="width: 17%;" class="text-right">Unit Price</th>
+          <th style="width: 17%;" class="text-right">Cost</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td>
-            <div style="font-weight: 600; color: #0f172a;">Hospital Engineering & Maintenance Service</div>
-            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-              ${invoice.notes || `Completed maintenance work order ${invoice.work_order_tracking || ''}`}
-            </div>
-          </td>
-          <td class="text-right font-mono">1</td>
-          <td class="text-right font-mono">${formatCurrency(baseFee)}</td>
+          <td>Labour & Engineering Workmanship</td>
+          <td class="text-right">1</td>
+          <td class="text-right font-mono">${formatCurrency(labourPortion)}</td>
+          <td class="text-right font-mono">${formatCurrency(labourPortion)}</td>
+        </tr>
+        <tr>
+          <td>Materials, Specialized Diagnostic Parts & Consumables</td>
+          <td class="text-right">1</td>
+          <td class="text-right font-mono">${formatCurrency(materialsPortion)}</td>
+          <td class="text-right font-mono">${formatCurrency(materialsPortion)}</td>
+        </tr>
+        <tr>
+          <td>3-Way Statutory QC Handover & Safety Compliance Verification</td>
+          <td class="text-right">-</td>
+          <td class="text-right font-mono">R 0.00</td>
+          <td class="text-right font-mono">R 0.00</td>
+        </tr>
+        <!-- Subtotal -->
+        <tr class="subtotal-row">
+          <td colspan="2" style="border-left: none; border-bottom: none;"></td>
+          <td class="text-right" style="font-weight: 600; color: #475569;">Subtotal</td>
           <td class="text-right font-mono" style="font-weight: 600;">${formatCurrency(baseFee)}</td>
         </tr>
-        ${taxFee > 0 ? `
+        <!-- Service Fee / Tax -->
         <tr>
-          <td>
-            <div style="font-weight: 600; color: #0f172a;">Statutory Taxes / Surcharges</div>
-          </td>
-          <td class="text-right font-mono">1</td>
+          <td colspan="2" style="border-left: none; border-bottom: none;"></td>
+          <td class="text-right" style="color: #64748b; font-size: 11px;">Service fee / VAT (15%)</td>
           <td class="text-right font-mono">${formatCurrency(taxFee)}</td>
-          <td class="text-right font-mono" style="font-weight: 600;">${formatCurrency(taxFee)}</td>
-        </tr>` : ''}
+        </tr>
+        <!-- Total -->
+        <tr class="total-row">
+          <td colspan="2" style="border-left: none; border-bottom: none;"></td>
+          <td class="text-right" style="font-weight: 700;">Total</td>
+          <td class="text-right font-mono" style="font-weight: 700; color: #2B7A9B;">${formatCurrency(totalFee)}</td>
+        </tr>
       </tbody>
     </table>
 
-    <!-- Totals -->
-    <div class="totals-wrapper">
-      <table class="totals-table">
-        <tr>
-          <td style="color: #64748b;">Subtotal:</td>
-          <td class="text-right font-mono">${formatCurrency(baseFee)}</td>
-        </tr>
-        <tr>
-          <td style="color: #64748b;">Tax / VAT:</td>
-          <td class="text-right font-mono">${formatCurrency(taxFee)}</td>
-        </tr>
-        <tr class="total-row">
-          <td>Total Disbursed:</td>
-          <td class="text-right font-mono">${formatCurrency(totalFee)}</td>
-        </tr>
-      </table>
+    <!-- Footer Notes -->
+    <div class="footer-note">
+      <p>Thank you for your business. It's a pleasure to work with you on your project.</p>
+      <p>Your next order will ship in 30 days / Payment due within agreed terms.</p>
     </div>
 
-    ${invoice.notes ? `
-    <div class="notes-box">
-      <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #0369a1; margin-bottom: 2px;">
-        Work Description / Notes
-      </div>
-      <p>${invoice.notes}</p>
-    </div>` : ''}
-
-    <!-- Security & Audit Footer -->
-    <div class="footer">
-      <div class="security-stamp">
-        <span>🛡️</span>
-        <span>SHA-256 Verified Audit Ledger Anchored</span>
-      </div>
-      <div>
-        MediTrack System Document ID: <code>${invoice.id}</code>
-      </div>
+    <!-- Cryptographic Ledger Footer -->
+    <div class="security-badge">
+      <span>MEDITRACK AUDIT TRAIL: SECURE DIGITAL INVOICE</span>
+      <span>ID: ${invoice.id}</span>
     </div>
   </div>
 
   <script>
     window.onload = function() {
-      // Small timeout to allow styles to render before triggering print
       setTimeout(function() {
         window.print();
-      }, 400);
+      }, 350);
     };
   </script>
 </body>
@@ -395,3 +389,4 @@ export function downloadInvoicePdf(invoice: InvoicePdfData) {
   printWindow.document.write(htmlContent);
   printWindow.document.close();
 }
+

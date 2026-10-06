@@ -2,16 +2,19 @@ import { formatCurrency, formatDate } from './utils';
 import { WorkOrder } from '@/types/workOrder';
 
 export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
-  const printWindow = window.open('', '_blank', 'width=850,height=950');
+  const printWindow = window.open('', '_blank', 'width=900,height=980');
   if (!printWindow) {
     alert('Please allow popups to print/download the Completion Certificate PDF.');
     return;
   }
 
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const logoUrl = `${origin}/images/logo.png`;
   const certNo = workOrder.completion_cert_no || `CERT-${new Date().getFullYear()}-${workOrder.tracking_number.replace(/\D/g, '').slice(-4) || '1001'}`;
   const recNo = workOrder.client_recovery_invoice_no || `REC-${new Date().getFullYear()}-${workOrder.tracking_number.replace(/\D/g, '').slice(-4) || '1001'}`;
   const issueDate = new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' });
   const totalAmount = workOrder.actual_cost || workOrder.estimated_cost || 0;
+  const isRouteB = workOrder.funding_route === 'route_b' || workOrder.urgency_category === 'Critical 0–24h';
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -20,8 +23,8 @@ export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
   <title>Completion Certificate - ${certNo}</title>
   <style>
     @page {
-      size: A4;
-      margin: 12mm;
+      size: A4 portrait;
+      margin: 10mm;
     }
     * {
       box-sizing: border-box;
@@ -31,109 +34,173 @@ export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       color: #0f172a;
-      background: #ffffff;
-      padding: 24px;
-      font-size: 12px;
+      background: #f8fafc;
+      padding: 20px;
+      font-size: 11.5px;
       line-height: 1.45;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-    .container {
-      max-width: 800px;
+    .cert-container {
+      max-width: 820px;
       margin: 0 auto;
-      border: 2px solid #0f172a;
-      padding: 28px;
+      border: 2px solid #0284c7;
+      border-radius: 8px;
+      padding: 28px 32px;
       background: #ffffff;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
     }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      padding-bottom: 18px;
-      border-bottom: 2px solid #0f172a;
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-bottom: 2px solid #0284c7;
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+    .header-left {
+      vertical-align: middle;
+      text-align: left;
+    }
+    .header-right {
+      vertical-align: middle;
+      text-align: right;
+    }
+    .brand-logo-img {
+      height: 60px;
+      width: auto;
+      max-width: 180px;
+      object-fit: contain;
+      margin-bottom: 6px;
     }
     .org-title {
-      font-size: 18px;
+      font-size: 14px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: #0f172a;
     }
-    .org-subtitle {
-      font-size: 11px;
+    .org-sub {
+      font-size: 10px;
       color: #475569;
       margin-top: 2px;
       font-weight: 600;
     }
-    .cert-badge {
+    .cert-badge-box {
+      display: inline-block;
       text-align: right;
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      padding: 8px 14px;
+      border-radius: 6px;
     }
-    .cert-title {
-      font-size: 15px;
-      font-weight: 800;
-      color: #0f172a;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-    }
-    .cert-no {
-      font-family: ui-monospace, monospace;
+    .cert-badge-title {
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 800;
       color: #0369a1;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .cert-badge-no {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
       margin-top: 2px;
     }
-    .meta-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-      margin: 18px 0;
-      padding: 14px;
+    .cert-badge-date {
+      font-size: 9px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* Meta Table Grid */
+    .meta-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 8px;
+      margin-bottom: 16px;
+    }
+    .meta-cell {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
-      border-radius: 4px;
-    }
-    .meta-item {
-      font-size: 11px;
+      border-radius: 6px;
+      padding: 10px 12px;
+      vertical-align: top;
+      width: 50%;
     }
     .meta-label {
       color: #64748b;
-      font-weight: 600;
+      font-weight: 700;
       text-transform: uppercase;
       font-size: 9px;
       letter-spacing: 0.5px;
+      margin-bottom: 3px;
     }
-    .meta-value {
+    .meta-val {
+      font-size: 11.5px;
       font-weight: 700;
       color: #0f172a;
-      margin-top: 2px;
     }
-    .section-title {
+    .font-mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    /* Section Cards */
+    .section-heading {
       font-size: 11px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      color: #0f172a;
+      color: #0369a1;
       margin: 16px 0 8px 0;
       padding-bottom: 4px;
-      border-bottom: 1px solid #cbd5e1;
+      border-bottom: 1px solid #e2e8f0;
     }
-    .scope-box {
-      padding: 12px;
-      border: 1px solid #e2e8f0;
+    .spec-card {
       background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 12px 14px;
       margin-bottom: 16px;
-      font-size: 11px;
-      color: #334155;
       line-height: 1.5;
     }
-    .tri-signoff-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin: 16px 0;
+    .spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .spec-table td {
+      padding: 3px 0;
+      vertical-align: top;
+    }
+    .spec-table td.label-col {
+      width: 160px;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .spec-table td.val-col {
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    /* 3-Way Tri-Signature Grid - Single Consistent Blue/Navy Palette */
+    .signoff-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 8px;
+      margin: 12px 0 16px 0;
     }
     .signoff-card {
-      border: 1px solid #0f172a;
-      padding: 12px;
+      border: 1px solid #cbd5e1;
       background: #ffffff;
+      border-radius: 6px;
+      padding: 12px;
+      vertical-align: top;
+      width: 33.33%;
+    }
+    .signoff-card.certified {
+      border-color: #0284c7;
+      background: #f0f9ff;
     }
     .signoff-role {
       font-size: 10px;
@@ -142,170 +209,254 @@ export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
       color: #0f172a;
       border-bottom: 1px solid #e2e8f0;
       padding-bottom: 4px;
-      margin-bottom: 8px;
-    }
-    .signoff-status {
-      display: inline-block;
-      padding: 2px 6px;
-      font-size: 9px;
-      font-weight: 700;
-      text-transform: uppercase;
-      border-radius: 2px;
       margin-bottom: 6px;
     }
-    .status-signed {
-      background: #ecfdf5;
-      color: #065f46;
-      border: 1px solid #a7f3d0;
+    .badge-certified {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 8.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      border-radius: 4px;
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+      margin-bottom: 6px;
     }
-    .status-pending {
-      background: #fffbeb;
-      color: #92400e;
-      border: 1px solid #fde68a;
+    .badge-pending {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 8.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      border-radius: 4px;
+      background: #f8fafc;
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+      margin-bottom: 6px;
     }
     .signoff-name {
       font-size: 11px;
       font-weight: 700;
       color: #0f172a;
     }
-    .signoff-date {
+    .signoff-meta {
       font-size: 9px;
       color: #64748b;
-      margin-top: 2px;
+      margin-top: 3px;
       font-family: ui-monospace, monospace;
     }
-    .recovery-banner {
-      margin-top: 16px;
-      padding: 12px;
-      background: #f0fdf4;
-      border: 1px solid #86efac;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+
+    /* Financial Settlement Banner - Single Consistent Blue/Navy Palette */
+    .settlement-banner {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-top: 14px;
+      display: table;
+      width: 100%;
     }
-    .recovery-title {
+    .settlement-left {
+      display: table-cell;
+      vertical-align: middle;
+    }
+    .settlement-right {
+      display: table-cell;
+      vertical-align: middle;
+      text-align: right;
+    }
+    .settlement-title {
       font-weight: 800;
       font-size: 11px;
-      color: #166534;
+      color: #0369a1;
       text-transform: uppercase;
     }
-    .recovery-amount {
-      font-size: 14px;
+    .settlement-sub {
+      font-size: 9.5px;
+      color: #475569;
+      margin-top: 2px;
+    }
+    .settlement-amount {
+      font-size: 16px;
       font-weight: 800;
       font-family: ui-monospace, monospace;
-      color: #166534;
+      color: #0f172a;
     }
-    .footer {
-      margin-top: 24px;
-      padding-top: 12px;
+
+    /* Footer */
+    .cert-footer {
+      margin-top: 20px;
+      padding-top: 10px;
       border-top: 1px solid #e2e8f0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 9px;
+      font-size: 8.5px;
       color: #64748b;
+      display: table;
+      width: 100%;
     }
-    .hash-code {
+    .footer-left {
+      display: table-cell;
+      text-align: left;
+    }
+    .footer-right {
+      display: table-cell;
+      text-align: right;
       font-family: ui-monospace, monospace;
-      font-size: 8px;
       color: #94a3b8;
+    }
+
+    @media print {
+      body {
+        padding: 0;
+        background: #ffffff;
+      }
+      .cert-container {
+        border: 2px solid #0284c7;
+        box-shadow: none;
+        padding: 20px 24px;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <div>
-        <div class="org-title">Northern Cape Dept of Health &amp; Quantum Built</div>
-        <div class="org-subtitle">Healthcare Engineering Maintenance &amp; Statutory SLA Compliance</div>
+  <div class="cert-container">
+    <!-- Header Table -->
+    <table class="header-table">
+      <tr>
+        <td class="header-left">
+          <img src="${logoUrl}" alt="QHES MediTrack Logo" class="brand-logo-img" onerror="this.style.display='none';" />
+          <div class="org-title">Northern Cape Dept of Health &amp; Quantum Built</div>
+          <div class="org-sub">Healthcare Engineering Maintenance &amp; Statutory SLA Compliance</div>
+        </td>
+        <td class="header-right">
+          <div class="cert-badge-box">
+            <div class="cert-badge-title">3-Way Completion Certificate</div>
+            <div class="cert-badge-no">${certNo}</div>
+            <div class="cert-badge-date">Issued: ${issueDate}</div>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Meta Details Grid -->
+    <table class="meta-table">
+      <tr>
+        <td class="meta-cell">
+          <div class="meta-label">Hospital Facility &amp; Location</div>
+          <div class="meta-val">${workOrder.facility_name || 'Northern Cape Regional Facility'} (${workOrder.facility_code || 'NC-FAC'})</div>
+          ${workOrder.location_details ? `<div style="font-size: 10px; color: #64748b; margin-top: 2px;">Room/Location: ${workOrder.location_details}</div>` : ''}
+        </td>
+        <td class="meta-cell">
+          <div class="meta-label">Work Order Reference</div>
+          <div class="meta-val font-mono">${workOrder.tracking_number} &bull; ${workOrder.category}</div>
+          <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Urgency: ${workOrder.urgency_category || 'Urgent 4–8 days'}</div>
+        </td>
+      </tr>
+      <tr>
+        <td class="meta-cell">
+          <div class="meta-label">System Quote &amp; Contractor Reference</div>
+          <div class="meta-val font-mono">${workOrder.system_quote_no || 'QT-2026-N/A'} ${workOrder.contractor_quote_ref ? `&bull; Ref: ${workOrder.contractor_quote_ref}` : ''}</div>
+          <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Assigned Specialist: ${workOrder.assigned_to_name || workOrder.contractor_name || 'Apex BioMed Solutions'}</div>
+        </td>
+        <td class="meta-cell">
+          <div class="meta-label">${isRouteB ? 'Advance Float Protocol' : 'Client Recovery Invoice Reference'}</div>
+          <div class="meta-val font-mono" style="color: #0369a1;">${isRouteB ? 'Route B (Advance Float Direct Funded)' : recNo}</div>
+          <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Charge Code: ${workOrder.charge_code || 'PRE'} &bull; Status: Tri-Signature Certified</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Specification Box -->
+    <div class="section-heading">Maintenance Work Specification &amp; Scope</div>
+    <div class="spec-card">
+      <table class="spec-table">
+        <tr>
+          <td class="label-col">Task Title:</td>
+          <td class="val-col">${workOrder.title}</td>
+        </tr>
+        <tr>
+          <td class="label-col">Scope Description:</td>
+          <td class="val-col">${workOrder.description}</td>
+        </tr>
+        <tr>
+          <td class="label-col">Assigned Contractor:</td>
+          <td class="val-col">${workOrder.assigned_to_name || workOrder.contractor_name || 'Specialist Contractor'}</td>
+        </tr>
+        <tr>
+          <td class="label-col">Contract Value / Cost:</td>
+          <td class="val-col font-mono">${formatCurrency(totalAmount)}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- 3-Way Tri-Signature Statutory Verification Cards -->
+    <div class="section-heading">Tri-Signature Statutory Completion Sign-off (PDF Page 5)</div>
+    <table class="signoff-table">
+      <tr>
+        <!-- 1. Works Engineer -->
+        <td class="signoff-card ${workOrder.signoff_engineer_by ? 'certified' : ''}">
+          <div class="signoff-role">1. Works Engineer</div>
+          <div class="${workOrder.signoff_engineer_by ? 'badge-certified' : 'badge-pending'}">
+            ${workOrder.signoff_engineer_by ? 'Technical Certified' : 'Pending Signature'}
+          </div>
+          <div class="signoff-name">${workOrder.signoff_engineer_by || 'Awaiting Engineer'}</div>
+          <div class="signoff-meta">
+            ${workOrder.signoff_engineer_at ? formatDate(workOrder.signoff_engineer_at) : 'Awaiting physical sign-off'}
+          </div>
+        </td>
+
+        <!-- 2. Facilities Manager -->
+        <td class="signoff-card ${workOrder.signoff_fm_by ? 'certified' : ''}">
+          <div class="signoff-role">2. Facilities Manager</div>
+          <div class="${workOrder.signoff_fm_by ? 'badge-certified' : 'badge-pending'}">
+            ${workOrder.signoff_fm_by ? 'Site Accepted' : 'Pending Signature'}
+          </div>
+          <div class="signoff-name">${workOrder.signoff_fm_by || 'Awaiting Facilities Mgr'}</div>
+          <div class="signoff-meta">
+            ${workOrder.signoff_fm_at ? formatDate(workOrder.signoff_fm_at) : 'Awaiting site acceptance'}
+          </div>
+        </td>
+
+        <!-- 3. Works Inspector -->
+        <td class="signoff-card ${workOrder.signoff_inspector_by ? 'certified' : ''}">
+          <div class="signoff-role">3. Works Inspector</div>
+          <div class="${workOrder.signoff_inspector_by ? 'badge-certified' : 'badge-pending'}">
+            ${workOrder.signoff_inspector_by ? 'QC Verified' : 'Pending Signature'}
+          </div>
+          <div class="signoff-name">${workOrder.signoff_inspector_by || 'Awaiting QC Inspector'}</div>
+          <div class="signoff-meta">
+            ${workOrder.signoff_inspector_at ? formatDate(workOrder.signoff_inspector_at) : 'Awaiting compliance QC'}
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Financial Disbursement Banner - Unified Cohesive Blue Theme -->
+    <div class="settlement-banner">
+      <div class="settlement-left">
+        <div class="settlement-title">
+          ${isRouteB ? 'Quantum Built Advance Float Disbursement (Route B)' : 'NC DOH Client Recovery Invoicing Stream (Tier 2)'}
+        </div>
+        <div class="settlement-sub">
+          ${isRouteB ? 'Verified for 24-hour contractor settlement from advance float' : 'Certified for NC Department of Health reimbursement recovery'}
+        </div>
       </div>
-      <div class="cert-badge">
-        <div class="cert-title">3-Way Completion Certificate</div>
-        <div class="cert-no">${certNo}</div>
+      <div class="settlement-right">
+        <div class="settlement-amount">${formatCurrency(totalAmount)}</div>
       </div>
     </div>
 
-    <div class="meta-grid">
-      <div class="meta-item">
-        <div class="meta-label">Hospital Facility</div>
-        <div class="meta-value">${workOrder.facility_name || 'Northern Cape Regional Facility'} (${workOrder.facility_code || 'NC-FAC'})</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-label">Work Order Reference</div>
-        <div class="meta-value font-mono">${workOrder.tracking_number} &bull; ${workOrder.category}</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-label">System Quote &amp; Contractor Ref</div>
-        <div class="meta-value font-mono">${workOrder.system_quote_no || 'QT-2026-N/A'} ${workOrder.contractor_quote_ref ? `(${workOrder.contractor_quote_ref})` : ''}</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-label">Client Recovery Invoice #</div>
-        <div class="meta-value font-mono text-sky-800">${recNo}</div>
-      </div>
-    </div>
-
-    <div class="section-title">Maintenance Work Specification</div>
-    <div class="scope-box">
-      <strong>Title:</strong> ${workOrder.title}<br/>
-      <strong>Scope Description:</strong> ${workOrder.description}<br/>
-      ${workOrder.location_details ? `<strong>Location / Cleanroom:</strong> ${workOrder.location_details}<br/>` : ''}
-      <strong>Assigned Specialist:</strong> ${workOrder.assigned_to_name || workOrder.contractor_name || 'Nominated Specialist'}<br/>
-      <strong>SLA Urgency Band:</strong> ${workOrder.urgency_category || 'Urgent 4–8 days'} &bull; <strong>Charge Code:</strong> ${workOrder.charge_code || 'PRE'}
-    </div>
-
-    <div class="section-title">Tri-Signature Statutory Completion Sign-off</div>
-    <div class="tri-signoff-grid">
-      <!-- 1. Works Engineer -->
-      <div class="signoff-card">
-        <div class="signoff-role">1. Works Engineer</div>
-        <div class="signoff-status ${workOrder.signoff_engineer_by ? 'status-signed' : 'status-pending'}">
-          ${workOrder.signoff_engineer_by ? 'Technical Certified' : 'Pending Signature'}
-        </div>
-        <div class="signoff-name">${workOrder.signoff_engineer_by || 'Not Signed'}</div>
-        <div class="signoff-date">
-          ${workOrder.signoff_engineer_at ? formatDate(workOrder.signoff_engineer_at) : 'Awaiting physical review'}
-        </div>
-      </div>
-
-      <!-- 2. Facilities Manager -->
-      <div class="signoff-card">
-        <div class="signoff-role">2. Facilities Manager</div>
-        <div class="signoff-status ${workOrder.signoff_fm_by ? 'status-signed' : 'status-pending'}">
-          ${workOrder.signoff_fm_by ? 'Site Accepted' : 'Pending Signature'}
-        </div>
-        <div class="signoff-name">${workOrder.signoff_fm_by || 'Not Signed'}</div>
-        <div class="signoff-date">
-          ${workOrder.signoff_fm_at ? formatDate(workOrder.signoff_fm_at) : 'Awaiting site handover'}
-        </div>
-      </div>
-
-      <!-- 3. Works Inspector -->
-      <div class="signoff-card">
-        <div class="signoff-role">3. Works Inspector</div>
-        <div class="signoff-status ${workOrder.signoff_inspector_by ? 'status-signed' : 'status-pending'}">
-          ${workOrder.signoff_inspector_by ? 'QC Verified' : 'Pending Signature'}
-        </div>
-        <div class="signoff-name">${workOrder.signoff_inspector_by || 'Not Signed'}</div>
-        <div class="signoff-date">
-          ${workOrder.signoff_inspector_at ? formatDate(workOrder.signoff_inspector_at) : 'Awaiting compliance QC'}
-        </div>
-      </div>
-    </div>
-
-    <div class="recovery-banner">
-      <div>
-        <div class="recovery-title">NC DOH Client Recovery Invoicing Stream (Tier 2)</div>
-        <div style="font-size: 10px; color: #166534; margin-top: 2px;">
-          Certified for NC Department of Health reimbursement disbursement
-        </div>
-      </div>
-      <div class="recovery-amount">${formatCurrency(totalAmount)}</div>
-    </div>
-
-    <div class="footer">
-      <div>Issued on ${issueDate} &bull; MediTrack TBS Enterprise Healthcare Platform</div>
-      <div class="hash-code">SHA256 Ledger Verified &bull; ${workOrder.tracking_number}</div>
-    </div>
+    <!-- Footer Table -->
+    <table class="cert-footer">
+      <tr>
+        <td class="footer-left">
+          Official Certificate &bull; MediTrack TBS Healthcare Engineering &bull; Northern Cape DOH SLA
+        </td>
+        <td class="footer-right">
+          SHA256 Cryptographically Verified &bull; ${workOrder.tracking_number}
+        </td>
+      </tr>
+    </table>
   </div>
   <script>
     window.onload = function() {
