@@ -260,10 +260,10 @@ function WorkOrdersContent() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-black">
               Work Orders &amp; Maintenance Tickets
             </h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-[#545454] mt-1 font-normal">
               NC DOH &amp; Quantum Built HVAC Maintenance SLA: Fast-Track Advance Float Funding &amp; Statutory Schedule.
             </p>
           </div>
@@ -273,7 +273,7 @@ function WorkOrdersContent() {
                 type="button"
                 onClick={handleClearAll}
                 disabled={clearAllMutation.isPending}
-                className="px-3.5 py-2 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 text-xs font-semibold rounded-lg shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                className="px-3.5 py-2.5 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 text-xs font-semibold rounded-xl shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                 title="Delete all test work orders and linked test data"
               >
                 {clearAllMutation.isPending ? 'Clearing...' : '🧹 Clear All Test Orders'}
@@ -283,114 +283,159 @@ function WorkOrdersContent() {
             {(user?.role === 'STAFF' || user?.role === 'ADMIN') && (
               <button
                 onClick={openModal}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+                className="px-5 py-2.5 bg-[#008DA6] hover:bg-[#007b91] text-white text-sm font-semibold rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
-                + Report Work Order
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Report Work Order</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Urgency SLA Overview Bar */}
-        <div className="bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 divide-y md:divide-y-0 md:divide-x divide-gray-100 text-center md:text-left">
-          <div className="px-2 py-1.5 md:py-0">
-            <div className="text-xs font-semibold text-gray-900">Critical 0–24h</div>
-          </div>
-          <div className="px-2 py-1.5 md:py-0 md:pl-4">
-            <div className="text-xs font-semibold text-gray-900">Very urgent 2–4 days</div>
-          </div>
-          <div className="px-2 py-1.5 md:py-0 md:pl-4">
-            <div className="text-xs font-semibold text-gray-900">Urgent 4–8 days</div>
-          </div>
-          <div className="px-2 py-1.5 md:py-0 md:pl-4">
-            <div className="text-xs font-semibold text-gray-900">8+ days or statutory</div>
+        {/* Top SLA Banner Box */}
+        <div className="bg-[#F4FBFC] rounded-[18px] border border-[#E2F5F8] p-4 sm:p-5 shadow-2xs flex items-center justify-between min-h-[64px]">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full divide-y sm:divide-y-0 sm:divide-x divide-[#E2F5F8] text-center sm:text-left">
+            <div className="px-3">
+              <span className="text-xs font-semibold text-slate-800">Critical 0–24h</span>
+            </div>
+            <div className="px-3 sm:pl-6">
+              <span className="text-xs font-semibold text-slate-800">Very urgent 2–4 days</span>
+            </div>
+            <div className="px-3 sm:pl-6">
+              <span className="text-xs font-semibold text-slate-800">Urgent 4–8 days</span>
+            </div>
+            <div className="px-3 sm:pl-6">
+              <span className="text-xs font-semibold text-slate-800">8+ days or statutory</span>
+            </div>
           </div>
         </div>
 
-        {/* Filter Controls */}
-        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex flex-col lg:flex-row gap-4 justify-between items-center">
-          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-            <input
-              type="text"
-              placeholder="Search tracking #, title, or location..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full sm:w-72 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            />
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
-            >
-              <option value="all">All Priorities</option>
-              <option value="Critical 0–24h">Critical 0–24h</option>
-              <option value="Very urgent 2–4 days">Very urgent 2–4 days</option>
-              <option value="Urgent 4–8 days">Urgent 4–8 days</option>
-              <option value="8+ days or statutory">8+ days or statutory</option>
-            </select>
-          </div>
+        {/* Filter Controls Card */}
+        <div className="bg-white p-3.5 sm:p-4 rounded-[20px] border border-slate-200/90 shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col 2xl:flex-row gap-3.5 justify-between items-stretch 2xl:items-center">
+          {/* Left Search & Dropdown */}
+          <div className="flex flex-col sm:flex-row gap-3 w-full 2xl:w-auto items-stretch sm:items-center">
+            {/* Search Pill Input */}
+            <div className="relative flex items-center w-full sm:w-72 md:w-80">
+              <div className="absolute left-3.5 pointer-events-none text-slate-700">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Search tracking #, title or location......"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-full text-xs text-slate-800 placeholder-slate-400 shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#008DA6]/30 focus:border-[#008DA6] transition"
+              />
+            </div>
 
-          <div className="flex space-x-1 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
-            {[
-              'all',
-              'active',
-              'reported',
-              'approved',
-              'assigned',
-              'in_progress',
-              'completed',
-              'verified',
-              'closed',
-              'cancelled'
-            ].map((st) => (
-              <button
-                key={st}
-                onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors shrink-0 ${
-                  statusFilter === st
-                    ? 'bg-sky-50 text-sky-700 border border-sky-300 font-semibold'
-                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                }`}
+            {/* Priorities Dropdown Pill */}
+            <div className="relative shrink-0">
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                aria-label="Filter by priority"
+                className="appearance-none w-full sm:w-auto pl-4 pr-9 py-2 bg-white border border-slate-200 rounded-full text-xs font-medium text-slate-700 shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#008DA6]/30 focus:border-[#008DA6] cursor-pointer transition"
               >
-                {st === 'active' ? 'Active Pipeline' : st.replace('_', ' ')}
-              </button>
-            ))}
+                <option value="all">All Priorities</option>
+                <option value="Critical 0–24h">Critical 0–24h</option>
+                <option value="Very urgent 2–4 days">Very urgent 2–4 days</option>
+                <option value="Urgent 4–8 days">Urgent 4–8 days</option>
+                <option value="8+ days or statutory">8+ days or statutory</option>
+              </select>
+              <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Status Filter Tabs */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap 2xl:flex-wrap overflow-x-auto pb-1 2xl:pb-0 scrollbar-none">
+            {[
+              { id: 'all', label: 'ALL' },
+              { id: 'active', label: 'ACTIVE PIPELINE' },
+              { id: 'reported', label: 'Reported' },
+              { id: 'approved', label: 'Approved' },
+              { id: 'assigned', label: 'Assigned' },
+              { id: 'in_progress', label: 'In Progress' },
+              { id: 'completed', label: 'Completed' },
+              { id: 'verified', label: 'Verified' },
+              { id: 'closed', label: 'Closed' }
+            ].map((st) => {
+              const isActive = statusFilter === st.id;
+              return (
+                <button
+                  key={st.id}
+                  onClick={() => setStatusFilter(st.id)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer shadow-2xs whitespace-nowrap ${
+                    isActive
+                      ? 'bg-[#B3EEFA] text-[#007B91] border border-[#91E4F5] shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200/90'
+                  }`}
+                >
+                  {st.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Data Table */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        {/* Data Table Container */}
+        <div className="bg-white rounded-[22px] border border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.04)] overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <table className="min-w-full text-sm">
+              <thead className="bg-[#F4FBFC] border-b border-[#E2F5F8]">
                 <tr>
-                  <th className="px-4 py-3">Tracking #</th>
-                  <th className="px-4 py-3">Work Order Title</th>
-                  <th className="px-4 py-3">Facility &amp; Location</th>
-                  <th className="px-4 py-3">Urgency &amp; Funding</th>
-                  <th className="px-4 py-3">Category</th>
-                  {user?.role !== 'STAFF' && <th className="px-4 py-3">Est. Cost</th>}
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-center w-16">Action</th>
+                  <th className="px-6 py-4 text-left font-bold text-slate-800 text-sm tracking-tight">
+                    Tracking #
+                  </th>
+                  <th className="px-6 py-4 text-left font-bold text-slate-800 text-sm tracking-tight">
+                    Work Order Title
+                  </th>
+                  <th className="px-6 py-4 text-left font-bold text-slate-800 text-sm tracking-tight">
+                    Facility &amp; Location
+                  </th>
+                  <th className="px-6 py-4 text-left font-bold text-slate-800 text-sm tracking-tight">
+                    Urgency &amp; Funding
+                  </th>
+                  <th className="px-6 py-4 text-left font-bold text-slate-800 text-sm tracking-tight">
+                    Category
+                  </th>
+                  {user?.role !== 'STAFF' && (
+                    <th className="px-6 py-4 text-left font-bold text-slate-800 text-sm tracking-tight">
+                      Est. Cost
+                    </th>
+                  )}
+                  <th className="px-6 py-4 text-left font-bold text-slate-800 text-sm tracking-tight">
+                    Status
+                  </th>
+                  <th className="px-6 py-4 text-center font-bold text-slate-800 text-sm tracking-tight w-20">
+                    Action
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={user?.role === 'STAFF' ? 7 : 8} className="px-4 py-12 text-center text-gray-500">
+                    <td colSpan={user?.role === 'STAFF' ? 7 : 8} className="px-6 py-16 text-center text-slate-400">
                       Loading work orders...
                     </td>
                   </tr>
                 ) : isError ? (
                   <tr>
-                    <td colSpan={user?.role === 'STAFF' ? 7 : 8} className="px-4 py-12 text-center text-red-600">
+                    <td colSpan={user?.role === 'STAFF' ? 7 : 8} className="px-6 py-16 text-center text-red-600">
                       Error fetching work orders. Please check connection.
                     </td>
                   </tr>
                 ) : workOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={user?.role === 'STAFF' ? 7 : 8} className="px-4 py-12 text-center text-gray-500">
-                      No work orders found. Click &quot;+ Report Work Order&quot; to create a new ticket.
+                    <td colSpan={user?.role === 'STAFF' ? 7 : 8} className="px-6 py-16 text-center text-slate-400">
+                      No work orders found matching this filter.
                     </td>
                   </tr>
                 ) : (
@@ -400,70 +445,68 @@ function WorkOrdersContent() {
                       wo.priority === 'high' ? 'Very urgent 2–4 days' :
                       wo.priority === 'medium' ? 'Urgent 4–8 days' : '8+ days or statutory'
                     );
-                    const uBadge = URGENCY_BADGES[urgency] || URGENCY_BADGES['Urgent 4–8 days'];
-                    const sBadge = STATUS_BADGES[wo.status] || STATUS_BADGES.reported;
                     const isRouteB = wo.funding_route === 'route_b' || urgency === 'Critical 0–24h';
                     const isStatutory = urgency === '8+ days or statutory';
 
                     return (
-                      <tr key={wo.id} className="hover:bg-gray-50/80 transition-colors">
-                        <td className="px-4 py-3 font-mono font-medium text-sky-700 whitespace-nowrap">
+                      <tr key={wo.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-6 py-4 font-mono font-bold text-[#008DA6] whitespace-nowrap text-xs sm:text-sm">
                           <Link href={`/work-orders/${wo.id}`} className="hover:underline">
                             {wo.tracking_number}
                           </Link>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-6 py-4">
                           <Link
                             href={`/work-orders/${wo.id}`}
-                            className="font-medium text-gray-900 hover:text-sky-700 block text-xs md:text-sm"
+                            className="font-bold text-slate-900 hover:text-[#008DA6] block text-xs sm:text-sm transition-colors"
                           >
                             {wo.title}
                           </Link>
-                          <div className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">
+                          <div className="text-xs text-slate-400 mt-0.5 truncate max-w-xs sm:max-w-sm">
                             {wo.description}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-gray-600">
-                          <div className="font-medium text-gray-900 text-xs">{wo.facility_name || 'N/A'}</div>
-                          <div className="text-xs text-gray-400 truncate max-w-xs">{wo.location_details || 'Main Building'}</div>
+                        <td className="px-6 py-4 text-slate-600">
+                          <div className="font-semibold text-slate-800 text-xs sm:text-sm">
+                            {wo.facility_name || 'N/A'}
+                          </div>
+                          <div className="text-xs text-slate-400 truncate max-w-xs">
+                            {wo.location_details || 'Main Building'}
+                          </div>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex flex-col gap-1 items-start">
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${uBadge.bg} ${uBadge.text} ${uBadge.border}`}
-                            >
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-[#F0F9FB] text-[#007B91] border border-[#CCEBF2]">
                               {urgency}
                             </span>
                             {isRouteB && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
                                 Advance Float Funded
                               </span>
                             )}
                             {isStatutory && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
-                                Statutory Notice (30d/15d)
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                                Statutory Notice
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-600 font-medium whitespace-nowrap">
+                        <td className="px-6 py-4 text-xs font-semibold text-slate-700 whitespace-nowrap">
                           {wo.category}
                         </td>
                         {user?.role !== 'STAFF' && (
-                          <td className="px-4 py-3 font-mono text-gray-900 text-xs whitespace-nowrap">
+                          <td className="px-6 py-4 font-mono font-medium text-slate-800 text-xs whitespace-nowrap">
                             {formatCurrency(wo.estimated_cost)}
                           </td>
                         )}
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex flex-col gap-1 items-start">
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium capitalize border ${sBadge.bg} ${sBadge.text} ${sBadge.border}`}
-                            >
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium capitalize bg-slate-100 text-slate-700 border border-slate-200">
                               {wo.status.replace('_', ' ')}
                             </span>
                             {wo.lead_assessor_name && (
                               <span
-                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200"
+                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200"
                                 title={`Lead Assessor: ${wo.lead_assessor_name}`}
                               >
                                 Lead: {wo.lead_assessor_name}
@@ -471,12 +514,12 @@ function WorkOrdersContent() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <td className="px-6 py-4 text-center whitespace-nowrap">
                           <div className="inline-flex items-center justify-center gap-1.5">
                             <Link
                               href={`/work-orders/${wo.id}`}
-                              title="View Work Order Details & SHA-256 Audit Vault"
-                              className="inline-flex items-center justify-center p-1.5 text-sky-700 bg-sky-50 hover:bg-sky-100 hover:text-sky-900 rounded-md border border-sky-200 transition-colors shadow-2xs"
+                              title="View Work Order Details"
+                              className="inline-flex items-center justify-center p-2 text-[#008DA6] bg-[#F0F9FB] hover:bg-[#E2F5F8] rounded-lg border border-[#CCEBF2] transition shadow-2xs"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -488,8 +531,8 @@ function WorkOrdersContent() {
                                 type="button"
                                 onClick={() => handleDeleteWorkOrder(wo.id, wo.tracking_number)}
                                 disabled={deleteMutation.isPending}
-                                title="Admin: Delete this test work order"
-                                className="inline-flex items-center justify-center p-1.5 text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-800 rounded-md border border-red-200 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                                title="Delete work order"
+                                className="inline-flex items-center justify-center p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition shadow-2xs cursor-pointer disabled:opacity-50"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

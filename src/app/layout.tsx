@@ -7,6 +7,7 @@ import { AuthProvider } from '@/hooks/useAuth';
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
@@ -21,7 +22,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} h-full`} suppressHydrationWarning>
-      <body className="min-h-full flex flex-col font-sans bg-gray-50 text-gray-900 antialiased" suppressHydrationWarning>
+      <body className={`${inter.className} min-h-full flex flex-col font-sans bg-gray-50 text-gray-900 antialiased`} suppressHydrationWarning>
         <QueryProvider>
           <AuthProvider>{children}</AuthProvider>
         </QueryProvider>

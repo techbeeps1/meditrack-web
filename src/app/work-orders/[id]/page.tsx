@@ -1006,74 +1006,77 @@ export default function WorkOrderDetailPage() {
         </div>
 
         {/* Top Header Card */}
-        <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <span className="font-mono font-bold text-sky-700 text-sm">
-                {workOrder.tracking_number}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/90 shadow-sm space-y-4">
+          {/* Row 1: Tracking Number & Badges */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="font-mono font-bold text-sky-700 text-sm">
+              {workOrder.tracking_number}
+            </span>
+            
+            {/* Urgency SLA Badge */}
+            <span
+              className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold border ${uBadge.bg} ${uBadge.text} ${uBadge.border}`}
+            >
+              {urgency}
+            </span>
+
+            {/* Funding Route Badge */}
+            {isRouteB ? (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                Advance Float Funded
               </span>
-              
-              {/* Urgency SLA Badge */}
+            ) : (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                Client Funded (NC DOH)
+              </span>
+            )}
+
+            {/* Statutory Notice Badge */}
+            {isStatutory && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                30d/15d Pre-Notice Active
+              </span>
+            )}
+
+            {/* Route A Quote Lifecycle Badge (PDF Page 4) */}
+            {workOrder.quote_status && QUOTE_STATUS_CONFIG[workOrder.quote_status] && (
               <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium border ${uBadge.bg} ${uBadge.text} ${uBadge.border}`}
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold border ${QUOTE_STATUS_CONFIG[workOrder.quote_status].bg} ${QUOTE_STATUS_CONFIG[workOrder.quote_status].text} ${QUOTE_STATUS_CONFIG[workOrder.quote_status].border}`}
               >
-                {urgency}
+                {QUOTE_STATUS_CONFIG[workOrder.quote_status].label}
               </span>
+            )}
 
-              {/* Funding Route Badge */}
-              {isRouteB ? (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                  Advance Float Funded
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                  Client Funded (NC DOH)
-                </span>
-              )}
-
-              {/* Statutory Notice Badge */}
-              {isStatutory && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200">
-                  30d/15d Pre-Notice Active
-                </span>
-              )}
-
-              {/* Route A Quote Lifecycle Badge (PDF Page 4) */}
-              {workOrder.quote_status && QUOTE_STATUS_CONFIG[workOrder.quote_status] && (
-                <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold border ${QUOTE_STATUS_CONFIG[workOrder.quote_status].bg} ${QUOTE_STATUS_CONFIG[workOrder.quote_status].text} ${QUOTE_STATUS_CONFIG[workOrder.quote_status].border}`}
-                >
-                  {QUOTE_STATUS_CONFIG[workOrder.quote_status].label}
-                </span>
-              )}
-
-              {/* Part 1: Lead Assessor Badge */}
-              {workOrder.lead_assessor_name && (
-                <span
-                  className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200"
-                  title={`Lead Assessor explicitly assigned by Quantum Built: ${workOrder.lead_assessor_name}`}
-                >
-                  Lead: {workOrder.lead_assessor_name} ({workOrder.lead_assessor_role === 'works_engineer' ? 'Works Engineer' : 'Works Inspector'})
-                </span>
-              )}
-
+            {/* Part 1: Lead Assessor Badge */}
+            {workOrder.lead_assessor_name && (
               <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${sBadge.bg} ${sBadge.text} ${sBadge.border}`}
+                className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200"
+                title={`Lead Assessor explicitly assigned by Quantum Built: ${workOrder.lead_assessor_name}`}
               >
-                {workOrder.status.replace('_', ' ')}
+                Lead: {workOrder.lead_assessor_name} ({workOrder.lead_assessor_role === 'works_engineer' ? 'Works Engineer' : 'Works Inspector'})
               </span>
-            </div>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900 mt-2">
+            )}
+
+            <span
+              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${sBadge.bg} ${sBadge.text} ${sBadge.border}`}
+            >
+              {workOrder.status.replace('_', ' ')}
+            </span>
+          </div>
+
+          {/* Row 2: Title & Reporter (Full Width) */}
+          <div className="w-full space-y-1">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight leading-snug break-words">
               {workOrder.title}
             </h1>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs sm:text-sm text-slate-500">
               Reported on {formatDate(workOrder.created_at)} by{' '}
-              <span className="font-semibold text-gray-700">{workOrder.reported_by_name || 'Staff'}</span>
+              <span className="font-semibold text-slate-700">{workOrder.reported_by_name || 'Staff'}</span>
             </p>
           </div>
 
-          {/* Workflow Action Buttons */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end shrink-0">
+          {/* Row 3: Action Buttons Bar */}
+          <div className="pt-3 border-t border-slate-100/90 flex flex-wrap items-center gap-2 justify-start">
             {/* Part 1: QB Assign Lead Assessor Button */}
             {hasWoApproveScope && status === 'reported' && (
               <button
@@ -1317,7 +1320,7 @@ export default function WorkOrderDetailPage() {
             {workOrder.invoice_id && (
               <>
                 {canApproveOrPayInvoice && ['pending', 'approved'].includes(workOrder.invoice_status || '') && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       type="button"
                       onClick={() => invoiceStatusMutation.mutate({ status: 'paid' })}
@@ -2144,27 +2147,29 @@ export default function WorkOrderDetailPage() {
                         )}
 
                         {/* Part 2: Site Assessment Time Sheet Card (All Routes) */}
-                        <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-900">
-                                Site Assessment Time Sheet
-                              </span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-800">
-                                {workOrder.timesheet_total_hours ? `${Number(workOrder.timesheet_total_hours).toFixed(1)} hrs Logged` : workOrder.assessment_hours ? `${Number(workOrder.assessment_hours).toFixed(1)} hrs` : '0.0 hrs Logged'}
-                              </span>
+                        <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 flex flex-col gap-2.5">
+                          <div className="flex items-start justify-between gap-2 flex-wrap">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-bold text-slate-900">
+                                  Site Assessment Time Sheet
+                                </span>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-800 shrink-0">
+                                  {workOrder.timesheet_total_hours ? `${Number(workOrder.timesheet_total_hours).toFixed(1)} hrs Logged` : workOrder.assessment_hours ? `${Number(workOrder.assessment_hours).toFixed(1)} hrs` : '0.0 hrs Logged'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                Diagnostic testing, on-site scoping, and travel time breakdown (Mon–Sun)
+                              </p>
                             </div>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
-                              Diagnostic testing, on-site scoping, and travel time breakdown (Mon–Sun)
-                            </p>
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/80">
                             {(isWorksInspector || isWorksEngineer || role === 'ADMIN' || role === 'APPROVER') && (
                               <button
                                 type="button"
                                 onClick={openTimesheetModal}
-                                className="px-3 py-1.5 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                                className="px-3 py-1.5 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
                               >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -2193,7 +2198,7 @@ export default function WorkOrderDetailPage() {
                                   signature_date: workOrder.assessment_date ? formatDate(workOrder.assessment_date) : new Date().toLocaleDateString('en-GB')
                                 });
                               }}
-                              className="px-3 py-1.5 bg-slate-900 hover:bg-black active:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                              className="px-3 py-1.5 bg-slate-900 hover:bg-black active:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -2221,7 +2226,7 @@ export default function WorkOrderDetailPage() {
                                     comments: workOrder.assessment_notes || `Technical assessment and scope estimation for ${workOrder.tracking_number} (${workOrder.title}). All works to adhere to SANS healthcare engineering standards.`
                                   })
                                 }
-                                className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-800 border border-sky-300 rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                                className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-800 border border-sky-300 rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
                               >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -2259,10 +2264,10 @@ export default function WorkOrderDetailPage() {
 
               {/* Client Quotation Approval Lifecycle Card */}
               {!isRouteB && (
-                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
-                    <div>
-                      <div className="flex items-center gap-2">
+                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                  <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
                           Client Quotation Approval Lifecycle
                         </h2>
@@ -2300,7 +2305,7 @@ export default function WorkOrderDetailPage() {
                               quote_notes: workOrder.assessment_notes || workOrder.description
                             })
                           }
-                          className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-700 border border-sky-200 text-xs font-semibold rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer shrink-0 inline-flex items-center gap-1.5"
+                          className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-700 border border-sky-200 text-xs font-semibold rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -2313,7 +2318,7 @@ export default function WorkOrderDetailPage() {
                         <button
                           type="button"
                           onClick={openQuoteModal}
-                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer whitespace-nowrap"
                         >
                           {workOrder.estimated_cost ? 'Update Price Quote' : 'Submit Price Quote'} &rarr;
                         </button>
@@ -2483,10 +2488,10 @@ export default function WorkOrderDetailPage() {
 
               {/* 3-Way Statutory Completion Sign-off Card (PDF Page 5) */}
               {['completed', 'verified', 'closed'].includes(status) && (
-                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
-                    <div>
-                      <div className="flex items-center gap-2">
+                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                  <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
                           3-Way Statutory Completion Sign-off
                         </h2>
@@ -2509,7 +2514,7 @@ export default function WorkOrderDetailPage() {
                       <button
                         type="button"
                         onClick={() => downloadCompletionCertificatePdf(workOrder)}
-                        className="px-3.5 py-1.5 bg-slate-900 hover:bg-black active:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer shrink-0"
+                        className="px-3.5 py-1.5 bg-slate-900 hover:bg-black active:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-all shadow-xs active:scale-95 cursor-pointer whitespace-nowrap"
                       >
                         Download Completion Certificate (PDF)
                       </button>

@@ -8,6 +8,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { dashboardApi } from '@/services/dashboard';
 import { workOrderApi } from '@/services/work-orders';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import DashboardBanner from '@/components/dashboard/DashboardBanner';
+import StatCard from '@/components/dashboard/StatCard';
+import WorkOrderCard from '@/components/dashboard/WorkOrderCard';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -99,126 +102,188 @@ export default function DashboardPage() {
       <AppLayout>
         <div className="space-y-6">
           {/* Header */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-xl font-bold text-slate-900">
-                  Compliance & Cryptographic Audit Portal
-                </h1>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-50 text-purple-700 border border-purple-200 uppercase">
-                  AUDITOR
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Zero-Knowledge SHA-256 State Transition Ledger & Merkle Root Verifier
-              </p>
-            </div>
-            <Link
-              href="/audit"
-              className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition shadow-sm flex items-center gap-1.5"
-            >
-              <span>Open Audit Vault & Merkle Engine</span>
-              <span>&rarr;</span>
-            </Link>
-          </div>
+          <DashboardBanner
+            name={user?.name || 'Auditor'}
+            subtitle="Here's what's happening at the hospital today • Zero-Knowledge SHA-256 State Transition Ledger"
+            roleBadge="AUDITOR"
+            actions={
+              <Link
+                href="/audit"
+                className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700 transition shadow-xs flex items-center gap-1.5"
+              >
+                <span>Open Audit Vault & Merkle Engine</span>
+                <span>&rarr;</span>
+              </Link>
+            }
+          />
 
           {/* 3 Focused Auditor Metric Cards (Clickable) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Link
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
+            <StatCard
               href="/audit"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider group-hover:text-sky-600 transition">
-                  Cryptographic Events Recorded
-                </span>
-                <span className="text-xs text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-2xl font-bold text-slate-900 mt-2 font-mono">
-                {isLoading ? '...' : summary?.recentEvents?.length || 0}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">SHA-256 hash linked blocks &bull; Click to inspect</div>
-            </Link>
-
-            <Link
+              title="Cryptographic Events"
+              value={isLoading ? '...' : summary?.recentEvents?.length || 0}
+              subtitle="SHA-256 hash linked blocks • Inspect"
+              variant="orange"
+            />
+            <StatCard
               href="/audit"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">
-                  Chain Integrity Status
-                </span>
-                <span className="text-xs text-emerald-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-2xl font-bold text-emerald-600 mt-2 font-mono">100% VALID</div>
-              <div className="text-xs text-slate-400 mt-1">Zero cryptographic discrepancies &bull; Verify ledger</div>
-            </Link>
-
-            <Link
+              title="Chain Integrity Status"
+              value="100% VALID"
+              subtitle="Zero cryptographic discrepancies"
+              variant="blue"
+            />
+            <StatCard
               href="/audit"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-purple-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-purple-600 uppercase tracking-wider">
-                  Lifetime State Transitions
-                </span>
-                <span className="text-xs text-purple-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-2xl font-bold text-purple-600 mt-2 font-mono">
-                {isLoading ? '...' : woStats.total}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">Total immutable events registered &bull; View proofs</div>
-            </Link>
+              title="State Transitions"
+              value={isLoading ? '...' : woStats.total}
+              subtitle="Total immutable events registered"
+              variant="green"
+            />
           </div>
 
           {/* Cryptographic Event Audit Trail Stream */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  Live Cryptographic Audit Feed
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Real-time immutable hash chain stream across all facilities
-                </p>
+          <div className="bg-[#F4FBFC] rounded-[18px] py-[40px] px-[30px] space-y-6 border border-[#e2f5f8] shadow-xs">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#D7F5FD] border border-[#B3EEFA] flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg className="w-6 h-6 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.8}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                    Live Cryptographic Audit Feed
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 font-normal">
+                    Real-time immutable SHA-256 hash chain stream across all hospital facilities.
+                  </p>
+                </div>
               </div>
-              <Link href="/audit" className="text-xs font-semibold text-sky-600 hover:text-sky-800">
+              <Link href="/audit" className="text-xs sm:text-sm font-semibold text-sky-600 hover:text-sky-800 transition">
                 Compute Inclusion Proofs &rarr;
               </Link>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {summary?.recentEvents && summary.recentEvents.length > 0 ? (
-                summary.recentEvents.map((evt) => (
-                  <div
-                    key={evt.id}
-                    className="p-3 rounded-lg border border-slate-100 bg-slate-50/70 flex items-start justify-between gap-3 text-xs"
-                  >
-                    <div className="space-y-1 overflow-hidden">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-mono font-bold text-slate-800">
-                          {evt.workOrderTracking}
-                        </span>
-                        <span className="text-slate-400">&rarr;</span>
-                        <span className="font-semibold text-sky-700 capitalize">
-                          {evt.toStatus}
-                        </span>
+                summary.recentEvents.map((evt) => {
+                  const s = (evt.toStatus || '').toLowerCase();
+                  let borderGradient = 'from-[#FB923C] to-[#F97316]';
+                  let badgeClass = 'bg-[#FFE4C4] text-[#B05B07] border border-[#FDC88D]';
+                  
+                  if (s.includes('critical') || s.includes('fail') || s.includes('decline')) {
+                    borderGradient = 'from-[#F87171] to-[#EF4444]';
+                    badgeClass = 'bg-[#FFC6C6] text-[#A31616] border border-[#FFA5A5]';
+                  } else if (s.includes('cert') || s.includes('complete') || s.includes('verified') || s.includes('closed')) {
+                    borderGradient = 'from-[#34D399] to-[#10B981]';
+                    badgeClass = 'bg-[#C6F2D6] text-[#0D723B] border border-[#9DE7B7]';
+                  } else if (s.includes('active') || s.includes('in_progress')) {
+                    borderGradient = 'from-[#4FD1C5] to-[#319795]';
+                    badgeClass = 'bg-[#F9C381] text-[#904C05] border border-[#EAA757]';
+                  }
+
+                  const formattedDate = (() => {
+                    try {
+                      const d = new Date(evt.createdAt);
+                      if (isNaN(d.getTime())) return new Date().toLocaleDateString('en-GB');
+                      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+                      const dayNum = d.getDate();
+                      const monthName = d.toLocaleDateString('en-US', { month: 'short' });
+                      const year = d.getFullYear();
+                      return `${dayName}, ${dayNum} ${monthName} ${year}`;
+                    } catch {
+                      return new Date().toLocaleDateString('en-GB');
+                    }
+                  })();
+
+                  return (
+                    <Link
+                      key={evt.id}
+                      href={evt.workOrderId ? `/work-orders/${evt.workOrderId}` : '/audit'}
+                      className="bg-white rounded-[18px] border border-slate-200/80 shadow-[0px_2px_12px_rgba(0,0,0,0.04)] hover:shadow-md hover:border-sky-300 transition-all duration-200 flex overflow-hidden group cursor-pointer"
+                    >
+                      {/* Left accent gradient bar */}
+                      <div className={`w-1.5 sm:w-2 bg-gradient-to-b ${borderGradient} shrink-0`} />
+
+                      {/* Main Content Area */}
+                      <div className="p-4 sm:p-5 flex-1 space-y-2.5 min-w-0">
+                        {/* Row 1: Tracking Number & Title / Action */}
+                        <div className="flex items-center flex-wrap gap-x-6 gap-y-1 min-w-0">
+                          <span className="font-mono font-bold text-base sm:text-lg text-slate-900 shrink-0">
+                            {evt.workOrderTracking}
+                          </span>
+                          <span className="font-bold text-base sm:text-lg text-slate-900 tracking-tight truncate group-hover:text-sky-700 transition-colors">
+                            {evt.toStatus.replace('_', ' ').charAt(0).toUpperCase() + evt.toStatus.replace('_', ' ').slice(1)} {evt.notes ? `• ${evt.notes}` : ''}
+                          </span>
+                        </div>
+
+                        {/* Row 2: Status Pill */}
+                        <div>
+                          <span
+                            className={`px-4 py-0.5 rounded-full text-xs font-semibold capitalize inline-flex items-center shadow-2xs ${badgeClass}`}
+                          >
+                            {evt.toStatus.replace('_', ' ')}
+                          </span>
+                        </div>
+
+                        {/* Row 3: Actor, Hash and Calendar Date */}
+                        <div className="flex items-center flex-wrap gap-x-6 gap-y-1.5 text-xs sm:text-[13px] text-slate-500 font-normal pt-0.5">
+                          {/* Actor Info */}
+                          <div className="flex items-center gap-1.5 truncate max-w-md">
+                            <svg
+                              className="w-4 h-4 text-slate-500 shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.8}
+                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                              />
+                            </svg>
+                            <span className="truncate">Actor: {evt.actorName}</span>
+                          </div>
+
+                          {/* Hash */}
+                          <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-400 truncate max-w-sm">
+                            <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                            <span className="truncate">Hash: {evt.eventHash}</span>
+                          </div>
+
+                          {/* Calendar Date */}
+                          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                            <svg
+                              className="w-4 h-4 text-slate-500 shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.8}
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                              />
+                            </svg>
+                            <span>{formattedDate}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        Actor: <span className="font-medium text-slate-700">{evt.actorName}</span>
-                        {evt.notes ? ` • "${evt.notes}"` : ''}
-                      </div>
-                      <div className="text-[10px] font-mono text-slate-400 truncate">
-                        Hash: {evt.eventHash}
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-slate-400 whitespace-nowrap font-mono">
-                      {new Date(evt.createdAt).toLocaleTimeString()}
-                    </div>
-                  </div>
-                ))
+                    </Link>
+                  );
+                })
               ) : (
-                <div className="text-xs text-slate-400 p-8 text-center">
+                <div className="text-xs text-slate-400 p-8 text-center bg-white rounded-[18px] border border-slate-200 shadow-xs">
                   No cryptographic events recorded yet.
                 </div>
               )}
@@ -237,140 +302,82 @@ export default function DashboardPage() {
       <AppLayout>
         <div className="space-y-6">
           {/* Header */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-xl font-bold text-slate-900">
-                  Hospital Ground Staff Maintenance Portal
-                </h1>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200 uppercase">
-                  STAFF
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Report broken equipment, biomedical device issues, and facility breakdowns
-              </p>
-            </div>
-            <Link
-              href="/work-orders"
-              className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition shadow-sm"
-            >
-              + Report New Work Order
-            </Link>
-          </div>
+          <DashboardBanner
+            name={user?.name || 'Hospital Staff'}
+            subtitle="Here's what's happening at the hospital today • Report broken equipment & facility breakdowns"
+            roleBadge="STAFF"
+            actions={
+              <Link
+                href="/work-orders"
+                className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700 transition shadow-xs"
+              >
+                + Report New Work Order
+              </Link>
+            }
+          />
 
           {/* 3 Focused Staff Metric Cards (Clickable) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Link
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
+            <StatCard
               href="/work-orders"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider group-hover:text-sky-600 transition">
-                  My Hospital Open Tickets
-                </span>
-                <span className="text-xs text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-2xl font-bold text-slate-900 mt-2 font-mono">
-                {isLoading ? '...' : activeTotal}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">Pending and in-progress tasks &bull; View list</div>
-            </Link>
-
-            <Link
+              title="My Open Tickets"
+              value={isLoading ? '...' : activeTotal}
+              subtitle="Pending & In Progress"
+              variant="blue"
+            />
+            <StatCard
               href="/work-orders?priority=critical"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-amber-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">
-                  Critical Emergency Alerts
-                </span>
-                <span className="text-xs text-amber-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-2xl font-bold text-amber-600 mt-2 font-mono">
-                {isLoading ? '...' : summary?.workOrders.byPriority.critical || 0}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">High priority device repairs &bull; View urgent</div>
-            </Link>
-
-            <Link
+              title="Critical Alerts"
+              value={isLoading ? '...' : summary?.workOrders.byPriority.critical || 0}
+              subtitle="High Priority Device repairs"
+              variant="orange"
+            />
+            <StatCard
               href="/work-orders?status=closed"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">
-                  Completed / Fixed
-                </span>
-                <span className="text-xs text-emerald-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-2xl font-bold text-emerald-600 mt-2 font-mono">
-                {isLoading ? '...' : (woStats.completed + woStats.verified + woStats.closed)}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">Resolved maintenance issues &bull; View archive</div>
-            </Link>
+              title="Completed/fixed"
+              value={isLoading ? '...' : (woStats.completed + woStats.verified + woStats.closed)}
+              subtitle="Repaired Maintenance Issues"
+              variant="green"
+            />
           </div>
 
-          {/* Recent Work Orders List */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  Recent Work Orders & Reported Tickets
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Click any ticket to view details, audit logs, or track repair status
-                </p>
+          {/* Recent Work Orders & Reported Tickets Header & Cards */}
+          <div className="bg-[#F4FBFC] rounded-[18px] py-[40px] px-[30px] space-y-6 border border-[#e2f5f8] shadow-xs">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#D7F5FD] border border-[#B3EEFA] flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg className="w-6 h-6 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.8}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                    Recent Work Orders &amp; Reported Tickets
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 font-normal">
+                    Click any ticket to view details, audit logs, or repair status.
+                  </p>
+                </div>
               </div>
-              <Link href="/work-orders" className="text-xs font-semibold text-sky-600 hover:text-sky-800">
+              <Link href="/work-orders" className="text-xs sm:text-sm font-semibold text-sky-600 hover:text-sky-800 transition">
                 View All Work Orders &rarr;
               </Link>
             </div>
 
             {staffWorkOrders.length === 0 ? (
-              <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-100">
-                <div className="text-xs font-semibold text-slate-700">No tickets reported yet.</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">Click &quot;+ Report New Work Order&quot; to log a maintenance issue.</div>
+              <div className="p-8 text-center bg-white rounded-[18px] border border-slate-200 shadow-xs">
+                <div className="text-sm font-semibold text-slate-700">No tickets reported yet.</div>
+                <div className="text-xs text-slate-400 mt-1">Click &quot;+ Report New Work Order&quot; to log a maintenance issue.</div>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="space-y-3.5">
                 {staffWorkOrders.map((wo) => (
-                  <Link
-                    key={wo.id}
-                    href={`/work-orders/${wo.id}`}
-                    className="py-3.5 px-3 -mx-3 rounded-lg hover:bg-slate-50 transition flex flex-col md:flex-row md:items-center justify-between gap-3 group"
-                  >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-bold text-xs text-sky-700">{wo.tracking_number}</span>
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${wo.priority === 'critical'
-                              ? 'bg-red-50 text-red-700 border border-red-200'
-                              : wo.priority === 'high'
-                                ? 'bg-orange-50 text-orange-700 border border-orange-200'
-                                : 'bg-amber-50 text-amber-700 border border-amber-200'
-                            }`}
-                        >
-                          {wo.priority}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-800 group-hover:text-sky-700 transition">
-                          {wo.title}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 line-clamp-1">{wo.description}</p>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-3">
-                        <span>🏥 {wo.facility_name || 'Hospital Facility'}</span>
-                        <span>🕒 {formatDate(wo.created_at)}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="px-2.5 py-1 text-[11px] font-medium rounded-full bg-slate-100 text-slate-700 capitalize border border-slate-200">
-                        {wo.status.replace('_', ' ')}
-                      </span>
-                      <span className="text-xs font-semibold text-sky-600 group-hover:translate-x-0.5 transition-transform flex items-center">
-                        Open &rarr;
-                      </span>
-                    </div>
-                  </Link>
+                  <WorkOrderCard key={wo.id} workOrder={wo} />
                 ))}
               </div>
             )}
@@ -388,154 +395,95 @@ export default function DashboardPage() {
       <AppLayout>
         <div className="space-y-6">
           {/* Header */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-xl font-bold text-slate-900">Contractor Vendor Portal</h1>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase">
-                  CONTRACTOR
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Execute assigned work orders, upload completion evidence, and submit invoices
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/work-orders?status=assigned"
-                className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition shadow-sm"
-              >
-                My Assigned Tickets
-              </Link>
-              <Link
-                href="/invoices"
-                className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
-              >
-                Submit Invoice Claim
-              </Link>
-            </div>
-          </div>
+          <DashboardBanner
+            name={user?.name || 'Contractor Vendor'}
+            subtitle="Here's what's happening at the hospital today • Execute assigned work orders & submit invoices"
+            roleBadge="CONTRACTOR"
+            actions={
+              <>
+                <Link
+                  href="/work-orders?status=assigned"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700 transition shadow-xs"
+                >
+                  My Assigned Tickets
+                </Link>
+                <Link
+                  href="/invoices"
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl transition shadow-xs"
+                >
+                  Submit Invoice Claim
+                </Link>
+              </>
+            }
+          />
 
           {/* 3 Focused Contractor Metric Cards (Clickable) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Link
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
+            <StatCard
               href="/work-orders?status=assigned"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider group-hover:text-sky-600 transition">
-                  Assigned Active Jobs
-                </span>
-                <span className="text-xs text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-2xl font-bold text-slate-900 mt-2 font-mono">
-                {isLoading ? '...' : (assignedCount + inProgressCount)}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">Orders requiring repair execution &bull; Open jobs</div>
-            </Link>
-
-            <Link
+              title="Assigned Active Jobs"
+              value={isLoading ? '...' : (assignedCount + inProgressCount)}
+              subtitle="Orders requiring repair execution"
+              variant="blue"
+            />
+            <StatCard
               href="/work-orders?status=completed"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-amber-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">
-                  Completed (Awaiting QC)
-                </span>
-                <span className="text-xs text-amber-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-2xl font-bold text-amber-600 mt-2 font-mono">
-                {isLoading ? '...' : completedCount}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">Submitted for safety inspection &bull; Track status</div>
-            </Link>
-
-            <Link
+              title="Completed (Awaiting QC)"
+              value={isLoading ? '...' : completedCount}
+              subtitle="Submitted for safety inspection"
+              variant="orange"
+            />
+            <StatCard
               href="/invoices?status=paid"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">
-                  Settled Invoice Disbursements
-                </span>
-                <span className="text-xs text-emerald-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-2xl font-bold text-emerald-600 mt-2 font-mono">
-                {isLoading ? '...' : formatCurrency(summary?.invoices.totalPaid || 0)}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">
-                {formatCurrency(summary?.invoices.totalPending || 0)} pending approval &bull; View invoices
-              </div>
-            </Link>
+              title="Settled Disbursements"
+              value={isLoading ? '...' : formatCurrency(summary?.invoices.totalPaid || 0)}
+              subtitle="Disbursed settlement claims"
+              variant="green"
+            />
           </div>
 
           {/* Assigned Work Orders Queue */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <span>Assigned Work Orders</span>
-                  {contractorWorkOrders.length > 0 && (
-                    <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-sky-100 text-sky-800">
-                      {contractorWorkOrders.length}
-                    </span>
-                  )}
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Click on any assigned work order to execute, upload photos, or mark completed
-                </p>
+          <div className="bg-[#F4FBFC] rounded-[18px] py-[40px] px-[30px] space-y-6 border border-[#e2f5f8] shadow-xs">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#D7F5FD] border border-[#B3EEFA] flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg className="w-6 h-6 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.8}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <span>Assigned Work Orders</span>
+                    {contractorWorkOrders.length > 0 && (
+                      <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-sky-100 text-sky-800">
+                        {contractorWorkOrders.length}
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 font-normal">
+                    Click on any assigned work order to execute, upload photos, or mark completed.
+                  </p>
+                </div>
               </div>
-              <Link href="/work-orders" className="text-xs font-semibold text-sky-600 hover:text-sky-800">
+              <Link href="/work-orders" className="text-xs sm:text-sm font-semibold text-sky-600 hover:text-sky-800 transition">
                 View All in Work Orders &rarr;
               </Link>
             </div>
 
             {contractorWorkOrders.length === 0 ? (
-              <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-100">
-                <div className="text-xs font-semibold text-slate-700">No active assigned jobs.</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">When hospital leadership assigns tickets to your team, they will appear here.</div>
+              <div className="p-8 text-center bg-white rounded-[18px] border border-slate-200 shadow-xs">
+                <div className="text-sm font-semibold text-slate-700">No active assigned jobs.</div>
+                <div className="text-xs text-slate-400 mt-1">When hospital leadership assigns tickets to your team, they will appear here.</div>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="space-y-3.5">
                 {contractorWorkOrders.map((wo) => (
-                  <Link
-                    key={wo.id}
-                    href={`/work-orders/${wo.id}`}
-                    className="py-3.5 px-3 -mx-3 rounded-lg hover:bg-slate-50 transition flex flex-col md:flex-row md:items-center justify-between gap-3 group"
-                  >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-bold text-xs text-sky-700">{wo.tracking_number}</span>
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${wo.priority === 'critical'
-                              ? 'bg-red-50 text-red-700 border border-red-200'
-                              : wo.priority === 'high'
-                                ? 'bg-orange-50 text-orange-700 border border-orange-200'
-                                : 'bg-amber-50 text-amber-700 border border-amber-200'
-                            }`}
-                        >
-                          {wo.priority}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-800 group-hover:text-sky-700 transition">
-                          {wo.title}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 line-clamp-1">{wo.description}</p>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-3">
-                        <span>🏥 {wo.facility_name || 'Hospital Facility'}</span>
-                        <span>📍 {wo.location_details || 'Main Campus'}</span>
-                        <span>🕒 {formatDate(wo.created_at)}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="px-2.5 py-1 text-[11px] font-medium rounded-full bg-slate-100 text-slate-700 capitalize border border-slate-200">
-                        {wo.status.replace('_', ' ')}
-                      </span>
-                      <span className="px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg group-hover:bg-sky-700 transition shadow-2xs">
-                        Open Work Order &rarr;
-                      </span>
-                    </div>
-                  </Link>
+                  <WorkOrderCard key={wo.id} workOrder={wo} />
                 ))}
               </div>
             )}
@@ -584,270 +532,143 @@ export default function DashboardPage() {
       <AppLayout>
         <div className="space-y-6">
           {/* Header */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-xl font-bold text-slate-900">
-                  {isWorksEngineer
-                    ? 'Works Engineer Technical Scoping & QC Center'
-                    : 'Clinical Safety & Works Inspector Center'}
-                </h1>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-teal-50 text-teal-700 border border-teal-200 uppercase">
-                  {user?.inspector_scope === 'works_engineer' ? 'WORKS ENGINEER' : 'WORKS INSPECTOR'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Conduct preliminary assessments, engineer scoping, biomedical calibration, and QC sign-offs
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/work-orders"
-                className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-black rounded-lg transition shadow-sm"
-              >
-                Assessor Queue ({assessorPendingCount})
-              </Link>
-              <Link
-                href="/work-orders?status=completed"
-                className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
-              >
-                Verify Tickets ({completedCount})
-              </Link>
-            </div>
-          </div>
+          <DashboardBanner
+            name={user?.name || (isWorksEngineer ? 'Works Engineer' : 'Works Inspector')}
+            subtitle={
+              isWorksEngineer
+                ? "Here's what's happening at the hospital today • Technical scoping, biomedical calibration & QC"
+                : "Here's what's happening at the hospital today • Safety inspection & technical assessments"
+            }
+            roleBadge={user?.inspector_scope === 'works_engineer' ? 'WORKS ENGINEER' : 'WORKS INSPECTOR'}
+            actions={
+              <>
+                <Link
+                  href="/work-orders"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-black rounded-xl transition shadow-xs"
+                >
+                  Assessor Queue ({assessorPendingCount})
+                </Link>
+                <Link
+                  href="/work-orders?status=completed"
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl transition shadow-xs"
+                >
+                  Verify Tickets ({completedCount})
+                </Link>
+              </>
+            }
+          />
 
           {/* 4 Focused Inspector Metric Cards (Clickable) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Card 1: Lead Assessment Queue */}
-            <Link
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
+            <StatCard
               href="/work-orders"
-              className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${
-                assessorPendingCount > 0
-                  ? 'bg-sky-50/80 border-sky-300 hover:border-sky-400'
-                  : 'bg-white border-slate-200 hover:border-sky-300'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-sky-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>Lead Assessment Queue</span>
-                  <span className="text-xs text-sky-600 group-hover:translate-x-0.5 transition">&rarr;</span>
-                </span>
-                {assessorPendingCount > 0 && (
-                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-sky-600 text-white animate-pulse">
-                    Action Required
-                  </span>
-                )}
-              </div>
-              <div className="text-2xl font-bold text-sky-700 mt-2 font-mono">
-                {isLoading ? '...' : assessorPendingCount}
-              </div>
-              <div className="text-xs text-slate-500 mt-1">Lead assessor &amp; technical scoping &bull; Assess now</div>
-            </Link>
-
-            {/* Card 2: Awaiting QC Verification */}
-            <Link
+              title="Lead Assessment Queue"
+              value={isLoading ? '...' : assessorPendingCount}
+              subtitle="Tickets awaiting technical scoping"
+              variant="blue"
+            />
+            <StatCard
               href="/work-orders?status=completed"
-              className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${
-                completedCount > 0
-                  ? 'bg-amber-50/70 border-amber-300 hover:border-amber-400'
-                  : 'bg-white border-slate-200 hover:border-amber-300'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>Awaiting QC Inspection</span>
-                  <span className="text-xs text-amber-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-                </span>
-                {completedCount > 0 && (
-                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-white animate-pulse">
-                    Action Required
-                  </span>
-                )}
-              </div>
-              <div className="text-2xl font-bold text-amber-600 mt-2 font-mono">
-                {isLoading ? '...' : completedCount}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">Contractor work ready for audit &bull; Inspect now</div>
-            </Link>
-
-            {/* Card 3: Verified (QC Passed) */}
-            <Link
+              title="Awaiting QC Inspection"
+              value={isLoading ? '...' : completedCount}
+              subtitle="Completed orders ready for audit"
+              variant="orange"
+            />
+            <StatCard
               href="/work-orders?status=verified"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-teal-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-teal-600 uppercase tracking-wider">
-                  Verified (QC Passed)
-                </span>
-                <span className="text-xs text-teal-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-2xl font-bold text-teal-600 mt-2 font-mono">
-                {isLoading ? '...' : verifiedCount}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">Safety-certified work orders &bull; View list</div>
-            </Link>
-
-            {/* Card 4: Safety Verification Logs */}
-            <Link
+              title="Verified (QC Passed)"
+              value={isLoading ? '...' : verifiedCount}
+              subtitle="Safety-certified work orders"
+              variant="teal"
+            />
+            <StatCard
               href="/inspections"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">
-                  Safety Verification Logs
-                </span>
-                <span className="text-xs text-emerald-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-2xl font-bold text-emerald-600 mt-2 font-mono">100% AUDITED</div>
-              <div className="text-xs text-slate-400 mt-1">Quality standards strictly enforced &bull; View logs</div>
-            </Link>
+              title="Safety Logs"
+              value={isLoading ? '...' : (summary?.recentEvents?.length || 0)}
+              subtitle="Biomedical compliance records"
+              variant="green"
+            />
           </div>
 
           {/* Part 1: Assessor Technical Scoping & Estimation Queue */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <span>Assessor Technical Scoping &amp; Estimation Queue</span>
-                  {assessorQueueWorkOrders.length > 0 && (
-                    <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-sky-100 text-sky-800">
-                      {assessorQueueWorkOrders.length}
-                    </span>
-                  )}
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Work orders assigned to you as Lead Assessor or referred for engineering cost calculation
-                </p>
+          <div className="bg-[#F4FBFC] rounded-[18px] py-[40px] px-[30px] space-y-6 border border-[#e2f5f8] shadow-xs">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#D7F5FD] border border-[#B3EEFA] flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg className="w-6 h-6 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <span>Assessor Technical Scoping &amp; Estimation Queue</span>
+                    {assessorQueueWorkOrders.length > 0 && (
+                      <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-sky-100 text-sky-800">
+                        {assessorQueueWorkOrders.length}
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 font-normal">
+                    Work orders assigned to you as Lead Assessor or referred for engineering cost calculation.
+                  </p>
+                </div>
               </div>
-              <Link href="/work-orders" className="text-xs font-semibold text-sky-600 hover:text-sky-800">
+              <Link href="/work-orders" className="text-xs sm:text-sm font-semibold text-sky-600 hover:text-sky-800 transition">
                 View All in Work Orders &rarr;
               </Link>
             </div>
 
             {assessorQueueWorkOrders.length === 0 ? (
-              <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-100">
-                <div className="text-2xl mb-1">📋</div>
-                <div className="text-xs font-semibold text-slate-700">No pending technical assessments.</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">
-                  When Quantum Built assigns tickets to you as Lead Assessor, they will appear here.
-                </div>
+              <div className="p-8 text-center bg-white rounded-[18px] border border-slate-200 shadow-xs">
+                <div className="text-sm font-semibold text-slate-700">No pending technical assessments.</div>
+                <div className="text-xs text-slate-400 mt-1">When Quantum Built assigns tickets to you as Lead Assessor, they will appear here.</div>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="space-y-3.5">
                 {assessorQueueWorkOrders.map((wo) => (
-                  <div key={wo.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1.5 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-bold text-xs text-sky-700">{wo.tracking_number}</span>
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${
-                            wo.priority === 'critical'
-                              ? 'bg-red-50 text-red-700 border border-red-200'
-                              : wo.priority === 'high'
-                              ? 'bg-orange-50 text-orange-700 border border-orange-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}
-                        >
-                          {wo.priority}
-                        </span>
-
-                        {wo.assessment_review_status === 'adjusted' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                            🔄 QB Revision Requested
-                          </span>
-                        ) : wo.lead_assessor_id === user?.id ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-900 border border-sky-300">
-                            ⭐ Lead Assessor
-                          </span>
-                        ) : wo.assessor_role === 'works_engineer' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
-                            ⚙️ Engineer Scoping
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                            Preliminary Assessment
-                          </span>
-                        )}
-
-                        <span className="text-xs font-semibold text-slate-900">{wo.title}</span>
-                      </div>
-                      <p className="text-xs text-slate-500 line-clamp-1">{wo.description}</p>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-3">
-                        <span>🏥 {wo.facility_name || 'Hospital Facility'}</span>
-                        <span>📂 Category: <strong className="text-slate-700">{wo.category}</strong></span>
-                        <span>🕒 {formatDate(wo.created_at)}</span>
-                      </div>
-                    </div>
-                    <Link
-                      href={`/work-orders/${wo.id}`}
-                      className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-black rounded-lg transition shadow-sm shrink-0 text-center"
-                    >
-                      {wo.assessment_review_status === 'adjusted'
-                        ? 'Revise Assessment &rarr;'
-                        : 'Conduct Assessment &rarr;'}
-                    </Link>
-                  </div>
+                  <WorkOrderCard key={wo.id} workOrder={wo} />
                 ))}
               </div>
             )}
           </div>
 
           {/* Quality Audit Queue (For Completed Jobs Verification) */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <span>Quality Audit Queue (Repairs Verification)</span>
-                  {completedWorkOrders.length > 0 && (
-                    <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-amber-100 text-amber-800">
-                      {completedWorkOrders.length}
-                    </span>
-                  )}
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Completed contractor jobs awaiting clinical safety inspection and QC pass/fail verification
-                </p>
+          <div className="bg-[#F4FBFC] rounded-[18px] py-[40px] px-[30px] space-y-6 border border-[#e2f5f8] shadow-xs">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#D7F5FD] border border-[#B3EEFA] flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg className="w-6 h-6 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <span>Quality Audit Queue (Repairs Verification)</span>
+                    {completedWorkOrders.length > 0 && (
+                      <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-amber-100 text-amber-800">
+                        {completedWorkOrders.length}
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 font-normal">
+                    Completed contractor jobs awaiting clinical safety inspection and QC pass/fail verification.
+                  </p>
+                </div>
               </div>
-              <Link href="/work-orders?status=completed" className="text-xs font-semibold text-sky-600 hover:text-sky-800">
+              <Link href="/work-orders?status=completed" className="text-xs sm:text-sm font-semibold text-sky-600 hover:text-sky-800 transition">
                 View All Completed &rarr;
               </Link>
             </div>
 
             {completedWorkOrders.length === 0 ? (
-              <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-100">
-                <div className="text-2xl mb-1">✓</div>
-                <div className="text-xs font-semibold text-slate-700">All caught up!</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">No completed jobs currently awaiting QC verification.</div>
+              <div className="p-8 text-center bg-white rounded-[18px] border border-slate-200 shadow-xs">
+                <div className="text-sm font-semibold text-slate-700">All caught up!</div>
+                <div className="text-xs text-slate-400 mt-1">No completed jobs currently awaiting QC verification.</div>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="space-y-3.5">
                 {completedWorkOrders.map((wo) => (
-                  <div key={wo.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-xs text-slate-900">{wo.tracking_number}</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${wo.priority === 'critical' ? 'bg-red-50 text-red-700 border border-red-200' :
-                            wo.priority === 'high' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
-                              'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
-                          {wo.priority}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-800">{wo.title}</span>
-                      </div>
-                      <p className="text-xs text-slate-500 line-clamp-1">{wo.description}</p>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-3">
-                        <span>🏥 {wo.facility_name || 'Hospital Facility'}</span>
-                        <span>🔧 Contractor: {wo.assigned_to_name || 'Contractor'}</span>
-                        <span>🕒 {formatDate(wo.created_at)}</span>
-                      </div>
-                    </div>
-                    <Link
-                      href={`/work-orders/${wo.id}`}
-                      className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition shadow-sm shrink-0 text-center"
-                    >
-                      Inspect &amp; Verify &rarr;
-                    </Link>
-                  </div>
+                  <WorkOrderCard key={wo.id} workOrder={wo} />
                 ))}
               </div>
             )}
@@ -877,217 +698,128 @@ export default function DashboardPage() {
       <AppLayout>
         <div className="space-y-6">
           {/* Header */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-xl font-bold text-slate-900">
-                  {approverScope === 'payment_approver'
-                    ? 'Finance & Invoice Settlement Center'
-                    : approverScope === 'contractor_approver'
-                    ? 'Contractor Assignment & Partner Center'
-                    : 'Work Order Approval Center'}
-                </h1>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200 uppercase">
-                  {approverScope.replace('_', ' ')}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                {approverScope === 'payment_approver'
-                  ? 'Review contractor invoice claims, inspect completion proof, and authorize disbursements'
-                  : approverScope === 'contractor_approver'
-                  ? 'Assign specialized contractors to approved tickets and review active maintenance jobs'
-                  : 'Review staff-reported maintenance requests and authorize allocated budgets'}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/work-orders"
-                className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition shadow-sm"
-              >
-                View Work Orders
-              </Link>
-              {approverScope === 'payment_approver' && (
+          <DashboardBanner
+            name={user?.name || 'Approver'}
+            subtitle={
+              approverScope === 'payment_approver'
+                ? "Here's what's happening at the hospital today • Finance & Invoice Settlement Center"
+                : approverScope === 'contractor_approver'
+                ? "Here's what's happening at the hospital today • Contractor Assignment & Partner Center"
+                : "Here's what's happening at the hospital today • Work Order Approval Center"
+            }
+            roleBadge={approverScope.replace('_', ' ')}
+            actions={
+              <>
                 <Link
-                  href="/invoices"
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
+                  href="/work-orders"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700 transition shadow-xs"
                 >
-                  Review Invoices
+                  View Work Orders
                 </Link>
-              )}
-              {approverScope === 'contractor_approver' && (
-                <Link
-                  href="/contractors"
-                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
-                >
-                  Contractors Directory
-                </Link>
-              )}
-            </div>
-          </div>
+                {approverScope === 'payment_approver' && (
+                  <Link
+                    href="/invoices"
+                    className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl transition shadow-xs"
+                  >
+                    Review Invoices
+                  </Link>
+                )}
+                {approverScope === 'contractor_approver' && (
+                  <Link
+                    href="/contractors"
+                    className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl transition shadow-xs"
+                  >
+                    Contractors Directory
+                  </Link>
+                )}
+              </>
+            }
+          />
 
-          {/* 3 Focused Metric Cards (Clickable) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* 3 Focused Approver Metric Cards (Clickable) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
             {approverScope === 'contractor_approver' ? (
-              <Link
+              <StatCard
                 href="/work-orders?status=approved"
-                className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${
-                  approvedCount > 0
-                    ? 'bg-indigo-50/70 border-indigo-300 hover:border-indigo-400'
-                    : 'bg-white border-slate-200 hover:border-sky-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-800 flex items-center gap-1.5">
-                    <span>Awaiting Contractor Assignment</span>
-                    <span className="text-xs text-indigo-600 group-hover:translate-x-0.5 transition">&rarr;</span>
-                  </span>
-                  {approvedCount > 0 && (
-                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-600 text-white animate-pulse">
-                      Action Required
-                    </span>
-                  )}
-                </div>
-                <div className="text-3xl font-bold text-slate-900 mt-2 font-mono">
-                  {isLoading ? '...' : approvedCount}
-                </div>
-                <div className="text-xs text-slate-500 mt-1">Budget approved &bull; Assign active specialized contractor</div>
-              </Link>
+                title="Approved (Assign Vendor)"
+                value={isLoading ? '...' : approvedCount}
+                subtitle="Assign specialized contractor"
+                variant="blue"
+              />
             ) : (
-              <Link
+              <StatCard
                 href="/work-orders?status=reported"
-                className={`p-5 rounded-xl border shadow-sm transition hover:shadow-md cursor-pointer block group ${
-                  reportedCount > 0
-                    ? 'bg-amber-50/70 border-amber-300 hover:border-amber-400'
-                    : 'bg-white border-slate-200 hover:border-sky-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
-                    <span>Awaiting Your Approval</span>
-                    <span className="text-xs text-amber-600 group-hover:translate-x-0.5 transition">&rarr;</span>
-                  </span>
-                  {reportedCount > 0 && (
-                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500 text-white animate-pulse">
-                      Action Required
-                    </span>
-                  )}
-                </div>
-                <div className="text-3xl font-bold text-slate-900 mt-2 font-mono">
-                  {isLoading ? '...' : reportedCount}
-                </div>
-                <div className="text-xs text-slate-500 mt-1">New staff-reported requests pending review &bull; Click to review</div>
-              </Link>
+                title="Awaiting Your Approval"
+                value={isLoading ? '...' : reportedCount}
+                subtitle="New requests pending review"
+                variant="orange"
+              />
             )}
 
-            <Link
+            <StatCard
               href="/work-orders?status=active"
-              className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition group cursor-pointer block"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-sky-600 uppercase tracking-wider">
-                  Active Jobs in Pipeline
-                </span>
-                <span className="text-xs text-sky-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-              </div>
-              <div className="text-3xl font-bold text-sky-700 mt-2 font-mono">
-                {isLoading ? '...' : (approvedCount + assignedCount + inProgressCount)}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">Contractor work underway &bull; View active jobs</div>
-            </Link>
+              title="Active Jobs in Pipeline"
+              value={isLoading ? '...' : (approvedCount + assignedCount + inProgressCount)}
+              subtitle="Contractor repairs underway"
+              variant="blue"
+            />
 
             {approverScope === 'payment_approver' ? (
-              <Link
+              <StatCard
                 href="/invoices?status=pending"
-                className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md transition group cursor-pointer block"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">
-                    Pending Invoice Approvals
-                  </span>
-                  <span className="text-xs text-emerald-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-                </div>
-                <div className="text-3xl font-bold text-emerald-600 mt-2 font-mono">
-                  {isLoading ? '...' : formatCurrency(summary?.invoices.totalPending || 0)}
-                </div>
-                <div className="text-xs text-slate-400 mt-1">
-                  {summary?.invoices.count || 0} claims pending settlement &bull; Settle payouts
-                </div>
-              </Link>
+                title="Pending Invoice Approvals"
+                value={isLoading ? '...' : formatCurrency(summary?.invoices.totalPending || 0)}
+                subtitle={`${summary?.invoices.count || 0} claims pending settlement`}
+                variant="green"
+              />
             ) : (
-              <Link
+              <StatCard
                 href="/work-orders?status=completed"
-                className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-teal-300 hover:shadow-md transition group cursor-pointer block"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-teal-600 uppercase tracking-wider">
-                    Completed &amp; QC Verified
-                  </span>
-                  <span className="text-xs text-teal-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-                </div>
-                <div className="text-3xl font-bold text-teal-700 mt-2 font-mono">
-                  {isLoading ? '...' : (completedCount + verifiedCount)}
-                </div>
-                <div className="text-xs text-slate-400 mt-1">Completed repairs awaiting inspection or closed</div>
-              </Link>
+                title="Completed & QC Verified"
+                value={isLoading ? '...' : (completedCount + verifiedCount)}
+                subtitle="Repairs awaiting closure"
+                variant="green"
+              />
             )}
           </div>
 
           {/* Pending Approval Queue Table */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <span>Pending Work Orders Awaiting Approval</span>
-                  {pendingWorkOrders.length > 0 && (
-                    <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-amber-100 text-amber-800">
-                      {pendingWorkOrders.length}
-                    </span>
-                  )}
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Review reported issue details, set estimated budget, or reject with audit notes
-                </p>
+          <div className="bg-[#F4FBFC] rounded-[18px] py-[40px] px-[30px] space-y-6 border border-[#e2f5f8] shadow-xs">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#D7F5FD] border border-[#B3EEFA] flex items-center justify-center shrink-0 shadow-2xs">
+                  <svg className="w-6 h-6 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <span>Pending Work Orders Awaiting Approval</span>
+                    {pendingWorkOrders.length > 0 && (
+                      <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-amber-100 text-amber-800">
+                        {pendingWorkOrders.length}
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 font-normal">
+                    Review reported issue details, verify priority/SLA, and assign or approve funding.
+                  </p>
+                </div>
               </div>
-              <Link href="/work-orders?status=reported" className="text-xs font-semibold text-sky-600 hover:text-sky-800">
-                View all awaiting approval &rarr;
+              <Link href="/work-orders?status=reported" className="text-xs sm:text-sm font-semibold text-sky-600 hover:text-sky-800 transition">
+                View All Awaiting Approval &rarr;
               </Link>
             </div>
 
             {pendingWorkOrders.length === 0 ? (
-              <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-100">
-                <div className="text-2xl mb-1">✓</div>
-                <div className="text-xs font-semibold text-slate-700">All caught up!</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">No work orders currently awaiting approval.</div>
+              <div className="p-8 text-center bg-white rounded-[18px] border border-slate-200 shadow-xs">
+                <div className="text-sm font-semibold text-slate-700">All caught up!</div>
+                <div className="text-xs text-slate-400 mt-1">No work orders currently awaiting approval.</div>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="space-y-3.5">
                 {pendingWorkOrders.map((wo) => (
-                  <div key={wo.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-xs text-slate-900">{wo.tracking_number}</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize ${wo.priority === 'critical' ? 'bg-red-50 text-red-700 border border-red-200' :
-                            wo.priority === 'high' ? 'bg-orange-50 text-orange-700 border border-orange-200' :
-                              'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
-                          {wo.priority}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-800">{wo.title}</span>
-                      </div>
-                      <p className="text-xs text-slate-500 line-clamp-1">{wo.description}</p>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-3">
-                        <span>🏥 {wo.facility_name || 'Hospital Facility'}</span>
-                        <span>👤 Reported by: {wo.reported_by_name || 'Staff'}</span>
-                        <span>🕒 {formatDate(wo.created_at)}</span>
-                      </div>
-                    </div>
-                    <Link
-                      href={`/work-orders/${wo.id}`}
-                      className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-lg transition shadow-sm shrink-0 text-center"
-                    >
-                      Review &amp; Approve / Reject &rarr;
-                    </Link>
-                  </div>
+                  <WorkOrderCard key={wo.id} workOrder={wo} />
                 ))}
               </div>
             )}
@@ -1147,112 +879,104 @@ export default function DashboardPage() {
     <AppLayout>
       <div className="space-y-6">
         {/* Welcome & Command Header */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center space-x-2">
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                Welcome back, {user?.name || 'Administrator'}
-              </h1>
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 uppercase font-mono">
-                {user?.role}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              MediTrack Real-Time Hospital Infrastructure Operational Command Center
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Link
-              href="/work-orders"
-              className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition shadow-sm"
-            >
-              + Create Work Order
-            </Link>
-            <Link
-              href="/invoices?status=pending"
-              className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
-            >
-              Approve Invoices
-            </Link>
-          </div>
-        </div>
+        <DashboardBanner
+          name={user?.name || 'Administrator'}
+          subtitle="Here's what's happening at the hospital today"
+          roleBadge={user?.role}
+          actions={
+            <>
+              <Link
+                href="/work-orders"
+                className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700 transition shadow-xs"
+              >
+                + Create Work Order
+              </Link>
+              <Link
+                href="/invoices?status=pending"
+                className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl transition shadow-xs"
+              >
+                Approve Invoices
+              </Link>
+            </>
+          }
+        />
 
         {/* Real-time 4 Metric Cards (Clickable) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Link
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
+          <StatCard
             href="/work-orders"
-            className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition group cursor-pointer block"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider group-hover:text-sky-600 transition">
-                Total Active Maintenance
-              </span>
-              <span className="text-xs text-slate-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition">&rarr;</span>
-            </div>
-            <div className="text-2xl font-bold text-slate-900 mt-2 font-mono">
-              {isLoading ? '...' : activeTotal}
-            </div>
-            <div className="text-xs text-slate-400 mt-1">Out of {woStats.total} total lifetime orders</div>
-          </Link>
-
-          <Link
+            title="Total Active Maintenance"
+            value={isLoading ? '...' : activeTotal}
+            subtitle={`Out of ${woStats.total} lifetime orders`}
+            variant="blue"
+          />
+          <StatCard
             href="/work-orders?priority=critical"
-            className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-amber-300 hover:shadow-md transition group cursor-pointer block"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">
-                Critical & High Priority
-              </span>
-              <span className="text-xs text-amber-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-            </div>
-            <div className="text-2xl font-bold text-amber-600 mt-2 font-mono">
-              {isLoading ? '...' : (summary?.workOrders.byPriority.critical || 0) + (summary?.workOrders.byPriority.high || 0)}
-            </div>
-            <div className="text-xs text-slate-400 mt-1">
-              {summary?.workOrders.byPriority.critical || 0} Critical emergency alerts &bull; View list
-            </div>
-          </Link>
-
-          <Link
+            title="Critical & High Priority"
+            value={isLoading ? '...' : (summary?.workOrders.byPriority.critical || 0) + (summary?.workOrders.byPriority.high || 0)}
+            subtitle={`${summary?.workOrders.byPriority.critical || 0} Critical emergency alerts`}
+            variant="orange"
+          />
+          <StatCard
             href="/contractors"
-            className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-sky-300 hover:shadow-md transition group cursor-pointer block"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-sky-600 uppercase tracking-wider">
-                Contractor Compliance
-              </span>
-              <span className="text-xs text-sky-500 group-hover:translate-x-0.5 transition">&rarr;</span>
-            </div>
-            <div className="text-2xl font-bold text-sky-600 mt-2 font-mono">
-              {isLoading ? '...' : `${summary?.contractors.compliant || 0} / ${summary?.contractors.total || 0}`}
-            </div>
-            <div className="text-xs text-slate-400 mt-1">
-              {summary?.contractors.expiring_soon || 0} licenses expiring soon &bull; Manage vendors
-            </div>
-          </Link>
-
-          <Link
+            title="Contractor Compliance"
+            value={isLoading ? '...' : `${summary?.contractors.compliant || 0} / ${summary?.contractors.total || 0}`}
+            subtitle={`${summary?.contractors.expiring_soon || 0} licenses expiring soon`}
+            variant="teal"
+          />
+          <StatCard
             href="/invoices?status=paid"
-            className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-300 hover:shadow-md transition group cursor-pointer block"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">
-                Settled Disbursements
-              </span>
-              <span className="text-xs text-emerald-500 group-hover:translate-x-0.5 transition">&rarr;</span>
+            title="Settled Disbursements"
+            value={isLoading ? '...' : formatCurrency(summary?.invoices.totalPaid || 0)}
+            subtitle={`${formatCurrency(summary?.invoices.totalPending || 0)} pending approval`}
+            variant="green"
+          />
+        </div>
+
+        {/* Recent Work Orders & Reported Tickets Header & Cards */}
+        <div className="bg-[#F4FBFC] rounded-[18px] py-[40px] px-[30px] space-y-6 border border-[#e2f5f8] shadow-xs">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-[#D7F5FD] border border-[#B3EEFA] flex items-center justify-center shrink-0 shadow-2xs">
+                <svg className="w-6 h-6 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                  Recent Work Orders &amp; Reported Tickets
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-500 font-normal">
+                  Click any ticket to view details, audit logs, or repair status.
+                </p>
+              </div>
             </div>
-            <div className="text-2xl font-bold text-emerald-600 mt-2 font-mono">
-              {isLoading ? '...' : formatCurrency(summary?.invoices.totalPaid || 0)}
+            <Link href="/work-orders" className="text-xs sm:text-sm font-semibold text-sky-600 hover:text-sky-800 transition">
+              View All Work Orders &rarr;
+            </Link>
+          </div>
+
+          {allWorkOrders.length === 0 ? (
+            <div className="p-8 text-center bg-white rounded-[18px] border border-slate-200 shadow-xs">
+              <div className="text-sm font-semibold text-slate-700">No tickets reported yet.</div>
+              <div className="text-xs text-slate-400 mt-1">Click &quot;+ Create Work Order&quot; to log a maintenance issue.</div>
             </div>
-            <div className="text-xs text-slate-400 mt-1">
-              {formatCurrency(summary?.invoices.totalPending || 0)} pending approval &bull; View invoices
+          ) : (
+            <div className="space-y-3.5">
+              {allWorkOrders.slice(0, 5).map((wo) => (
+                <WorkOrderCard key={wo.id} workOrder={wo} />
+              ))}
             </div>
-          </Link>
+          )}
         </div>
 
         {/* 7-Stage Workflow Pipeline Distribution (Clickable) */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-[20px] border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
@@ -1272,7 +996,7 @@ export default function DashboardPage() {
               <Link
                 key={step.key}
                 href={`/work-orders?status=${step.key}`}
-                className="p-3 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-sky-50/60 hover:border-sky-300 hover:shadow-2xs transition flex flex-col justify-between group cursor-pointer"
+                className="p-3 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-sky-50/60 hover:border-sky-300 hover:shadow-2xs transition flex flex-col justify-between group cursor-pointer"
               >
                 <div className="flex items-center space-x-1.5">
                   <div className={`w-2 h-2 rounded-full ${step.color}`} />
@@ -1286,7 +1010,7 @@ export default function DashboardPage() {
 
         {/* Facilities Workload & Live Stream */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="bg-white p-6 rounded-[20px] border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
@@ -1302,14 +1026,14 @@ export default function DashboardPage() {
                   <Link
                     key={fac.id}
                     href={`/facilities`}
-                    className="py-3 flex items-center justify-between hover:bg-slate-50 px-2 -mx-2 rounded transition group"
+                    className="py-3 flex items-center justify-between hover:bg-slate-50 px-2 -mx-2 rounded-lg transition group"
                   >
                     <div>
                       <div className="font-semibold text-xs text-slate-800 group-hover:text-sky-700">{fac.name}</div>
                       <div className="text-[11px] text-slate-400">{fac.code} &bull; {fac.type}</div>
                     </div>
                     <div className="text-right">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-50 text-sky-700">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-sky-50 text-sky-700">
                         {fac.activeWorkOrders} Active
                       </span>
                     </div>
@@ -1319,7 +1043,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="bg-white p-6 rounded-[20px] border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
@@ -1335,7 +1059,7 @@ export default function DashboardPage() {
                   summary.recentEvents.slice(0, 5).map((evt) => (
                     <div
                       key={evt.id}
-                      className="p-3 rounded-lg border border-slate-100 bg-slate-50/50 flex items-start justify-between gap-3 text-xs"
+                      className="p-3 rounded-xl border border-slate-100 bg-slate-50/50 flex items-start justify-between gap-3 text-xs"
                     >
                       <div className="space-y-1 overflow-hidden">
                         <div className="flex items-center space-x-2">
