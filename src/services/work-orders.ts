@@ -1,6 +1,6 @@
 import api from './api';
 import { ApiResponse } from '@/types';
-import { WorkOrder, WorkOrderPhoto, WorkOrderStatus, SubmitAssessmentInput } from '@/types/workOrder';
+import { WorkOrder, WorkOrderPhoto, WorkOrderStatus, SubmitAssessmentInput, ContractorQuotation } from '@/types/workOrder';
 import { AuditChainResponse } from '@/types/audit';
 
 export const workOrderApi = {
@@ -108,6 +108,59 @@ export const workOrderApi = {
     return res.data.data;
   },
 
+  submitCriticalQuote: async (
+    id: string,
+    payload: { cost: number; breakdown?: any; notes?: string }
+  ) => {
+    const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/critical-quote`, payload);
+    return res.data.data;
+  },
+
+  reviewCriticalQuote: async (
+    id: string,
+    payload: { action: 'approve' | 'adjust'; adjustedCost?: number; engineerNotes?: string }
+  ) => {
+    const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/critical-quote-review`, payload);
+    return res.data.data;
+  },
+
+  getContractorQuotations: async (id: string) => {
+    const res = await api.get<ApiResponse<ContractorQuotation[]>>(`/work-orders/${id}/quotations`);
+    return res.data.data;
+  },
+
+  inviteContractors: async (
+    id: string,
+    payload: { invitationMode: 'single' | 'multi'; contractorIds: string[]; invitationNotes?: string }
+  ) => {
+    const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/invite-contractors`, payload);
+    return res.data.data;
+  },
+
+  submitContractorQuotation: async (
+    id: string,
+    payload: { amount: number; quote_ref?: string; breakdown?: any; notes?: string }
+  ) => {
+    const res = await api.post<ApiResponse<ContractorQuotation>>(`/work-orders/${id}/quotations`, payload);
+    return res.data.data;
+  },
+
+  recommendContractorQuotation: async (
+    id: string,
+    payload: { quoteId: string; recommendationNotes?: string }
+  ) => {
+    const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/recommend-quotation`, payload);
+    return res.data.data;
+  },
+
+  reviewContractorRecommendation: async (
+    id: string,
+    payload: { action: 'approved' | 'reevaluate'; notes?: string }
+  ) => {
+    const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/review-quotation-recommendation`, payload);
+    return res.data.data;
+  },
+
   deleteWorkOrder: async (id: string) => {
     const res = await api.delete<ApiResponse<{ success: boolean; message: string }>>(`/work-orders/${id}`);
     return res.data;
@@ -118,4 +171,6 @@ export const workOrderApi = {
     return res.data;
   }
 };
+
+export const workOrderService = workOrderApi;
 

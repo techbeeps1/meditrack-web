@@ -20,6 +20,8 @@ import { downloadTimesheetPdf } from '@/lib/timesheetPdf';
 import { downloadEstimatePdf } from '@/lib/estimatePdf';
 import { downloadWorkOrderPdf } from '@/lib/workOrderPdf';
 import { useAuth } from '@/hooks/useAuth';
+import { InviteContractorsModal } from '@/components/work-orders/InviteContractorsModal';
+import SubmitQuotationModal from '@/components/work-orders/SubmitQuotationModal';
 
 const WORKFLOW_STEPS: { status: WorkOrderStatus; label: string }[] = [
   { status: 'reported', label: 'Requested' },
@@ -187,6 +189,10 @@ export default function WorkOrderDetailPage() {
   const [actualCostInput, setActualCostInput] = useState<number | ''>('');
   const [transitionError, setTransitionError] = useState<string | null>(null);
 
+  // Contractor Start Job Evidence States (Optional Initial Photos + Optional PDF/DOC)
+  const [startJobPhotos, setStartJobPhotos] = useState<File[]>([]);
+  const [startJobDoc, setStartJobDoc] = useState<File | null>(null);
+
   // Contractor Completion Evidence States (Required Image + Optional PDF/DOC)
   const [completionPhotos, setCompletionPhotos] = useState<File[]>([]);
   const [completionDoc, setCompletionDoc] = useState<File | null>(null);
@@ -204,6 +210,43 @@ export default function WorkOrderDetailPage() {
     sterilization: true,
     functionalTesting: true
   });
+
+
+  const defaultAssessmentTimesheetWeek = [
+    { day: 'Monday', date: '', hours: '' },
+    { day: 'Tuesday', date: '', hours: '' },
+    { day: 'Wednesday', date: '', hours: '' },
+    { day: 'Thursday', date: '', hours: '' },
+    { day: 'Friday', date: '', hours: '' },
+    { day: 'Saturday', date: '', hours: '' },
+    { day: 'Sunday', date: '', hours: '' }
+  ];
+
+  // Itemized Assessment & Onsite Photo & Assessment Timesheet States
+  const [assessmentItems, setAssessmentItems] = useState<Array<{ id: string; description: string; cost: number | '' }>>([
+    { id: 'item-1', description: 'Technical Diagnostic & Core Maintenance', cost: '' }
+  ]);
+  const [assessmentWorkTypes, setAssessmentWorkTypes] = useState<string[]>(['Maintenance', 'Repair']);
+  const [onsiteAssessmentPhotos, setOnsiteAssessmentPhotos] = useState<File[]>([]);
+  const [showAssessmentTimesheet, setShowAssessmentTimesheet] = useState(false);
+  const [assessmentTimesheetWeekStart, setAssessmentTimesheetWeekStart] = useState<string>('');
+  const [assessmentTimesheetDays, setAssessmentTimesheetDays] = useState(defaultAssessmentTimesheetWeek);
+
+  // Multi-Contractor Quoting & Recommendation States
+  const [isSubmitQuotationModalOpen, setIsSubmitQuotationModalOpen] = useState(false);
+  const [isInviteContractorsModalOpen, setIsInviteContractorsModalOpen] = useState(false);
+  const [contractorQuoteAmountInput, setContractorQuoteAmountInput] = useState<number | ''>('');
+  const [contractorQuoteRefInput, setContractorQuoteRefInput] = useState('');
+  const [contractorQuoteNotesInput, setContractorQuoteNotesInput] = useState('');
+  const [contractorQuoteError, setContractorQuoteError] = useState<string | null>(null);
+
+  const [selectedQuoteIdToRecommend, setSelectedQuoteIdToRecommend] = useState<string>('');
+  const [engineerRecommendationNotesInput, setEngineerRecommendationNotesInput] = useState('');
+  const [recommendationError, setRecommendationError] = useState<string | null>(null);
+
+  const [isReevaluateModalOpen, setIsReevaluateModalOpen] = useState(false);
+  const [reevaluateNotesInput, setReevaluateNotesInput] = useState('');
+  const [reevaluateError, setReevaluateError] = useState<string | null>(null);
 
   // Engineering Assessment Modal state
   const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState(false);
@@ -238,6 +281,18 @@ export default function WorkOrderDetailPage() {
   const [isAdjustEstimateModalOpen, setIsAdjustEstimateModalOpen] = useState(false);
   const [adjustmentNotesInput, setAdjustmentNotesInput] = useState('');
   const [reviewEstimateError, setReviewEstimateError] = useState<string | null>(null);
+
+  // Critical Job Contractor Quote & Engineering Review States
+  const [isCriticalQuoteModalOpen, setIsCriticalQuoteModalOpen] = useState(false);
+  const [criticalQuoteCost, setCriticalQuoteCost] = useState<number | ''>('');
+  const [criticalQuoteWorkTypes, setCriticalQuoteWorkTypes] = useState<string[]>(['Repair']);
+  const [criticalQuoteNotes, setCriticalQuoteNotes] = useState('');
+  const [criticalQuoteError, setCriticalQuoteError] = useState<string | null>(null);
+
+  const [isAdjustCriticalQuoteModalOpen, setIsAdjustCriticalQuoteModalOpen] = useState(false);
+  const [adjustedCriticalQuoteCost, setAdjustedCriticalQuoteCost] = useState<number | ''>('');
+  const [adjustCriticalQuoteNotes, setAdjustCriticalQuoteNotes] = useState('');
+  const [adjustCriticalQuoteError, setAdjustCriticalQuoteError] = useState<string | null>(null);
 
   // Dedicated Separate Timesheet States for Inspector and Engineer (Monday to Sunday Template)
   const defaultTimesheetWeek = [
@@ -624,6 +679,26 @@ export default function WorkOrderDetailPage() {
             : undefined
       });
 
+      // Upload start job initial assessment photos if provided
+      if (targetStatus === 'in_progress' && startJobPhotos && startJobPhotos.length > 0) {
+        const photoFormData = new FormData();
+        for (let i = 0; i < startJobPhotos.length; i++) {
+          photoFormData.append('photos', startJobPhotos[i]);
+        }
+        photoFormData.append('caption', 'Contractor Initial Site / Assessment Photo Evidence');
+        photoFormData.append('stage', 'in_progress');
+        await workOrderApi.uploadPhotos(id, photoFormData);
+      }
+
+      // Upload start job initial document (PDF or DOC/DOCX) if provided
+      if (targetStatus === 'in_progress' && startJobDoc) {
+        const docFormData = new FormData();
+        docFormData.append('photos', startJobDoc);
+        docFormData.append('caption', `Initial Site Document / Job Card: ${startJobDoc.name}`);
+        docFormData.append('stage', 'in_progress');
+        await workOrderApi.uploadPhotos(id, docFormData);
+      }
+
       // Upload completion evidence photos
       if (targetStatus === 'completed' && completionPhotos && completionPhotos.length > 0) {
         const photoFormData = new FormData();
@@ -667,7 +742,10 @@ export default function WorkOrderDetailPage() {
     setTargetStatus(status);
     setTransitionNotes('');
     setTransitionError(null);
-    if (status === 'approved') {
+    if (status === 'in_progress') {
+      setStartJobPhotos([]);
+      setStartJobDoc(null);
+    } else if (status === 'approved') {
       setActualCostInput('');
     } else if (status === 'completed') {
       setActualCostInput(workOrder?.estimated_cost ?? workOrder?.actual_cost ?? 0);
@@ -741,36 +819,50 @@ export default function WorkOrderDetailPage() {
   };
 
   // Engineering Assessment Mutation (Scope, Charge Code, Assessor Estimate, Session Hours, and Automated Routing)
+    // Engineering Assessment Mutation
   const assessmentMutation = useMutation({
     mutationFn: async () => {
-      const isInspector = user?.inspector_scope === 'works_inspector';
-      const effectiveRole = isInspector ? (referToEngineer ? 'works_engineer' : 'works_inspector') : 'works_engineer';
+      const effectiveRole =
+        role === 'INSPECTOR'
+          ? (inspectorScope === 'works_engineer' ? 'works_engineer' : 'works_inspector')
+          : workOrder?.lead_assessor_role || 'works_inspector';
 
       if (referToEngineer) {
-        return workOrderApi.submitAssessment(id, {
-          assessment_type: assessmentType,
-          assessor_role: 'works_engineer',
-          charge_code: chargeCode,
-          assessment_notes: assessmentNotes || 'Referred to Works Engineer for scope & cost estimation.',
-          assessment_hours: assessmentHours !== '' ? Number(assessmentHours) : undefined,
-          estimated_days: estimatedDays !== '' ? Number(estimatedDays) : undefined,
-          refer_to_engineer: true
+        return workOrderApi.requestEngineer(id, {
+          reason: assessmentNotes || 'Technical engineering scoping required by Site Inspector'
         });
       }
 
-      if (assessmentEstimate === '') throw new Error('Please enter assessor estimate amount');
-      if (routeBOverride && !assessmentNotes.trim()) {
-        throw new Error('Please provide an assessment justification note when electing advance float override for estimates over R50,000');
+      if (assessmentEstimate === '') throw new Error('Please enter assessor estimate amount or add work item costs');
+
+      // Upload Onsite Photos if provided
+      if (assessmentType === 'onsite' && onsiteAssessmentPhotos.length > 0) {
+        const photoFormData = new FormData();
+        for (let i = 0; i < onsiteAssessmentPhotos.length; i++) {
+          photoFormData.append('photos', onsiteAssessmentPhotos[i]);
+        }
+        photoFormData.append('caption', 'Onsite Technical Assessment Photo Evidence');
+        photoFormData.append('stage', 'inspection');
+        await workOrderApi.uploadPhotos(id, photoFormData);
       }
+
+      const totalTsHours = assessmentTimesheetDays.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0);
+
       return workOrderApi.submitAssessment(id, {
         assessment_type: assessmentType,
         assessor_role: effectiveRole,
         assessor_estimate: Number(assessmentEstimate),
-        assessment_hours: assessmentHours !== '' ? Number(assessmentHours) : undefined,
+        assessment_hours: assessmentHours !== '' ? Number(assessmentHours) : totalTsHours > 0 ? totalTsHours : undefined,
         estimated_days: estimatedDays !== '' ? Number(estimatedDays) : undefined,
         charge_code: chargeCode,
         assessment_notes: assessmentNotes || undefined,
-        route_b_override: routeBOverride
+        route_b_override: routeBOverride,
+        itemized_breakdown: {
+          items: assessmentItems,
+          categories: assessmentWorkTypes
+        },
+        timesheet_data: totalTsHours > 0 ? assessmentTimesheetDays : undefined,
+        timesheet_hours: totalTsHours > 0 ? totalTsHours : undefined
       });
     },
     onSuccess: () => {
@@ -780,6 +872,7 @@ export default function WorkOrderDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       setIsAssessmentModalOpen(false);
       setAssessmentError(null);
+      setOnsiteAssessmentPhotos([]);
     },
     onError: (err: any) => {
       setAssessmentError(err.response?.data?.message || err.message || 'Failed to submit engineering assessment');
@@ -800,18 +893,145 @@ export default function WorkOrderDetailPage() {
         : ''
     );
     setEstimatedDays(
-      workOrder?.estimated_days !== null && workOrder?.estimated_days !== undefined
+      workOrder?.estimated_days !== null && workOrder?.estimated_days !== undefined && Number(workOrder.estimated_days) > 0
         ? workOrder.estimated_days
         : workOrder?.due_date
         ? Math.max(1, Math.ceil((new Date(workOrder.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-        : ''
+        : 3
     );
     setChargeCode(workOrder?.charge_code || 'PRE');
     setRouteBOverride(false);
     setAssessmentNotes(workOrder?.assessment_notes || '');
+    setOnsiteAssessmentPhotos([]);
+    setShowAssessmentTimesheet(false);
+
+    // Initialize itemized breakdown if exists
+    if (workOrder?.assessment_itemized_breakdown) {
+      try {
+        const parsed = JSON.parse(workOrder.assessment_itemized_breakdown);
+        if (parsed.items && Array.isArray(parsed.items) && parsed.items.length > 0) {
+          setAssessmentItems(parsed.items);
+        } else {
+          setAssessmentItems([{ id: 'item-1', description: 'Technical Diagnostic & Core Maintenance', cost: workOrder.assessor_estimate || '' }]);
+        }
+        if (parsed.categories && Array.isArray(parsed.categories)) {
+          setAssessmentWorkTypes(parsed.categories);
+        }
+      } catch (_) {
+        setAssessmentItems([{ id: 'item-1', description: 'Technical Diagnostic & Core Maintenance', cost: workOrder.assessor_estimate || '' }]);
+      }
+    } else {
+      setAssessmentItems([{ id: 'item-1', description: 'Technical Diagnostic & Core Maintenance', cost: workOrder?.assessor_estimate || '' }]);
+    }
+
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const diffToMonday = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    const mondayObj = new Date(today);
+    mondayObj.setDate(diffToMonday);
+    const mondayIso = mondayObj.toISOString().split('T')[0];
+
+    setAssessmentTimesheetWeekStart(mondayIso);
+
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const initialDays = dayNames.map((dayName, idx) => {
+      const d = new Date(mondayObj);
+      d.setDate(mondayObj.getDate() + idx);
+      return {
+        day: dayName,
+        date: d.toISOString().split('T')[0],
+        hours: ''
+      };
+    });
+
+    if (workOrder?.inspector_timesheet_data || workOrder?.engineer_timesheet_data) {
+      try {
+        const rawTs = isWorksEngineer ? workOrder.engineer_timesheet_data : workOrder.inspector_timesheet_data;
+        if (rawTs) {
+          const parsed = JSON.parse(rawTs);
+          if (Array.isArray(parsed) && parsed.length === 7) {
+            setAssessmentTimesheetDays(parsed);
+          } else {
+            setAssessmentTimesheetDays(initialDays);
+          }
+        } else {
+          setAssessmentTimesheetDays(initialDays);
+        }
+      } catch (_) {
+        setAssessmentTimesheetDays(initialDays);
+      }
+    } else {
+      setAssessmentTimesheetDays(initialDays);
+    }
+
     setAssessmentError(null);
     setIsAssessmentModalOpen(true);
   };
+
+
+  // Multi-Contractor Quotation Mutations
+  const submitContractorQuoteMutation = useMutation({
+    mutationFn: async () => {
+      if (contractorQuoteAmountInput === '' || Number(contractorQuoteAmountInput) <= 0) {
+        throw new Error('Please enter a valid quotation amount greater than 0');
+      }
+      return workOrderApi.submitContractorQuotation(id, {
+        amount: Number(contractorQuoteAmountInput),
+        quote_ref: contractorQuoteRefInput.trim() || undefined,
+        notes: contractorQuoteNotesInput.trim() || undefined
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      setIsSubmitQuotationModalOpen(false);
+      setContractorQuoteAmountInput('');
+      setContractorQuoteRefInput('');
+      setContractorQuoteNotesInput('');
+      setContractorQuoteError(null);
+    },
+    onError: (err: any) => {
+      setContractorQuoteError(err.response?.data?.message || err.message || 'Failed to submit quotation');
+    }
+  });
+
+  const recommendQuoteMutation = useMutation({
+    mutationFn: async ({ quoteId, notes }: { quoteId: string; notes?: string }) => {
+      return workOrderApi.recommendContractorQuotation(id, {
+        quoteId,
+        recommendationNotes: notes
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      setRecommendationError(null);
+      setSelectedQuoteIdToRecommend('');
+      setEngineerRecommendationNotesInput('');
+    },
+    onError: (err: any) => {
+      setRecommendationError(err.response?.data?.message || err.message || 'Failed to recommend contractor quote');
+    }
+  });
+
+  const reviewContractorRecommendationMutation = useMutation({
+    mutationFn: async ({ action, notes }: { action: 'approved' | 'reevaluate'; notes?: string }) => {
+      return workOrderApi.reviewContractorRecommendation(id, { action, notes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      setIsReevaluateModalOpen(false);
+      setReevaluateNotesInput('');
+      setReevaluateError(null);
+    },
+    onError: (err: any) => {
+      setReevaluateError(err.response?.data?.message || err.message || 'Failed to process approver decision');
+    }
+  });
 
   // Part 1: Assign Lead Assessor Mutation
   const assignLeadMutation = useMutation({
@@ -916,6 +1136,87 @@ export default function WorkOrderDetailPage() {
       setReviewEstimateError(err.response?.data?.message || err.message || 'Failed to review estimate');
     }
   });
+
+  // Critical Job Contractor Quote Submission Mutation
+  const submitCriticalQuoteMutation = useMutation({
+    mutationFn: async () => {
+      if (criticalQuoteCost === '' || Number(criticalQuoteCost) <= 0) {
+        throw new Error('Please enter a valid quoted cost greater than 0');
+      }
+      return workOrderApi.submitCriticalQuote(id, {
+        cost: Number(criticalQuoteCost),
+        breakdown: {
+          categories: criticalQuoteWorkTypes,
+          notes: criticalQuoteNotes.trim()
+        },
+        notes: criticalQuoteNotes.trim()
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-work-orders'] });
+      setIsCriticalQuoteModalOpen(false);
+      setCriticalQuoteCost('');
+      setCriticalQuoteNotes('');
+      setCriticalQuoteError(null);
+    },
+    onError: (err: any) => {
+      setCriticalQuoteError(err.response?.data?.message || err.message || 'Failed to submit critical quote');
+    }
+  });
+
+  // Critical Job Engineer Review (Adjust / Approve) Mutation
+  const reviewCriticalQuoteMutation = useMutation({
+    mutationFn: async ({ action, cost, notes }: { action: 'approve' | 'adjust'; cost?: number; notes?: string }) => {
+      return workOrderApi.reviewCriticalQuote(id, {
+        action,
+        adjustedCost: cost,
+        engineerNotes: notes
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+      queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-work-orders'] });
+      setIsAdjustCriticalQuoteModalOpen(false);
+      setAdjustCriticalQuoteError(null);
+    },
+    onError: (err: any) => {
+      setAdjustCriticalQuoteError(err.response?.data?.message || err.message || 'Failed to process critical quote decision');
+    }
+  });
+
+  const openCriticalQuoteModal = () => {
+    let defaultCategories = ['Repair'];
+    let defaultNotes = '';
+    if (workOrder?.contractor_critical_quote_breakdown) {
+      try {
+        const parsed = JSON.parse(workOrder.contractor_critical_quote_breakdown);
+        if (parsed.categories) defaultCategories = parsed.categories;
+        if (parsed.notes) defaultNotes = parsed.notes;
+      } catch (_) {
+        defaultNotes = workOrder.contractor_critical_quote_breakdown;
+      }
+    }
+    setCriticalQuoteWorkTypes(defaultCategories);
+    setCriticalQuoteNotes(defaultNotes);
+    setCriticalQuoteCost(workOrder?.contractor_critical_quote_cost || workOrder?.actual_cost || workOrder?.estimated_cost || '');
+    setCriticalQuoteError(null);
+    setIsCriticalQuoteModalOpen(true);
+  };
+
+  const openAdjustCriticalQuoteModal = () => {
+    setAdjustedCriticalQuoteCost(workOrder?.contractor_critical_quote_cost || workOrder?.actual_cost || workOrder?.estimated_cost || '');
+    setAdjustCriticalQuoteNotes(workOrder?.contractor_critical_quote_engineer_notes || '');
+    setAdjustCriticalQuoteError(null);
+    setIsAdjustCriticalQuoteModalOpen(true);
+  };
 
 
 
@@ -1023,12 +1324,26 @@ export default function WorkOrderDetailPage() {
     hasPaymentScope ||
     (role === 'INSPECTOR' && ['works_engineer', 'both'].includes(inspectorScope));
 
+  const isCriticalJob = urgency === 'Critical 0–24h' || workOrder.priority === 'critical';
+
+  // Critical Job Contractor Quote & Works Engineer Review Permissions
+  const canProvideCriticalQuote =
+    (role === 'CONTRACTOR' || role === 'ADMIN') &&
+    isCriticalJob &&
+    ['completed', 'verified', 'closed'].includes(status) &&
+    workOrder.contractor_critical_quote_status !== 'approved';
+
+  const canReviewCriticalQuote =
+    (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_engineer', 'both'].includes(inspectorScope))) &&
+    isCriticalJob &&
+    ['submitted', 'adjusted'].includes(workOrder.contractor_critical_quote_status || '');
+
   const canStartWork = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'assigned';
   const canComplete = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'in_progress';
   const canVerify = (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope))) && status === 'completed' && isTriSignoffComplete;
   const canClose = (role === 'APPROVER' || role === 'ADMIN') && status === 'verified' && !workOrder.invoice_id;
   const canReject = (role === 'APPROVER' || role === 'ADMIN') && status === 'reported';
-  const canGenerateInvoice = (role === 'CONTRACTOR' || role === 'ADMIN') && ['verified', 'closed'].includes(status) && isTriSignoffComplete && !workOrder.invoice_id;
+  const canGenerateInvoice = !isCriticalJob && (role === 'CONTRACTOR' || role === 'ADMIN') && ['verified', 'closed'].includes(status) && isTriSignoffComplete && !workOrder.invoice_id;
   const canRequestInvoice = hasPaymentScope && ['verified', 'closed'].includes(status) && isTriSignoffComplete && !workOrder.invoice_id;
   const canApproveOrPayInvoice = hasPaymentScope && !isSodViolationForInvoice && !!workOrder.invoice_id;
   const canViewAuditVault = role === 'ADMIN' || role === 'AUDITOR';
@@ -1185,7 +1500,7 @@ export default function WorkOrderDetailPage() {
             )}
 
             {/* Part 1: Works Inspector Request Works Engineer Button */}
-            {status === 'reported' && isWorksInspector && !['pending', 'fulfilled'].includes(workOrder.assessor_request_status || '') && (
+            {status === 'reported' && isWorksInspector && workOrder.lead_assessor_id === user?.id && !['pending', 'fulfilled'].includes(workOrder.assessor_request_status || '') && (
               <button
                 type="button"
                 onClick={() => {
@@ -1225,83 +1540,36 @@ export default function WorkOrderDetailPage() {
               </button>
             )}
 
-            {/* When Approved: Contractor can submit price quote ONLY for Route A (Client Funded / Multi-Quote) */}
-            {status === 'approved' && role === 'CONTRACTOR' && !isRouteB && (
+            
+            {/* Contractor Multi-Quotation Button (when assessed) */}
+            {role === 'CONTRACTOR' && ['reported', 'approved'].includes(status) && isAssessmentDone && (
               <button
                 type="button"
-                onClick={openQuoteModal}
+                onClick={() => {
+                  setContractorQuoteAmountInput('');
+                  setContractorQuoteRefInput('');
+                  setContractorQuoteNotesInput('');
+                  setContractorQuoteError(null);
+                  setIsSubmitQuotationModalOpen(true);
+                }}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
               >
-                {workOrder.estimated_cost ? `Update Quote (${formatCurrency(workOrder.estimated_cost)})` : 'Submit Price Quote (R)'}
+                Submit Formal Quotation (R)
               </button>
             )}
 
-            {/* Route A (Client Funded) Quote Review & Approval Gateway (PDF Page 4) */}
-            {status === 'approved' && !isRouteB && (hasWoApproveScope || hasAssignScope) && (
-              <>
-                {/* Step 1: Submit Quote to Client NC DOH */}
-                {(!workOrder.quote_status || workOrder.quote_status === 'under_review') && (workOrder.estimated_cost || 0) > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => updateQuoteStatusMutation.mutate({ quoteStatus: 'awaiting_client' })}
-                    disabled={updateQuoteStatusMutation.isPending}
-                    className="px-4 py-2 bg-sky-700 hover:bg-sky-800 active:bg-sky-900 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer whitespace-nowrap"
-                  >
-                    {updateQuoteStatusMutation.isPending ? 'Submitting...' : 'Submit Quote to Client'}
-                  </button>
-                )}
 
-                {/* Step 2: Client Approval Gateway Actions */}
-                {workOrder.quote_status === 'awaiting_client' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateQuoteStatusMutation.mutate({
-                          quoteStatus: 'client_approved',
-                          clientApprovedBy: user?.name || user?.email || 'NC DOH Gateway'
-                        })
-                      }
-                      disabled={updateQuoteStatusMutation.isPending}
-                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer whitespace-nowrap"
-                    >
-                      {updateQuoteStatusMutation.isPending ? 'Processing...' : 'Approve Client Quote'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setClientDeclineReasonInput('');
-                        setQuoteStatusError(null);
-                        setIsDeclineQuoteModalOpen(true);
-                      }}
-                      className="px-3.5 py-2 bg-white border border-rose-300 hover:bg-rose-50 active:bg-rose-100 text-rose-700 text-xs font-semibold rounded-lg transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-                    >
-                      Decline Quote
-                    </button>
-                  </>
-                )}
 
-                {/* Step 3: Renegotiation on Declined Quote */}
-                {workOrder.quote_status === 'client_declined' && (
-                  <button
-                    type="button"
-                    onClick={() => updateQuoteStatusMutation.mutate({ quoteStatus: 'under_review' })}
-                    disabled={updateQuoteStatusMutation.isPending}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer whitespace-nowrap"
-                  >
-                    {updateQuoteStatusMutation.isPending ? 'Resetting...' : 'Renegotiate & Reset Quote'}
-                  </button>
-                )}
-              </>
-            )}
-
-            {canAssign && (
+            {/* Phase 2: Invite Contractor(s) for Quoting (Single vs Multi) */}
+            {!workOrder.assigned_to && ['reported', 'approved'].includes(status) && (isWorksEngineer || hasAssignScope || role === 'APPROVER') && (
               <button
                 type="button"
-                onClick={() => openTransitionModal('assigned')}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
+                onClick={() => setIsInviteContractorsModalOpen(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
               >
-                Assign Specialist Contractor
+                {workOrder.invited_contractor_ids
+                  ? 'Manage Contractor Invitations'
+                  : 'Invite Contractor(s) for Quoting'}
               </button>
             )}
 
@@ -1369,8 +1637,41 @@ export default function WorkOrderDetailPage() {
               </button>
             )}
 
-            {/* When Completed: Disabled button waiting for verification (Contractor/Admin only) */}
-            {role === 'CONTRACTOR' && workOrder.status === 'completed' && !workOrder.invoice_id && (
+            {/* Critical Job: Contractor Provide Quote Button */}
+            {canProvideCriticalQuote && (
+              <button
+                type="button"
+                onClick={openCriticalQuoteModal}
+                className="px-4 py-2 bg-purple-700 hover:bg-purple-800 active:bg-purple-900 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              >
+                {workOrder.contractor_critical_quote_status ? 'Update Critical Quote' : 'Provide Quote / Cost Breakdown (R)'}
+              </button>
+            )}
+
+            {/* Critical Job: Works Engineer Approve or Adjust Quote Buttons */}
+            {canReviewCriticalQuote && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => reviewCriticalQuoteMutation.mutate({ action: 'approve' })}
+                  disabled={reviewCriticalQuoteMutation.isPending}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  {reviewCriticalQuoteMutation.isPending ? 'Approving...' : `Approve Quote (${formatCurrency(workOrder.contractor_critical_quote_cost || 0)})`}
+                </button>
+                <button
+                  type="button"
+                  onClick={openAdjustCriticalQuoteModal}
+                  disabled={reviewCriticalQuoteMutation.isPending}
+                  className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  Adjust Quote
+                </button>
+              </div>
+            )}
+
+            {/* When Completed: Disabled button waiting for verification (Contractor/Admin only - Non-Critical) */}
+            {!isCriticalJob && role === 'CONTRACTOR' && workOrder.status === 'completed' && !workOrder.invoice_id && (
               <button
                 disabled
                 title="Invoice generation will be enabled after quality inspection and verification"
@@ -1381,8 +1682,8 @@ export default function WorkOrderDetailPage() {
             )}
 
             {/* When Verified or Closed and No Invoice Yet: */}
-            {/* Contractor sees button to Generate Invoice Claim */}
-            {role === 'CONTRACTOR' && ['verified', 'closed'].includes(workOrder.status) && !workOrder.invoice_id && (
+            {/* Contractor sees button to Generate Invoice Claim (Non-Critical jobs) */}
+            {!isCriticalJob && role === 'CONTRACTOR' && ['verified', 'closed'].includes(workOrder.status) && !workOrder.invoice_id && (
               <button
                 type="button"
                 onClick={openInvoiceModal}
@@ -1643,7 +1944,7 @@ export default function WorkOrderDetailPage() {
           <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-1 shadow-2xs">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-200 text-rose-800 uppercase tracking-wide">
-                ⚡ Critical SLA Emergency Bypass
+                Critical SLA Emergency Bypass
               </span>
               <span className="text-xs font-bold text-rose-900">
                 0–24h Immediate Containment Active
@@ -2302,6 +2603,236 @@ export default function WorkOrderDetailPage() {
               </div>
               )}
 
+
+              {/* Multi-Contractor Quotations & Engineering Review Card */}
+              {isAssessmentDone && (
+                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+                          Contractor Quotations &amp; Engineering Review
+                        </h2>
+                        {workOrder.quotations && workOrder.quotations.length > 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">
+                            {workOrder.quotations.length} Quote(s) Received
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            Awaiting Contractor Quotes
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Multiple contractor commercial bids &bull; Works Engineer recommendation &bull; Procurement Approver assignment
+                      </p>
+                    </div>
+
+                    {role === 'CONTRACTOR' && ['reported', 'approved'].includes(status) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setContractorQuoteAmountInput('');
+                          setContractorQuoteRefInput('');
+                          setContractorQuoteNotesInput('');
+                          setContractorQuoteError(null);
+                          setIsSubmitQuotationModalOpen(true);
+                        }}
+                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-xs transition active:scale-95 cursor-pointer whitespace-nowrap"
+                      >
+                        + Submit Formal Quote &rarr;
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Contractor Approver Recommendation Action Banner */}
+                  {workOrder.selected_contractor_quote_id && status === 'reported' && (
+                    <div className="p-4 bg-purple-50/80 border border-purple-200 rounded-xl space-y-2 text-xs">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-purple-600 animate-pulse" />
+                          <span className="font-bold text-purple-950 text-sm">
+                            Works Engineer Recommendation Submitted
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-200 text-purple-900 uppercase">
+                          Awaiting Procurement Approval
+                        </span>
+                      </div>
+
+                      <div className="bg-white p-3 rounded-lg border border-purple-100 space-y-1 text-slate-700">
+                        <div>
+                          Recommended Contractor:{' '}
+                          <strong className="text-purple-950">
+                            {workOrder.quotations?.find(q => q.id === workOrder.selected_contractor_quote_id)?.contractor_name || 'Selected Contractor'}
+                          </strong>{' '}
+                          (Quoted:{' '}
+                          <strong className="text-purple-950 font-mono">
+                            {formatCurrency(workOrder.quotations?.find(q => q.id === workOrder.selected_contractor_quote_id)?.amount || 0)}
+                          </strong>)
+                        </div>
+                        {workOrder.engineer_recommendation_notes && (
+                          <div className="text-[11px] text-slate-600 pt-1 border-t border-purple-50">
+                            <strong>Engineer Rationale:</strong> {workOrder.engineer_recommendation_notes}
+                          </div>
+                        )}
+                      </div>
+
+                      {hasAssignScope && (
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReevaluateNotesInput('');
+                              setReevaluateError(null);
+                              setIsReevaluateModalOpen(true);
+                            }}
+                            className="px-3.5 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-xs font-semibold rounded-lg transition active:scale-95 cursor-pointer"
+                          >
+                            Re-evaluate Quotes
+                          </button>
+                          <button
+                            type="button"
+                            disabled={reviewContractorRecommendationMutation.isPending}
+                            onClick={() =>
+                              reviewContractorRecommendationMutation.mutate({
+                                action: 'approved',
+                                notes: 'Approved by Procurement Approver'
+                              })
+                            }
+                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
+                          >
+                            {reviewContractorRecommendationMutation.isPending ? 'Assigning...' : 'Approve & Assign Contractor'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Re-evaluation Alert if returned by Approver */}
+                  {workOrder.contractor_approver_action === 'reevaluate' && !workOrder.selected_contractor_quote_id && (
+                    <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 space-y-1">
+                      <div className="font-bold flex items-center justify-between">
+                        <span>Quotation Re-evaluation Requested by Procurement</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-amber-200 text-amber-900 uppercase font-bold">
+                          Re-evaluation Required
+                        </span>
+                      </div>
+                      <p className="text-amber-800 text-[11px]">
+                        <strong>Approver Feedback:</strong> {workOrder.contractor_approver_notes || 'Please re-evaluate candidate quotes.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Quotations List / Comparison Table */}
+                  {workOrder.quotations && workOrder.quotations.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
+                          <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                            <tr>
+                              <th className="p-3">Contractor / Entity</th>
+                              <th className="p-3">Quote Ref</th>
+                              <th className="p-3">Quoted Amount (R)</th>
+                              <th className="p-3">Submitted Date</th>
+                              <th className="p-3">Status</th>
+                              {isWorksEngineer && status === 'reported' && <th className="p-3 text-right">Select</th>}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {workOrder.quotations.map((q) => {
+                              const isRecommended = q.id === workOrder.selected_contractor_quote_id;
+                              const isAssigned = q.status === 'assigned' || q.contractor_id === workOrder.assigned_to;
+                              return (
+                                <tr key={q.id} className={isRecommended ? 'bg-purple-50/40' : isAssigned ? 'bg-emerald-50/40' : ''}>
+                                  <td className="p-3">
+                                    <div className="font-bold text-slate-900">{q.contractor_name || 'Contractor'}</div>
+                                    {q.notes && <div className="text-[11px] text-slate-500 mt-0.5 max-w-xs truncate">{q.notes}</div>}
+                                  </td>
+                                  <td className="p-3 font-mono text-slate-600">{q.quote_ref || '-'}</td>
+                                  <td className="p-3 font-mono font-bold text-slate-900 text-sm">
+                                    {formatCurrency(q.amount)}
+                                  </td>
+                                  <td className="p-3 text-slate-500 font-mono text-[11px]">
+                                    {formatDate(q.created_at)}
+                                  </td>
+                                  <td className="p-3">
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                        isAssigned
+                                          ? 'bg-emerald-100 text-emerald-800'
+                                          : isRecommended
+                                          ? 'bg-purple-100 text-purple-800'
+                                          : q.status === 'rejected'
+                                          ? 'bg-rose-100 text-rose-800'
+                                          : 'bg-slate-100 text-slate-700'
+                                      }`}
+                                    >
+                                      {isAssigned ? 'Assigned' : isRecommended ? 'Recommended' : q.status}
+                                    </span>
+                                  </td>
+                                  {isWorksEngineer && status === 'reported' && (
+                                    <td className="p-3 text-right">
+                                      <input
+                                        type="radio"
+                                        name="selectedQuote"
+                                        checked={selectedQuoteIdToRecommend === q.id || (!selectedQuoteIdToRecommend && isRecommended)}
+                                        onChange={() => setSelectedQuoteIdToRecommend(q.id)}
+                                        className="h-4 w-4 text-purple-600 border-slate-300 focus:ring-purple-500 cursor-pointer"
+                                      />
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Works Engineer Recommendation Box */}
+                      {isWorksEngineer && status === 'reported' && (
+                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+                          {recommendationError && (
+                            <div className="p-2 rounded bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                              {recommendationError}
+                            </div>
+                          )}
+                          <label className="block text-xs font-bold text-slate-800">
+                            Works Engineer Recommendation Rationale:
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={engineerRecommendationNotesInput}
+                            onChange={(e) => setEngineerRecommendationNotesInput(e.target.value)}
+                            placeholder="State technical justification, rate competitiveness, or contractor OEM specialty..."
+                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                          />
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              disabled={!selectedQuoteIdToRecommend && !workOrder.selected_contractor_quote_id || recommendQuoteMutation.isPending}
+                              onClick={() =>
+                                recommendQuoteMutation.mutate({
+                                  quoteId: selectedQuoteIdToRecommend || workOrder.selected_contractor_quote_id || '',
+                                  notes: engineerRecommendationNotesInput.trim()
+                                })
+                              }
+                              className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
+                            >
+                              {recommendQuoteMutation.isPending ? 'Submitting...' : 'Recommend Selected Contractor to Approver'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 text-xs text-slate-500">
+                      No commercial quotations submitted by contractors yet. When contractors submit quotes, they will appear here for Works Engineer evaluation.
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Client Quotation Approval Lifecycle Card */}
               {!isRouteB && (
                 <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
@@ -2526,6 +3057,167 @@ export default function WorkOrderDetailPage() {
                 </div>
               )}
 
+              {/* Critical Emergency Job: Contractor Post-Completion Quote & Works Engineer Review Card */}
+              {isCriticalJob && ['completed', 'verified', 'closed'].includes(status) && (
+                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-purple-200 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-purple-100">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                          Critical Job Contractor Quote &amp; Scoping
+                        </h2>
+                        {workOrder.contractor_critical_quote_status === 'approved' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            Quote Approved &bull; Auto-Invoiced
+                          </span>
+                        ) : workOrder.contractor_critical_quote_status === 'adjusted' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            Quote Adjusted by Engineer
+                          </span>
+                        ) : workOrder.contractor_critical_quote_status === 'submitted' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300">
+                            Quote Submitted &bull; Awaiting Engineer Review
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                            Pending Contractor Quote
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Post-completion emergency cost claim, maintenance breakdown, and Works Engineer validation.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {canProvideCriticalQuote && (
+                        <button
+                          type="button"
+                          onClick={openCriticalQuoteModal}
+                          className="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold rounded-lg transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                        >
+                          {workOrder.contractor_critical_quote_status ? 'Edit Quote' : 'Provide Quote / Cost Breakdown'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {workOrder.contractor_critical_quote_cost ? (
+                    <div className="p-4 bg-purple-50/50 rounded-xl border border-purple-100 space-y-3 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="bg-white p-3 rounded-lg border border-purple-100">
+                          <span className="text-[10px] font-semibold text-slate-500 block uppercase">Quoted / Claimed Amount</span>
+                          <span className="text-base font-bold font-mono text-purple-900">
+                            {formatCurrency(workOrder.contractor_critical_quote_cost)}
+                          </span>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-purple-100">
+                          <span className="text-[10px] font-semibold text-slate-500 block uppercase">Submitted At</span>
+                          <span className="text-xs font-semibold text-slate-800">
+                            {workOrder.contractor_critical_quote_submitted_at ? formatDate(workOrder.contractor_critical_quote_submitted_at) : 'N/A'}
+                          </span>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-purple-100">
+                          <span className="text-[10px] font-semibold text-slate-500 block uppercase">Engineer Review Status</span>
+                          <span className="text-xs font-bold text-slate-800 capitalize">
+                            {workOrder.contractor_critical_quote_status || 'Pending'}
+                          </span>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-purple-100">
+                          <span className="text-[10px] font-semibold text-slate-500 block uppercase">Approved By</span>
+                          <span className="text-xs font-semibold text-slate-800">
+                            {workOrder.contractor_critical_quote_approved_by ? `${workOrder.contractor_critical_quote_approved_by}` : 'Pending Sign-off'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Breakdown Categories & Description */}
+                      {(() => {
+                        let cats: string[] = [];
+                        let notes = '';
+                        if (workOrder.contractor_critical_quote_breakdown) {
+                          try {
+                            const parsed = JSON.parse(workOrder.contractor_critical_quote_breakdown);
+                            if (parsed.categories) cats = parsed.categories;
+                            if (parsed.notes) notes = parsed.notes;
+                          } catch (_) {
+                            notes = workOrder.contractor_critical_quote_breakdown;
+                          }
+                        }
+                        return (
+                          <div className="space-y-2 pt-1">
+                            {cats.length > 0 && (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-semibold text-slate-600 mr-1">Work Classification:</span>
+                                {cats.map((c) => (
+                                  <span key={c} className="px-2.5 py-0.5 bg-purple-100 text-purple-900 border border-purple-200 rounded-full font-bold text-[11px]">
+                                    {c}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {notes && (
+                              <div className="bg-white p-3 rounded-lg border border-purple-100">
+                                <span className="font-semibold text-slate-700 block mb-0.5">Scope &amp; Component Replacement Details:</span>
+                                <p className="text-slate-800 whitespace-pre-wrap">{notes}</p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Engineer Notes if any */}
+                      {workOrder.contractor_critical_quote_engineer_notes && (
+                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-900">
+                          <span className="font-bold block mb-0.5">Works Engineer Notes:</span>
+                          <p>{workOrder.contractor_critical_quote_engineer_notes}</p>
+                        </div>
+                      )}
+
+                      {/* Engineer Review Actions inside Card */}
+                      {canReviewCriticalQuote && (
+                        <div className="pt-2 border-t border-purple-200/80 flex items-center justify-between flex-wrap gap-2">
+                          <div className="text-slate-600 font-medium">
+                            Action Required: Verify technical scope and approve or adjust emergency claim amount.
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={openAdjustCriticalQuoteModal}
+                              disabled={reviewCriticalQuoteMutation.isPending}
+                              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                            >
+                              Adjust Quote
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => reviewCriticalQuoteMutation.mutate({ action: 'approve' })}
+                              disabled={reviewCriticalQuoteMutation.isPending}
+                              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1 shadow-sm"
+                            >
+                              {reviewCriticalQuoteMutation.isPending ? 'Approving...' : 'Approve & Auto-Invoice'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center text-xs text-slate-500 py-6 space-y-2">
+                      <p>Work is completed. The assigned contractor can now provide the itemized quote &amp; cost breakdown for Works Engineer verification.</p>
+                      {canProvideCriticalQuote && (
+                        <button
+                          type="button"
+                          onClick={openCriticalQuoteModal}
+                          className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg text-xs transition-all active:scale-95 cursor-pointer inline-flex items-center gap-1.5 shadow-sm"
+                        >
+                          Provide Quote / Cost Breakdown
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 3-Way Statutory Completion Sign-off Card (PDF Page 5) */}
               {['completed', 'verified', 'closed'].includes(status) && (
                 <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
@@ -2581,7 +3273,7 @@ export default function WorkOrderDetailPage() {
                             <div className="text-[10px] text-slate-500">{formatDate(workOrder.signoff_inspector_at)}</div>
                           )}
                           <div className="text-[11px] text-teal-800 font-sans font-semibold pt-0.5 flex items-center justify-between">
-                            <span>⏱️ Logged QC Time:</span>
+                            <span>Logged QC Time:</span>
                             <span className="px-1.5 py-0.5 bg-teal-50 border border-teal-200 rounded font-mono text-teal-900">
                               {workOrder.inspector_timesheet_hours ? `${Number(workOrder.inspector_timesheet_hours).toFixed(1)} hrs` : 'Logged'}
                             </span>
@@ -2609,7 +3301,7 @@ export default function WorkOrderDetailPage() {
                               }}
                               className="mt-2 w-full py-1.5 px-2 bg-slate-900 hover:bg-black active:bg-slate-800 text-white text-[10px] font-bold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
                             >
-                              <span>📄</span> Print Inspector Timesheet (PDF)
+                              Print Inspector Timesheet (PDF)
                             </button>
                           )}
                         </div>
@@ -2645,7 +3337,7 @@ export default function WorkOrderDetailPage() {
                             disabled={signoffMutation.isPending}
                             className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
                           >
-                            ✓ Sign Off &amp; Timesheet
+                            Sign Off &amp; Timesheet
                           </button>
                           <button
                             type="button"
@@ -2657,7 +3349,7 @@ export default function WorkOrderDetailPage() {
                             disabled={signoffMutation.isPending}
                             className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 cursor-pointer text-center whitespace-nowrap"
                           >
-                            ✕ Reject
+                            Reject
                           </button>
                         </div>
                       ) : (
@@ -2683,7 +3375,7 @@ export default function WorkOrderDetailPage() {
                             <div className="text-[10px] text-slate-500">{formatDate(workOrder.signoff_engineer_at)}</div>
                           )}
                           <div className="text-[11px] text-sky-800 font-sans font-semibold pt-0.5 flex items-center justify-between">
-                            <span>⚙️ Logged Tech Time:</span>
+                            <span>Logged Tech Time:</span>
                             <span className="px-1.5 py-0.5 bg-sky-50 border border-sky-200 rounded font-mono text-sky-900">
                               {workOrder.engineer_timesheet_hours ? `${Number(workOrder.engineer_timesheet_hours).toFixed(1)} hrs` : 'Logged'}
                             </span>
@@ -2711,13 +3403,13 @@ export default function WorkOrderDetailPage() {
                               }}
                               className="mt-2 w-full py-1.5 px-2 bg-slate-900 hover:bg-black active:bg-slate-800 text-white text-[10px] font-bold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
                             >
-                              <span>📄</span> Print Engineer Timesheet (PDF)
+                              Print Engineer Timesheet (PDF)
                             </button>
                           )}
                         </div>
                       ) : !workOrder.signoff_inspector_by ? (
                         <div className="pt-2 text-[11px] text-amber-700 font-medium bg-amber-50/80 p-2 rounded border border-amber-200">
-                          🔒 Awaiting Step 1: Works Inspector Sign-off first
+                          Awaiting Step 1: Works Inspector Sign-off first
                         </div>
                       ) : canSignEngineer ? (
                         <div className="pt-2 flex items-center gap-2">
@@ -2751,7 +3443,7 @@ export default function WorkOrderDetailPage() {
                             disabled={signoffMutation.isPending}
                             className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
                           >
-                            ✓ Sign Off &amp; Timesheet
+                            Sign Off &amp; Timesheet
                           </button>
                           <button
                             type="button"
@@ -2763,7 +3455,7 @@ export default function WorkOrderDetailPage() {
                             disabled={signoffMutation.isPending}
                             className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 cursor-pointer text-center whitespace-nowrap"
                           >
-                            ✕ Reject
+                            Reject
                           </button>
                         </div>
                       ) : (
@@ -2791,7 +3483,7 @@ export default function WorkOrderDetailPage() {
                         </div>
                       ) : !workOrder.signoff_engineer_by ? (
                         <div className="pt-2 text-[11px] text-amber-700 font-medium bg-amber-50/80 p-2 rounded border border-amber-200">
-                          🔒 Awaiting Step 2: Works Engineer Sign-off first
+                          Awaiting Step 2: Works Engineer Sign-off first
                         </div>
                       ) : canSignFm ? (
                         <div className="pt-2 flex items-center gap-2">
@@ -2801,7 +3493,7 @@ export default function WorkOrderDetailPage() {
                             disabled={signoffMutation.isPending}
                             className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
                           >
-                            ✓ Sign Off
+                            Sign Off
                           </button>
                           <button
                             type="button"
@@ -2813,7 +3505,7 @@ export default function WorkOrderDetailPage() {
                             disabled={signoffMutation.isPending}
                             className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 cursor-pointer text-center whitespace-nowrap"
                           >
-                            ✕ Reject
+                            Reject
                           </button>
                         </div>
                       ) : (
@@ -3522,7 +4214,7 @@ export default function WorkOrderDetailPage() {
                   {(isRouteB || (!workOrder?.estimated_cost && !workOrder?.assessor_estimate)) && (
                     <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-lg text-xs space-y-1">
                       <div className="flex items-center gap-1.5 font-bold text-purple-900">
-                        <span>⚡</span> Emergency Fast-Track Dispatch (Advance Float)
+                        Emergency Fast-Track Dispatch (Advance Float)
                       </div>
                       <p className="text-purple-800 text-[11px] leading-relaxed">
                         Direct specialist contractor allocation without upfront payment delay. Actual costs and repair details will be logged by the contractor upon work completion.
@@ -3627,42 +4319,104 @@ export default function WorkOrderDetailPage() {
                 </div>
               )}
 
-              {/* Contractor Cost & Mandatory Evidence Submission upon Completion */}
-              {targetStatus === 'completed' && (
+              {/* Optional Initial Site Photos & Documentation upon Starting Job */}
+              {targetStatus === 'in_progress' && (
                 <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-semibold text-gray-700">
-                        Final Incurred Repair Cost / Work Claim (R) *
+                  {/* 1. Optional Initial Site Photos */}
+                  <div className="p-3.5 bg-sky-50/60 border border-sky-200 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-800">
+                        Initial Site / Equipment Photos (Optional)
                       </label>
-                      {workOrder?.estimated_cost ? (
-                        <span className="inline-flex items-center text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                          Est. Budget: {formatCurrency(workOrder.estimated_cost)}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-                          Direct Emergency Claim
-                        </span>
-                      )}
+                      <span className="px-2 py-0.5 text-[10px] font-medium bg-sky-100 text-sky-800 rounded">
+                        {startJobPhotos.length > 0 ? `${startJobPhotos.length} photo(s) selected` : 'Optional'}
+                      </span>
                     </div>
-                    <div className="relative rounded-md shadow-xs">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <span className="text-gray-500 text-sm font-medium">R</span>
-                      </div>
-                      <input
-                        type="number"
-                        value={actualCostInput}
-                        onChange={(e) => setActualCostInput(e.target.value === '' ? '' : Number(e.target.value))}
-                        placeholder="e.g. 15000"
-                        className="w-full pl-7 pr-3 py-2 bg-white border border-gray-300 rounded-md text-sm font-bold text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                        required
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Enter the total actual cost of labour, replacement components, and specialist services.
+                    <p className="text-[11px] text-slate-600">
+                      Attach arrival or initial condition photos before beginning work.
                     </p>
+                    <input
+                      type="file"
+                      id="start-job-photo-input"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          const newFiles = Array.from(e.target.files);
+                          setStartJobPhotos((prev) => [...prev, ...newFiles]);
+                        }
+                      }}
+                      className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sky-600 file:text-white hover:file:bg-sky-700 cursor-pointer"
+                    />
+
+                    {startJobPhotos.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1.5">
+                        {startJobPhotos.map((file, idx) => (
+                          <div key={idx} className="relative group bg-white border border-sky-300 rounded-lg p-1.5 pr-6 text-[11px] text-slate-800 flex items-center shadow-2xs">
+                            <span className="truncate max-w-[140px] font-medium">{file.name}</span>
+                            <span className="text-[10px] text-slate-400 ml-1">({Math.round(file.size / 1024)} KB)</span>
+                            <button
+                              type="button"
+                              onClick={() => setStartJobPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                              className="absolute right-1 text-slate-400 hover:text-rose-600 font-bold px-1"
+                              title="Remove photo"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
+                  {/* 2. Optional Supporting Document (PDF / DOC / DOCX) */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-slate-800">
+                        Initial Job Card / Permit / Safety Document (Optional)
+                      </label>
+                      <span className="px-2 py-0.5 text-[10px] font-medium bg-slate-200 text-slate-700 rounded">
+                        Optional (PDF / DOC)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Attach digital job card, entry permit, or initial contractor safety sheet.
+                    </p>
+                    <input
+                      type="file"
+                      id="start-job-doc-input"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setStartJobDoc(e.target.files[0]);
+                        }
+                      }}
+                      className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-800 cursor-pointer"
+                    />
+
+                    {startJobDoc && (
+                      <div className="flex items-center justify-between bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-800 shadow-2xs mt-1">
+                        <div className="flex items-center space-x-1.5 truncate">
+                          <span className="font-semibold truncate">{startJobDoc.name}</span>
+                          <span className="text-[10px] text-slate-400">({Math.round(startJobDoc.size / 1024)} KB)</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setStartJobDoc(null)}
+                          className="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 ml-2"
+                          title="Remove document"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Mandatory Evidence Submission upon Completion (Price Prompt Removed) */}
+              {targetStatus === 'completed' && (
+                <div className="space-y-4">
                   {/* 1. Mandatory Proof of Completion Images */}
                   <div className="p-3.5 bg-sky-50/60 border border-sky-200 rounded-xl space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -3738,7 +4492,7 @@ export default function WorkOrderDetailPage() {
                     {completionDoc && (
                       <div className="flex items-center justify-between bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-800 shadow-2xs mt-1">
                         <div className="flex items-center space-x-1.5 truncate">
-                          <span className="font-mono text-xs">📄</span>
+                          
                           <span className="font-semibold truncate">{completionDoc.name}</span>
                           <span className="text-[10px] text-slate-400">({Math.round(completionDoc.size / 1024)} KB)</span>
                         </div>
@@ -4273,31 +5027,27 @@ export default function WorkOrderDetailPage() {
           </div>
         )}
 
-        {/* Engineering Assessor Scope & Cost Estimation Modal */}
+        {/* Engineering Assessor Scope & Itemized Assessment Modal */}
         {isAssessmentModalOpen && (
-          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 sm:p-7 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
               {/* Modal Header */}
               <div className="flex justify-between items-start pb-4 border-b border-slate-100">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 uppercase tracking-wider">
-                      Part 1 &bull; Technical Scoping
+                      Technical Assessment
                     </span>
                     <span className="text-xs font-mono font-bold text-slate-500">{workOrder.tracking_number}</span>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${uBadge.bg} ${uBadge.text} ${uBadge.border}`}>
                       {urgency}
                     </span>
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 mt-1.5 tracking-tight">
-                    {isWorksEngineer && (workOrder.assessor_estimate === null || workOrder.assessor_estimate === undefined)
-                      ? 'Works Engineer Technical Scoping & Cost Calculation'
-                      : workOrder.assessment_type && workOrder.assessor_estimate !== null && workOrder.assessor_estimate !== undefined
-                      ? 'Edit Engineering Assessment & Preliminary Scope'
-                      : 'Engineering Technical Scoping & Cost Calculation'}
+                  <h3 className="text-xl font-bold text-slate-900 mt-1.5 tracking-tight">
+                    Conduct Site Assessment &amp; Technical Scoping
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Define preliminary repair cost, completion turnaround timeline, and automated R50,000 funding route protocol.
+                    Record itemized work scope breakdown, onsite photo evidence, and assessment timesheet.
                   </p>
                 </div>
                 <button
@@ -4315,12 +5065,12 @@ export default function WorkOrderDetailPage() {
                 </div>
               )}
 
-              {/* Assessment Mode (Interactive Selection Cards) */}
+              {/* 1. Assessment Mode Selection */}
               <div>
                 <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-2">
                   1. Assessment Mode &bull; Evaluation Type *
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div
                     onClick={() => setAssessmentType('offsite')}
                     className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all flex items-start gap-3 select-none ${
@@ -4375,155 +5125,327 @@ export default function WorkOrderDetailPage() {
                 </div>
               </div>
 
-              {/* Charge Code Selection */}
+              {/* Onsite Photo Evidence Upload (Shown when Onsite selected) */}
+              {assessmentType === 'onsite' && (
+                <div className="p-4 bg-sky-50/50 rounded-xl border border-sky-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-xs font-bold text-sky-900 uppercase tracking-wide">
+                        Onsite Physical Visit &bull; Picture Evidence *
+                      </label>
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        Upload inspection photos taken during physical site assessment.
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-sky-700 font-mono">
+                      {onsiteAssessmentPhotos.length} photos selected
+                    </span>
+                  </div>
+
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        setOnsiteAssessmentPhotos(Array.from(e.target.files));
+                      }
+                    }}
+                    className="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-sky-600 file:text-white hover:file:bg-sky-700 cursor-pointer bg-white p-2 rounded-xl border border-sky-200"
+                  />
+
+                  {onsiteAssessmentPhotos.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {onsiteAssessmentPhotos.map((file, idx) => (
+                        <div key={idx} className="relative group p-1 bg-white rounded-lg border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] text-slate-600 font-mono block max-w-[120px] truncate px-1">
+                            {file.name}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 2. Scope Classification Types */}
               <div>
                 <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5">
-                  2. Assessment Charge Code *
+                  2. Required Work Scope Classification *
                 </label>
-                <select
-                  value={chargeCode}
-                  onChange={(e) => setChargeCode(e.target.value as 'PRE' | 'ONS' | 'TRV' | 'EVI' | 'FIN')}
-                  className="w-full px-3.5 py-2.5 bg-slate-50/60 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none shadow-2xs cursor-pointer"
-                >
-                  <option value="PRE">PRE &mdash; Preliminary / Remote Offsite Review (Standard Triage)</option>
-                  <option value="ONS">ONS &mdash; Onsite Technical Inspection (Facility Physical Visit)</option>
-                  <option value="TRV">TRV &mdash; Travel &amp; Remote Hospital Site Assessment</option>
-                  <option value="EVI">EVI &mdash; Evidence &amp; Photo Analysis (Specialist Scoping)</option>
-                  <option value="FIN">FIN &mdash; Final Comprehensive Assessment &amp; Cost Confirmation</option>
-                </select>
+                <div className="flex flex-wrap gap-2">
+                  {['Maintenance', 'Repair', 'Change / Replace', 'Calibration', 'Alteration'].map((cat) => {
+                    const isSelected = assessmentWorkTypes.includes(cat);
+                    return (
+                      <button
+                        type="button"
+                        key={cat}
+                        onClick={() => {
+                          if (isSelected) {
+                            setAssessmentWorkTypes(assessmentWorkTypes.filter((c) => c !== cat));
+                          } else {
+                            setAssessmentWorkTypes([...assessmentWorkTypes, cat]);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                          isSelected
+                            ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                            : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                        }`}
+                      >
+                        {isSelected ? '✓ ' : '+ '} {cat}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Core Financial & Timeline Metrics Box */}
-              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/90 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
-                    3. Scoping Metrics &bull; Cost &amp; Timeline *
-                  </label>
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    Automated threshold: R50,000
-                  </span>
+              {/* 3. Itemized Work Breakdown & Cost Calculation */}
+              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-900 uppercase tracking-wide">
+                      3. Itemized Work Scope &amp; Cost Breakdown *
+                    </label>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Specify each required maintenance / repair task and estimated line cost.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAssessmentItems([
+                        ...assessmentItems,
+                        { id: `item-${Date.now()}`, description: '', cost: '' }
+                      ]);
+                    }}
+                    className="px-3 py-1.5 text-xs font-bold text-sky-700 bg-sky-100 hover:bg-sky-200 rounded-lg transition"
+                  >
+                    + Add Scope Item
+                  </button>
                 </div>
 
-                {referToEngineer ? (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs font-medium text-amber-800 italic">
-                    Ticket will be escalated to Works Engineer for technical cost calculation.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {/* Cost / Payment in Rand */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Assessor Cost / Payment (R) *
-                      </label>
-                      <div className="relative rounded-lg shadow-2xs">
-                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                          <span className="text-slate-400 text-xs font-mono font-bold">R</span>
-                        </div>
+                <div className="space-y-2.5">
+                  {assessmentItems.map((item, index) => (
+                    <div key={item.id} className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                      <span className="text-xs font-bold text-slate-400 font-mono w-6 text-center shrink-0">
+                        #{index + 1}
+                      </span>
+                      <input
+                        type="text"
+                        value={item.description}
+                        onChange={(e) => {
+                          const updated = [...assessmentItems];
+                          updated[index].description = e.target.value;
+                          setAssessmentItems(updated);
+                        }}
+                        placeholder="e.g. Diagnostic testing, valve replacement, PCB soldering..."
+                        className="flex-1 px-3 py-2 bg-slate-50/60 border border-slate-200 rounded-lg text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      />
+                      <div className="relative w-36 shrink-0">
+                        <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400 text-xs font-mono font-bold">
+                          R
+                        </span>
                         <input
                           type="number"
-                          value={assessmentEstimate}
-                          onChange={(e) => setAssessmentEstimate(e.target.value === '' ? '' : Number(e.target.value))}
-                          placeholder="e.g. 35000"
-                          className="w-full pl-8 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono"
+                          value={item.cost}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            const updated = [...assessmentItems];
+                            updated[index].cost = val;
+                            setAssessmentItems(updated);
+                            const totalSum = updated.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
+                            setAssessmentEstimate(totalSum > 0 ? totalSum : '');
+                          }}
+                          placeholder="Cost"
+                          className="w-full pl-7 pr-2.5 py-2 bg-slate-50/60 border border-slate-200 rounded-lg text-xs font-bold font-mono text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-sky-500"
                         />
+                      </div>
+                      {assessmentItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = assessmentItems.filter((_, i) => i !== index);
+                            setAssessmentItems(updated);
+                            const totalSum = updated.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
+                            setAssessmentEstimate(totalSum > 0 ? totalSum : '');
+                          }}
+                          className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition"
+                          title="Remove item"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Total Cost & Turnaround Days Summary */}
+                <div className="pt-3 border-t border-slate-200 flex items-center justify-between flex-wrap gap-3 bg-white p-3 rounded-xl border border-slate-100">
+                  <div>
+                    <span className="text-xs text-slate-500 block">Total Estimated Scope Cost:</span>
+                    <span className="text-lg font-bold font-mono text-slate-900">
+                      R {assessmentItems.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-bold text-slate-900">
+                      Turnaround (Days) *:
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={estimatedDays}
+                      onChange={(e) => setEstimatedDays(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="e.g. 3"
+                      className="w-20 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold font-mono text-slate-900 focus:bg-white focus:ring-1 focus:ring-sky-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Assessment Timesheet Section */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setShowAssessmentTimesheet(!showAssessmentTimesheet)}
+                  className="w-full p-4 bg-slate-50 hover:bg-slate-100 transition flex items-center justify-between text-left cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                      4. Assessment Timesheet (Monday &ndash; Sunday)
+                    </span>
+                    <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-sky-100 text-sky-800 font-mono">
+                      {assessmentTimesheetDays.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0)} Hours Logged
+                    </span>
+                  </div>
+                  <span className="text-xs font-bold text-sky-600 flex items-center gap-1">
+                    {showAssessmentTimesheet ? 'Hide Timesheet ▲' : 'Show Timesheet ▼'}
+                  </span>
+                </button>
+
+                {showAssessmentTimesheet && (
+                  <div className="p-5 bg-white space-y-4 border-t border-slate-200">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                      <div className="flex items-center gap-3">
+                        <label className="text-xs font-bold text-slate-700">Week Start Date (Monday):</label>
+                        <input
+                          type="date"
+                          value={assessmentTimesheetWeekStart}
+                          onChange={(e) => {
+                            const dateVal = e.target.value;
+                            setAssessmentTimesheetWeekStart(dateVal);
+                            if (dateVal) {
+                              const [y, m, d] = dateVal.split('-').map(Number);
+                              const baseDate = new Date(y, m - 1, d);
+                              const updated = assessmentTimesheetDays.map((dayObj, i) => {
+                                const dayDate = new Date(baseDate);
+                                dayDate.setDate(baseDate.getDate() + i);
+                                const year = dayDate.getFullYear();
+                                const month = String(dayDate.getMonth() + 1).padStart(2, '0');
+                                const dayNum = String(dayDate.getDate()).padStart(2, '0');
+                                return { ...dayObj, date: `${year}-${month}-${dayNum}` };
+                              });
+                              setAssessmentTimesheetDays(updated);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 shadow-2xs cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Quick Presets */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = assessmentTimesheetDays.map((d, i) => ({
+                              ...d,
+                              hours: i < 5 ? '8' : ''
+                            }));
+                            setAssessmentTimesheetDays(updated);
+                            setAssessmentHours(40);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[11px] font-semibold text-slate-700 transition"
+                        >
+                          + Set 8 hrs (Mon-Fri)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = assessmentTimesheetDays.map((d) => ({
+                              ...d,
+                              hours: ''
+                            }));
+                            setAssessmentTimesheetDays(updated);
+                            setAssessmentHours('');
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-[11px] font-semibold text-rose-700 transition"
+                        >
+                          Clear
+                        </button>
                       </div>
                     </div>
 
-                    {/* Turnaround Days */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Turnaround (Days)
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={estimatedDays}
-                        onChange={(e) => setEstimatedDays(e.target.value === '' ? '' : Number(e.target.value))}
-                        placeholder="e.g. 3"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none font-mono"
-                      />
-                    </div>
-                  </div>
-                )}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 pt-1">
+                      {assessmentTimesheetDays.map((dayRow, idx) => {
+                        const formattedDisplayDate = dayRow.date
+                          ? (() => {
+                              try {
+                                const [y, m, d] = dayRow.date.split('-').map(Number);
+                                const dateObj = new Date(y, m - 1, d);
+                                return dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                              } catch {
+                                return dayRow.date;
+                              }
+                            })()
+                          : '—';
 
-                {/* Dynamic Live Automated Funding Dispatch Preview */}
-                {!referToEngineer && (
-                  <div className="pt-2 border-t border-slate-200/80">
-                    <div className="p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 bg-white border-slate-200">
-                      <span className="font-semibold text-slate-700 text-[11px]">
-                        Automated Funding Protocol:
-                      </span>
-                      {urgency === 'Critical 0–24h' || (assessmentEstimate !== '' && Number(assessmentEstimate) <= 50000) || routeBOverride ? (
-                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200 flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                          {routeBOverride ? 'Advance Float (QB Special Override)' : 'Advance Float Funded (Route B &le; R50k)'}
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-sky-50 text-sky-800 border border-sky-200 flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-sky-600"></span>
-                          Client Gateway (NC DOH Route A &gt; R50k)
-                        </span>
-                      )}
+                        return (
+                          <div key={dayRow.day} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center space-y-1.5 shadow-2xs">
+                            <div className="font-bold text-xs text-slate-900">{dayRow.day.slice(0, 3)}</div>
+                            <div className="text-[11px] font-semibold text-sky-700 font-mono bg-white py-0.5 px-1 rounded border border-slate-200/60 truncate">
+                              {formattedDisplayDate}
+                            </div>
+                            <input
+                              type="number"
+                              min="0"
+                              max="24"
+                              step="0.5"
+                              value={dayRow.hours}
+                              onChange={(e) => {
+                                const updated = [...assessmentTimesheetDays];
+                                updated[idx].hours = e.target.value;
+                                setAssessmentTimesheetDays(updated);
+                                const totalHours = updated.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0);
+                                setAssessmentHours(totalHours > 0 ? totalHours : '');
+                              }}
+                              placeholder="0 hrs"
+                              className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-center text-xs font-bold font-mono text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                            />
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Works Inspector Optional Escalation Checkbox */}
-              {isWorksInspector && !isWorksEngineer && (
-                <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/70 text-xs">
-                  <label className="flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={referToEngineer}
-                      onChange={(e) => setReferToEngineer(e.target.checked)}
-                      className="h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                    />
-                    <span className="text-xs font-semibold text-amber-950">
-                      Escalate to Works Engineer for complex technical scoping assistance
-                    </span>
-                  </label>
-                </div>
-              )}
-
-              {/* Advance Float Emergency Override for jobs over R50k */}
-              {!referToEngineer && assessmentEstimate !== '' && Number(assessmentEstimate) > 50000 && urgency !== 'Critical 0–24h' && (
-                <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/80 space-y-1.5">
-                  <label className="flex items-start gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={routeBOverride}
-                      onChange={(e) => setRouteBOverride(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-amber-400 text-slate-900 focus:ring-slate-900 cursor-pointer"
-                    />
-                    <div className="text-xs">
-                      <span className="font-bold text-amber-950 block">
-                        Elect Advance Float Funding (Quantum Built Special Override)
-                      </span>
-                      <span className="text-amber-800 text-[11px] leading-relaxed">
-                        Special emergency allocation from Quantum Built advance float. Requires mandatory audit justification note below.
-                      </span>
-                    </div>
-                  </label>
-                </div>
-              )}
-
-              {/* Assessment Scope Notes */}
+              {/* 5. Assessment Scope Notes & Observations */}
               <div>
                 <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5">
-                  4. {referToEngineer ? 'Referral Notes for Works Engineer *' : 'Technical Scope & Observations (Optional)'}
+                  5. Technical Scope &amp; Observations (Optional)
                 </label>
                 <textarea
                   rows={3}
                   value={assessmentNotes}
                   onChange={(e) => setAssessmentNotes(e.target.value)}
-                  placeholder={referToEngineer ? "Detail equipment failure symptoms, required engineering inspection, or site constraints..." : "Detail scope of repairs, required components, diagnostics findings, or site constraints..."}
+                  placeholder="Detail equipment condition, failure root causes, site constraints, and technical recommendations..."
                   className="w-full px-3.5 py-2.5 bg-slate-50/50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none shadow-2xs"
                 />
               </div>
 
               {/* Modal Footer Actions */}
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAssessmentModalOpen(false)}
@@ -4531,43 +5453,26 @@ export default function WorkOrderDetailPage() {
                 >
                   Cancel
                 </button>
-                {referToEngineer ? (
-                  <button
-                    type="button"
-                    disabled={assessmentMutation.isPending}
-                    onClick={() => assessmentMutation.mutate()}
-                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all shadow-sm ${
-                      assessmentMutation.isPending
-                        ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed'
-                        : 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white hover:shadow active:scale-95 cursor-pointer'
-                    }`}
-                  >
-                    {assessmentMutation.isPending
-                      ? 'Dispatching...'
-                      : isReferredToEngineer
-                      ? 'Update Referral Notes & Alert'
-                      : 'Refer to Works Engineer & Send Alert'}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={assessmentEstimate === '' || assessmentMutation.isPending}
-                    onClick={() => assessmentMutation.mutate()}
-                    className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all shadow-sm ${
-                      assessmentEstimate === '' || assessmentMutation.isPending
-                        ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed'
-                        : 'bg-slate-900 hover:bg-black active:bg-slate-800 text-white hover:shadow active:scale-95 cursor-pointer'
-                    }`}
-                  >
-                    {assessmentMutation.isPending
-                      ? 'Recording Assessment...'
-                      : isWorksEngineer && (workOrder.assessor_estimate === null || workOrder.assessor_estimate === undefined)
-                      ? 'Save Technical Scoping & Calculate Route →'
-                      : workOrder.assessment_type && workOrder.assessor_estimate !== null && workOrder.assessor_estimate !== undefined
-                      ? 'Update Assessment & Route →'
-                      : 'Record Assessment & Route Funding →'}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={
+                    assessmentItems.some((item) => !item.description.trim()) ||
+                    assessmentItems.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0) <= 0 ||
+                    !estimatedDays ||
+                    Number(estimatedDays) <= 0 ||
+                    assessmentMutation.isPending
+                  }
+                  onClick={() => assessmentMutation.mutate()}
+                  className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all shadow-sm ${
+                    assessmentItems.some((item) => !item.description.trim()) ||
+                    assessmentItems.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0) <= 0 ||
+                    assessmentMutation.isPending
+                      ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed'
+                      : 'bg-slate-900 hover:bg-black active:bg-slate-800 text-white hover:shadow active:scale-95 cursor-pointer'
+                  }`}
+                >
+                  {assessmentMutation.isPending ? 'Recording Assessment...' : 'Record Site Assessment'}
+                </button>
               </div>
             </div>
           </div>
@@ -5199,7 +6104,7 @@ export default function WorkOrderDetailPage() {
                 <div className="flex items-center gap-1.5">
                   <span className="whitespace-nowrap font-semibold">Signature:</span>
                   <div className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-semibold text-indigo-900 truncate">
-                    ✓ {user?.name || 'Works Inspector'} (Signed)
+                    {user?.name || 'Works Inspector'} (Signed)
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -5232,7 +6137,7 @@ export default function WorkOrderDetailPage() {
                   }}
                   className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  <span>📄</span> Preview Timesheet PDF
+                  Preview Timesheet PDF
                 </button>
 
                 <div className="flex items-center space-x-2">
@@ -5259,7 +6164,7 @@ export default function WorkOrderDetailPage() {
                     }}
                     className="px-4 py-2 text-xs font-bold text-white bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
                   >
-                    {signoffMutation.isPending ? 'Submitting...' : '✓ Confirm Sign-off & Submit Timesheet'}
+                    {signoffMutation.isPending ? 'Submitting...' : 'Confirm Sign-off & Submit Timesheet'}
                   </button>
                 </div>
               </div>
@@ -5392,7 +6297,7 @@ export default function WorkOrderDetailPage() {
                 <div className="flex items-center gap-1.5">
                   <span className="whitespace-nowrap font-semibold">Signature:</span>
                   <div className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-semibold text-sky-900 truncate">
-                    ✓ {user?.name || 'Works Engineer'} (Signed)
+                    {user?.name || 'Works Engineer'} (Signed)
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -5425,7 +6330,7 @@ export default function WorkOrderDetailPage() {
                   }}
                   className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  <span>📄</span> Preview Timesheet PDF
+                  Preview Timesheet PDF
                 </button>
 
                 <div className="flex items-center space-x-2">
@@ -5452,12 +6357,255 @@ export default function WorkOrderDetailPage() {
                     }}
                     className="px-4 py-2 text-xs font-bold text-white bg-sky-700 hover:bg-sky-800 active:bg-sky-900 rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
                   >
-                    {signoffMutation.isPending ? 'Submitting...' : '✓ Confirm Sign-off & Submit Timesheet'}
+                    {signoffMutation.isPending ? 'Submitting...' : 'Confirm Sign-off & Submit Timesheet'}
                   </button>
                 </div>
               </div>
             </div>
           </div>
+        )}
+
+        {/* Modal: Contractor Provide Critical Emergency Job Quote */}
+        {isCriticalQuoteModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-purple-200 max-w-lg w-full p-6 space-y-4">
+              <div className="flex justify-between items-center pb-3 border-b border-purple-100">
+                <div className="flex items-center gap-2">
+                  
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Provide Critical Job Quote &amp; Cost Breakdown
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Work Order: <strong className="font-mono text-purple-700">{workOrder.tracking_number}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsCriticalQuoteModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {criticalQuoteError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800">
+                  {criticalQuoteError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {/* 1. Scope / Work Classification Checkboxes */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5">
+                    1. Work Classification (Select all that apply) *
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {['Maintenance', 'Repair', 'Change', 'Replace', 'Calibration', 'Specialist Service'].map((type) => {
+                      const isSelected = criticalQuoteWorkTypes.includes(type);
+                      return (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => {
+                            setCriticalQuoteWorkTypes((prev) =>
+                              isSelected ? prev.filter((t) => t !== type) : [...prev, type]
+                            );
+                          }}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all text-left flex items-center gap-2 cursor-pointer ${
+                            isSelected
+                              ? 'bg-purple-100 text-purple-900 border-purple-400 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold ${
+                            isSelected ? 'bg-purple-700 text-white' : 'border border-slate-300 bg-white'
+                          }`}>
+                            {isSelected ? '✓' : ''}
+                          </span>
+                          <span>{type}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Itemized Notes & Replaced Parts */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5">
+                    2. Scope Description &amp; Components Replaced
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={criticalQuoteNotes}
+                    onChange={(e) => setCriticalQuoteNotes(e.target.value)}
+                    placeholder="Detail work executed, replacement part numbers, labour hours, and emergency corrective actions taken..."
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* 3. Quoted Cost in Rand */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1.5">
+                    3. Final Claimed / Quoted Cost (R) *
+                  </label>
+                  <div className="relative rounded-xl shadow-2xs">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                      <span className="text-slate-400 font-bold font-mono text-sm">R</span>
+                    </div>
+                    <input
+                      type="number"
+                      value={criticalQuoteCost}
+                      onChange={(e) => setCriticalQuoteCost(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="e.g. 18500"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold font-mono text-slate-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    This quote will be submitted directly to Works Engineer for verification &amp; approval.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCriticalQuoteModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={submitCriticalQuoteMutation.isPending || criticalQuoteCost === '' || Number(criticalQuoteCost) <= 0}
+                  onClick={() => submitCriticalQuoteMutation.mutate()}
+                  className="px-5 py-2 text-xs font-bold text-white bg-purple-700 hover:bg-purple-800 active:bg-purple-900 rounded-xl shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {submitCriticalQuoteMutation.isPending ? 'Submitting...' : 'Submit Quote for Engineer Review'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Works Engineer Adjust Critical Quote */}
+        {isAdjustCriticalQuoteModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-amber-200 max-w-md w-full p-6 space-y-4">
+              <div className="flex justify-between items-center pb-3 border-b border-amber-100">
+                <div className="flex items-center gap-2">
+                  
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Adjust Critical Job Quote
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Current: <strong className="font-mono text-purple-700">{formatCurrency(workOrder.contractor_critical_quote_cost || 0)}</strong>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsAdjustCriticalQuoteModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 text-sm font-bold p-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {adjustCriticalQuoteError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800">
+                  {adjustCriticalQuoteError}
+                </div>
+              )}
+
+              <div className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1">
+                    Adjusted Cost (R) *
+                  </label>
+                  <div className="relative rounded-xl shadow-2xs">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                      <span className="text-slate-400 font-bold font-mono text-sm">R</span>
+                    </div>
+                    <input
+                      type="number"
+                      value={adjustedCriticalQuoteCost}
+                      onChange={(e) => setAdjustedCriticalQuoteCost(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="e.g. 15000"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold font-mono text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Enter the adjusted technical amount agreed for this emergency intervention.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide mb-1">
+                    Adjustment Rationale / Reason *
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={adjustCriticalQuoteNotes}
+                    onChange={(e) => setAdjustCriticalQuoteNotes(e.target.value)}
+                    placeholder="Explain the technical price adjustment (e.g., standard labor rates applied, component price verification)..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAdjustCriticalQuoteModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={reviewCriticalQuoteMutation.isPending || adjustedCriticalQuoteCost === '' || Number(adjustedCriticalQuoteCost) <= 0}
+                  onClick={() =>
+                    reviewCriticalQuoteMutation.mutate({
+                      action: 'adjust',
+                      cost: Number(adjustedCriticalQuoteCost),
+                      notes: adjustCriticalQuoteNotes.trim()
+                    })
+                  }
+                  className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 active:bg-amber-800 rounded-xl shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {reviewCriticalQuoteMutation.isPending ? 'Saving...' : 'Save Adjustment'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Phase 2: Invite Contractor(s) Modal */}
+        {workOrder && (
+          <InviteContractorsModal
+            isOpen={isInviteContractorsModalOpen}
+            onClose={() => setIsInviteContractorsModalOpen(false)}
+            workOrder={workOrder}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+              queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+            }}
+          />
+        )}
+
+        {/* Phase 2: Contractor Blind Quote Submission Modal */}
+        {workOrder && (
+          <SubmitQuotationModal
+            isOpen={isSubmitQuotationModalOpen}
+            onClose={() => setIsSubmitQuotationModalOpen(false)}
+            workOrder={workOrder}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['work-order', id] });
+              queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+            }}
+          />
         )}
       </div>
     </AppLayout>

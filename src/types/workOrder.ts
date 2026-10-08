@@ -101,6 +101,13 @@ export interface WorkOrder {
   engineer_timesheet_at?: string | null;
   client_recovery_invoice_no?: string | null;
   client_recovery_status?: 'pending' | 'submitted' | 'recovered' | null;
+  contractor_critical_quote_cost?: number | null;
+  contractor_critical_quote_breakdown?: string | null;
+  contractor_critical_quote_status?: 'submitted' | 'adjusted' | 'approved' | null;
+  contractor_critical_quote_submitted_at?: string | null;
+  contractor_critical_quote_engineer_notes?: string | null;
+  contractor_critical_quote_approved_by?: string | null;
+  contractor_critical_quote_approved_at?: string | null;
   signoff_rejection_reason?: string | null;
   is_blind_quoted?: boolean;
   estimated_cost: number;
@@ -110,6 +117,20 @@ export interface WorkOrder {
   completed_at?: string | null;
   verified_at?: string | null;
   closed_at?: string | null;
+  assessment_itemized_breakdown?: string | null;
+  invited_contractor_ids?: string | null;
+  quote_invitation_mode?: 'single' | 'multi' | null;
+  quote_invitation_notes?: string | null;
+  quote_invited_at?: string | null;
+  selected_contractor_quote_id?: string | null;
+  engineer_recommendation_notes?: string | null;
+  engineer_recommended_by?: string | null;
+  engineer_recommended_at?: string | null;
+  contractor_approver_action?: 'approved' | 'reevaluate' | 'pending' | null;
+  contractor_approver_notes?: string | null;
+  contractor_approver_by?: string | null;
+  contractor_approver_at?: string | null;
+  quotations?: ContractorQuotation[];
   created_at: string;
   updated_at: string;
   photo_count?: number;
@@ -146,6 +167,21 @@ export interface WorkOrder {
   }>;
 }
 
+export interface ContractorQuotation {
+  id: string;
+  work_order_id: string;
+  contractor_id: string;
+  contractor_name?: string;
+  contractor_email?: string;
+  quote_ref?: string | null;
+  amount: number;
+  breakdown?: any;
+  notes?: string | null;
+  status: 'submitted' | 'recommended' | 'assigned' | 'rejected';
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CreateWorkOrderInput {
   title: string;
   description: string;
@@ -170,5 +206,9 @@ export interface SubmitAssessmentInput {
   assessment_hours?: number;
   estimated_days?: number;
   due_date?: string;
+  itemized_breakdown?: any;
+  timesheet_data?: any;
+  timesheet_hours?: number;
 }
+
 

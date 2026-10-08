@@ -68,32 +68,48 @@ export default function DashboardPage() {
     if (['closed', 'cancelled'].includes(s)) return false;
 
     // Explicitly assigned as Lead Assessor to this user
-    if (wo.lead_assessor_id === user?.id) return true;
+    if (wo.lead_assessor_id && wo.lead_assessor_id === user?.id) return true;
 
-    // Adjustment requested by QB review
+    // If Works Engineer: show only if joint assistance was fulfilled/assigned specifically to this engineer
+    if (isWorksEngineer && wo.assessor_request_engineer_id && wo.assessor_request_engineer_id === user?.id) {
+      return true;
+    }
+
+    // Adjustment requested by QB review for this user's assessment
     if (wo.assessment_review_status === 'adjusted') {
       if (wo.lead_assessor_id === user?.id || wo.assessor_id === user?.id) return true;
-      if (isWorksEngineer && wo.assessor_role === 'works_engineer') return true;
-      if (isWorksInspector && wo.assessor_role === 'works_inspector') return true;
-    }
-
-    // If Works Engineer: show if referred or request engineer fulfilled with this user or pending engineer scoping
-    if (isWorksEngineer) {
-      if (wo.assessor_request_engineer_id === user?.id) return true;
-      if (wo.assessor_role === 'works_engineer' && (wo.assessor_estimate === null || wo.assessor_estimate === undefined)) return true;
-    }
-
-    // If Works Inspector and status is reported without assessment
-    if (isWorksInspector && s === 'reported' && !wo.assessment_type && !wo.assessment_date) {
-      if (!wo.lead_assessor_id || wo.lead_assessor_id === user?.id) {
-        return true;
-      }
     }
 
     return false;
   });
 
   const assessorPendingCount = assessorQueueWorkOrders.length;
+
+  const contractorPendingCriticalQuotes = allWorkOrders.filter((wo) => {
+    const isCritical = wo.urgency_category === 'Critical 0–24h' || wo.priority === 'critical';
+    const s = (wo.status || '').toLowerCase();
+    return isCritical && ['completed', 'verified', 'closed'].includes(s) && wo.contractor_critical_quote_status !== 'approved';
+  });
+
+  const engineerPendingCriticalQuotes = allWorkOrders.filter((wo) => {
+    const isCritical = wo.urgency_category === 'Critical 0–24h' || wo.priority === 'critical';
+    return isCritical && ['submitted', 'adjusted'].includes(wo.contractor_critical_quote_status || '');
+  });
+
+  const contractorAvailableBidding = allWorkOrders.filter((wo) => {
+    const s = (wo.status || '').toLowerCase();
+    return s === 'approved' && !wo.assigned_to;
+  });
+
+  const engineerPendingQuotationChecks = allWorkOrders.filter((wo) => {
+    const s = (wo.status || '').toLowerCase();
+    return s === 'approved' && (!wo.selected_contractor_quote_id || wo.contractor_approver_action === 'reevaluate');
+  });
+
+  const approverPendingContractorAssignments = allWorkOrders.filter((wo) => {
+    const s = (wo.status || '').toLowerCase();
+    return s === 'approved' && !!wo.selected_contractor_quote_id && wo.contractor_approver_action !== 'approved';
+  });
 
   // -------------------------------------------------------------
   // 1. AUDITOR SPECIFIC VIEW (Cryptographic & Compliance Only)
@@ -443,6 +459,102 @@ export default function DashboardPage() {
             />
           </div>
 
+          {/* Critical Emergency Jobs: Provide Quote Action Alert */}
+          {contractorPendingCriticalQuotes.length > 0 && (
+            <div className="bg-purple-50 rounded-[18px] p-6 border border-purple-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                      <span>Critical Emergency Jobs &bull; Provide Quote</span>
+                      <span className="px-2 py-0.5 rounded-full bg-purple-200 text-purple-900 text-xs font-bold font-mono">
+                        {contractorPendingCriticalQuotes.length}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Completed emergency repairs requiring itemized cost breakdown &amp; claim submission for Works Engineer approval.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {contractorPendingCriticalQuotes.map((wo) => (
+                  <Link
+                    key={wo.id}
+                    href={`/work-orders/${wo.id}`}
+                    className="p-4 bg-white rounded-xl border border-purple-200 hover:border-purple-400 transition-all shadow-2xs hover:shadow-xs group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-purple-800 text-xs">{wo.tracking_number}</span>
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-purple-100 text-purple-800">
+                          {wo.contractor_critical_quote_status ? 'Quote Submitted' : 'Quote Needed'}
+                        </span>
+                      </div>
+                      <div className="font-bold text-slate-900 text-sm mt-1 group-hover:text-purple-700 transition">
+                        {wo.title}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">{wo.facility_name}</div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-purple-50 flex items-center justify-between text-xs font-bold text-purple-700">
+                      <span>Provide Quote / Cost &rarr;</span>
+                      {wo.contractor_critical_quote_cost && (
+                        <span className="font-mono">{formatCurrency(wo.contractor_critical_quote_cost)}</span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Open Bidding Opportunities & Requests for Quotes */}
+          {contractorAvailableBidding.length > 0 && (
+            <div className="bg-sky-50/80 rounded-[18px] p-6 border border-sky-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    <span>Open Requests for Quotation (Blind Bidding)</span>
+                    <span className="px-2 py-0.5 rounded-full bg-sky-200 text-sky-900 text-xs font-bold font-mono">
+                      {contractorAvailableBidding.length}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Assessed work orders open for contractor quotation submissions. Submit your itemized breakdown &amp; turnaround time.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {contractorAvailableBidding.map((wo) => (
+                  <Link
+                    key={wo.id}
+                    href={`/work-orders/${wo.id}`}
+                    className="p-4 bg-white rounded-xl border border-sky-200 hover:border-sky-400 transition-all shadow-2xs hover:shadow-xs group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-sky-800 text-xs">{wo.tracking_number}</span>
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-sky-100 text-sky-800">
+                          Quoting Open
+                        </span>
+                      </div>
+                      <div className="font-bold text-slate-900 text-sm mt-1 group-hover:text-sky-700 transition">
+                        {wo.title}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">{wo.facility_name}</div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-sky-50 flex items-center justify-between text-xs font-bold text-sky-700">
+                      <span>Submit Quotation &rarr;</span>
+                      <span className="text-[11px] text-slate-400 font-normal">Blind Quoting Active</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Assigned Work Orders Queue */}
           <div className="bg-[#F4FBFC] rounded-[18px] py-[40px] px-[30px] space-y-6 border border-[#e2f5f8] shadow-xs">
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -501,7 +613,7 @@ export default function DashboardPage() {
                 className="p-4 rounded-lg border border-slate-200 hover:border-sky-300 bg-slate-50/60 transition group"
               >
                 <div className="font-semibold text-xs text-slate-900 group-hover:text-sky-700">
-                  🛠️ Execute Work Orders &rarr;
+                  Execute Work Orders &rarr;
                 </div>
                 <div className="text-[11px] text-slate-500 mt-1">
                   Change ticket status to &quot;In Progress&quot;, upload evidence photos, and submit for verification.
@@ -512,7 +624,7 @@ export default function DashboardPage() {
                 className="p-4 rounded-lg border border-slate-200 hover:border-emerald-300 bg-slate-50/60 transition group"
               >
                 <div className="font-semibold text-xs text-slate-900 group-hover:text-emerald-700">
-                  💰 Submit & Track Invoice Claims &rarr;
+                  Submit & Track Invoice Claims &rarr;
                 </div>
                 <div className="text-[11px] text-slate-500 mt-1">
                   Submit invoice claims for verified orders and track disbursement settlements.
@@ -590,6 +702,101 @@ export default function DashboardPage() {
               variant="green"
             />
           </div>
+
+          {/* Critical Job Quotes Awaiting Works Engineer Review Banner */}
+          {engineerPendingCriticalQuotes.length > 0 && (
+            <div className="bg-amber-50/90 rounded-[18px] p-6 border border-amber-300 shadow-xs space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2.5">
+                  
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                      <span>Critical Emergency Quotes Awaiting Review</span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-xs font-bold font-mono">
+                        {engineerPendingCriticalQuotes.length}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Contractor submitted emergency repair claims awaiting your technical verification, adjustment, or approval.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {engineerPendingCriticalQuotes.map((wo) => (
+                  <Link
+                    key={wo.id}
+                    href={`/work-orders/${wo.id}`}
+                    className="p-4 bg-white rounded-xl border border-amber-200 hover:border-amber-400 transition-all shadow-2xs hover:shadow-xs group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-amber-800 text-xs">{wo.tracking_number}</span>
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-900">
+                          {wo.contractor_critical_quote_status === 'adjusted' ? 'Adjusted' : 'Pending Review'}
+                        </span>
+                      </div>
+                      <div className="font-bold text-slate-900 text-sm mt-1 group-hover:text-amber-700 transition">
+                        {wo.title}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">{wo.facility_name}</div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-amber-50 flex items-center justify-between text-xs font-bold text-amber-800">
+                      <span>Review Quote (Approve / Adjust) &rarr;</span>
+                      <span className="font-mono font-bold text-purple-900">{formatCurrency(wo.contractor_critical_quote_cost || 0)}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Multi-Contractor Quotations Awaiting Works Engineer Check & Recommendation */}
+          {isWorksEngineer && engineerPendingQuotationChecks.length > 0 && (
+            <div className="bg-emerald-50/90 rounded-[18px] p-6 border border-emerald-300 shadow-xs space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    <span>Contractor Quotations &bull; Technical Comparison &amp; Recommendation</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 text-xs font-bold font-mono">
+                      {engineerPendingQuotationChecks.length}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Compare submitted contractor quotations, evaluate itemized pricing, and submit technical recommendation to Contractor Approver.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {engineerPendingQuotationChecks.map((wo) => (
+                  <Link
+                    key={wo.id}
+                    href={`/work-orders/${wo.id}`}
+                    className="p-4 bg-white rounded-xl border border-emerald-200 hover:border-emerald-400 transition-all shadow-2xs hover:shadow-xs group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-emerald-800 text-xs">{wo.tracking_number}</span>
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-900">
+                          {wo.contractor_approver_action === 'reevaluate' ? 'Re-evaluation Requested' : 'Check Quotes'}
+                        </span>
+                      </div>
+                      <div className="font-bold text-slate-900 text-sm mt-1 group-hover:text-emerald-700 transition">
+                        {wo.title}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">{wo.facility_name}</div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-emerald-50 flex items-center justify-between text-xs font-bold text-emerald-800">
+                      <span>Compare Quotations &rarr;</span>
+                      <span className="font-mono">{wo.quotations?.length || 0} Quotes Received</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Part 1: Assessor Technical Scoping & Estimation Queue */}
           <div className="bg-[#F4FBFC] rounded-[18px] py-[40px] px-[30px] space-y-6 border border-[#e2f5f8] shadow-xs">
@@ -783,6 +990,52 @@ export default function DashboardPage() {
               />
             )}
           </div>
+
+          {/* Contractor Recommendations Awaiting Approver Assignment */}
+          {approverPendingContractorAssignments.length > 0 && (
+            <div className="bg-sky-50/90 rounded-[18px] p-6 border border-sky-300 shadow-xs space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    <span>Contractor Quotations &bull; Recommendations Awaiting Approval</span>
+                    <span className="px-2 py-0.5 rounded-full bg-sky-200 text-sky-900 text-xs font-bold font-mono">
+                      {approverPendingContractorAssignments.length}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Works Engineer has reviewed multi-contractor bids and recommended a contractor. Approve assignment or request re-evaluation.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {approverPendingContractorAssignments.map((wo) => (
+                  <Link
+                    key={wo.id}
+                    href={`/work-orders/${wo.id}`}
+                    className="p-4 bg-white rounded-xl border border-sky-200 hover:border-sky-400 transition-all shadow-2xs hover:shadow-xs group flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-sky-800 text-xs">{wo.tracking_number}</span>
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-sky-100 text-sky-900">
+                          Recommended Quote
+                        </span>
+                      </div>
+                      <div className="font-bold text-slate-900 text-sm mt-1 group-hover:text-sky-700 transition">
+                        {wo.title}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">{wo.facility_name}</div>
+                    </div>
+                    <div className="mt-3 pt-2 border-t border-sky-50 flex items-center justify-between text-xs font-bold text-sky-800">
+                      <span>Review &amp; Assign Contractor &rarr;</span>
+                      <span className="font-mono">Ready for Assignment</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Pending Approval Queue Table */}
           <div className="bg-[#F4FBFC] rounded-[18px] py-[40px] px-[30px] space-y-6 border border-[#e2f5f8] shadow-xs">
