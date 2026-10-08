@@ -401,7 +401,7 @@ function WorkOrdersContent() {
                     Facility &amp; Location
                   </th>
                   <th className="px-6 py-4 text-left font-bold text-slate-800 text-sm tracking-tight">
-                    Urgency &amp; Funding
+                    Urgency SLA
                   </th>
                   <th className="px-6 py-4 text-left font-bold text-slate-800 text-sm tracking-tight">
                     Category
@@ -479,11 +479,6 @@ function WorkOrdersContent() {
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-[#F0F9FB] text-[#007B91] border border-[#CCEBF2]">
                               {urgency}
                             </span>
-                            {isRouteB && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                                Advance Float Funded
-                              </span>
-                            )}
                             {isStatutory && (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
                                 Statutory Notice

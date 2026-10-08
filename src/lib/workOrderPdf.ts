@@ -29,6 +29,7 @@ export interface WorkOrderPdfData {
   assessment_notes?: string | null;
   estimated_cost: number;
   actual_cost?: number | null;
+  contractor_critical_quote_cost?: number | null;
   system_quote_no?: string | null;
   contractor_quote_ref?: string | null;
 }
@@ -44,15 +45,18 @@ export function downloadWorkOrderPdf(wo: WorkOrderPdfData) {
     ? formatDate(wo.created_at)
     : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const dueDate = wo.due_date ? formatDate(wo.due_date) : 'Within SLA Framework';
-  const approvedBudget = Number(wo.estimated_cost || wo.actual_cost || 0);
+  const approvedBudget = Number(
+    wo.actual_cost !== undefined && wo.actual_cost !== null && Number(wo.actual_cost) > 0
+      ? wo.actual_cost
+      : wo.contractor_critical_quote_cost !== undefined && wo.contractor_critical_quote_cost !== null && Number(wo.contractor_critical_quote_cost) > 0
+      ? wo.contractor_critical_quote_cost
+      : wo.estimated_cost || 0
+  );
   const subtotal = Math.round((approvedBudget / 1.15) * 100) / 100;
   const vat = Math.round((approvedBudget - subtotal) * 100) / 100;
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const logoUrl = `${origin}/images/logo.png`;
-
-  const isRouteB = wo.funding_route === 'route_b' || wo.urgency_category === 'Critical 0–24h';
-  const fundingModelLabel = isRouteB ? 'Advance Float Funded (24h SLA)' : 'Client Funded (NC DOH)';
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -434,10 +438,6 @@ export function downloadWorkOrderPdf(wo: WorkOrderPdfData) {
           <span class="info-label">Urgency SLA:</span>
           <span class="info-value">${wo.urgency_category || wo.priority}</span>
         </div>
-        <div class="info-row">
-          <span class="info-label">Funding Model:</span>
-          <span class="info-value">${fundingModelLabel}</span>
-        </div>
       </div>
     </div>
 
@@ -515,7 +515,7 @@ export function downloadWorkOrderPdf(wo: WorkOrderPdfData) {
       <strong>Specialist Execution &amp; Invoicing Mandatory Notice:</strong><br>
       1. All work must adhere to SANS 10400 healthcare facility regulations and occupational safety requirements.<br>
       2. Digital sign-off (Works Engineer, Facilities Manager, Works Inspector) is mandatory upon job completion.<br>
-      3. Under the 24-hour Float Settlement agreement, submitted contractor invoice claims are verified and disbursed within 24 hours of 3-way sign-off.
+      3. Submitted contractor invoice claims are verified and disbursed in compliance with healthcare maintenance SLA.
     </div>
 
     <!-- Dual Sign-off Grid -->

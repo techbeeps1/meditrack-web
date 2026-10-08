@@ -359,8 +359,8 @@ export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
           <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Assigned Specialist: ${workOrder.assigned_to_name || workOrder.contractor_name || 'Apex BioMed Solutions'}</div>
         </td>
         <td class="meta-cell">
-          <div class="meta-label">${isRouteB ? 'Advance Float Protocol' : 'Client Recovery Invoice Reference'}</div>
-          <div class="meta-val font-mono" style="color: #0369a1;">${isRouteB ? 'Route B (Advance Float Direct Funded)' : recNo}</div>
+          <div class="meta-label">Financial Settlement Reference</div>
+          <div class="meta-val font-mono" style="color: #0369a1;">${recNo}</div>
           <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Charge Code: ${workOrder.charge_code || 'PRE'} &bull; Status: Tri-Signature Certified</div>
         </td>
       </tr>
@@ -435,10 +435,10 @@ export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
     <div class="settlement-banner">
       <div class="settlement-left">
         <div class="settlement-title">
-          ${isRouteB ? 'Quantum Built Advance Float Disbursement (Route B)' : 'NC DOH Client Recovery Invoicing Stream (Tier 2)'}
+          Financial Claim Settlement &amp; Invoice Authorization
         </div>
         <div class="settlement-sub">
-          ${isRouteB ? 'Verified for 24-hour contractor settlement from advance float' : 'Certified for NC Department of Health reimbursement recovery'}
+          Verified for contractor invoice settlement and formal hospital maintenance closure.
         </div>
       </div>
       <div class="settlement-right">

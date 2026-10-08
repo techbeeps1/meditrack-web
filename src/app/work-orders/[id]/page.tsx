@@ -1325,15 +1325,16 @@ export default function WorkOrderDetailPage() {
 
   // In Part 1 standard flow: Approval is done through the Quantum Built 3-Way Estimate Review stage after assessment & cost calculation.
   // Direct approval/assignment on reported status is for Critical (0–24h) Emergency Fast-Track Bypass.
+  // Direct "⚡ Assign Specialist Contractor" button is ONLY for Critical (0–24h) emergency tickets.
   const canApprove = (hasWoApproveScope || hasAssignScope || (role as string) === 'ADMIN') && status === 'reported' && isCriticalJob;
   const canAssign =
     (hasAssignScope || (role as string) === 'ADMIN' || (role === 'APPROVER' && isCriticalJob)) &&
+    isCriticalJob &&
     !isSameApproverForAssignment &&
-    (status === 'approved' || (status === 'reported' && isCriticalJob)) &&
-    !workOrder.assigned_to &&
-    (isRouteB || isCriticalJob || workOrder.quote_status === 'client_approved');
+    (status === 'approved' || status === 'reported') &&
+    !workOrder.assigned_to;
 
-  // Critical Job Contractor Quote & Works Engineer Review Permissions
+  // Critical Job Contractor Post-Completion Quote & Works Engineer Review Permissions
   const canProvideCriticalQuote =
     (role === 'CONTRACTOR' || (role as string) === 'ADMIN') &&
     isCriticalJob &&
@@ -1393,16 +1394,7 @@ export default function WorkOrderDetailPage() {
               {urgency}
             </span>
 
-            {/* Funding Route Badge */}
-            {isRouteB ? (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                Advance Float Funded
-              </span>
-            ) : (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                Client Funded (NC DOH)
-              </span>
-            )}
+
 
             {/* Statutory Notice Badge */}
             {isStatutory && (
@@ -1464,9 +1456,9 @@ export default function WorkOrderDetailPage() {
                     lead_assessor_role: workOrder.lead_assessor_role,
                     charge_code: workOrder.charge_code,
                     assessment_mode: workOrder.assessment_type,
-                    assessment_notes: workOrder.assessment_notes,
-                    estimated_cost: workOrder.estimated_cost,
-                    actual_cost: workOrder.actual_cost,
+                    estimated_cost: Number(workOrder.actual_cost || workOrder.contractor_critical_quote_cost || workOrder.estimated_cost || 0),
+                    actual_cost: workOrder.actual_cost || workOrder.contractor_critical_quote_cost || null,
+                    contractor_critical_quote_cost: workOrder.contractor_critical_quote_cost,
                     system_quote_no: workOrder.system_quote_no,
                     contractor_quote_ref: workOrder.contractor_quote_ref
                   })
@@ -1548,44 +1540,9 @@ export default function WorkOrderDetailPage() {
             )}
 
             
-            {/* Contractor Multi-Quotation Button (when assessed) */}
-            {role === 'CONTRACTOR' && ['reported', 'approved'].includes(status) && isAssessmentDone && !workOrder.assigned_to && (
-              mySubmittedQuote ? (
-                <div className="flex items-center gap-2">
-                  <span className="px-3.5 py-2 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-xs">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Quotation Submitted ({formatCurrency(mySubmittedQuote.amount)})
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setContractorQuoteAmountInput(mySubmittedQuote.amount || '');
-                      setContractorQuoteRefInput(mySubmittedQuote.quote_ref || '');
-                      setContractorQuoteNotesInput(mySubmittedQuote.notes || '');
-                      setContractorQuoteError(null);
-                      setIsSubmitQuotationModalOpen(true);
-                    }}
-                    className="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg shadow-xs transition active:scale-95 cursor-pointer whitespace-nowrap"
-                  >
-                    Edit / Update Quote
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setContractorQuoteAmountInput('');
-                    setContractorQuoteRefInput('');
-                    setContractorQuoteNotesInput('');
-                    setContractorQuoteError(null);
-                    setIsSubmitQuotationModalOpen(true);
-                  }}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-                >
-                  Submit Formal Quotation (R)
-                </button>
-              )
-            )}
+
+
+
 
 
 
@@ -1665,16 +1622,7 @@ export default function WorkOrderDetailPage() {
               </button>
             )}
 
-            {/* Critical Job: Contractor Provide Quote Button */}
-            {canProvideCriticalQuote && (
-              <button
-                type="button"
-                onClick={openCriticalQuoteModal}
-                className="px-4 py-2 bg-purple-700 hover:bg-purple-800 active:bg-purple-900 text-white text-xs font-bold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-              >
-                {workOrder.contractor_critical_quote_status ? 'Update Critical Quote' : 'Provide Quote / Cost Breakdown (R)'}
-              </button>
-            )}
+
 
             {/* Critical Job: Works Engineer Approve or Adjust Quote Buttons */}
             {canReviewCriticalQuote && (
@@ -1699,27 +1647,7 @@ export default function WorkOrderDetailPage() {
             )}
 
             {/* When Completed: Disabled button waiting for verification (Contractor/Admin only - Non-Critical) */}
-            {!isCriticalJob && role === 'CONTRACTOR' && workOrder.status === 'completed' && !workOrder.invoice_id && (
-              <button
-                disabled
-                title="Invoice generation will be enabled after quality inspection and verification"
-                className="px-4 py-2 bg-slate-100 text-slate-400 border border-slate-200 text-xs font-semibold rounded-lg cursor-not-allowed select-none"
-              >
-                Waiting for Verification
-              </button>
-            )}
 
-            {/* When Verified or Closed and No Invoice Yet: */}
-            {/* Contractor sees button to Generate Invoice Claim (Non-Critical jobs) */}
-            {!isCriticalJob && role === 'CONTRACTOR' && ['verified', 'closed'].includes(workOrder.status) && !workOrder.invoice_id && (
-              <button
-                type="button"
-                onClick={openInvoiceModal}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
-              >
-                Generate Invoice Claim ({formatCurrency(workOrder.actual_cost || workOrder.estimated_cost || 0)})
-              </button>
-            )}
 
 
 
@@ -1737,17 +1665,6 @@ export default function WorkOrderDetailPage() {
                       {invoiceStatusMutation.isPending
                         ? 'Settling Payment...'
                         : `Approve & Pay Invoice (${formatCurrency(workOrder.invoice_total_amount || workOrder.actual_cost)})`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const reason = window.prompt('Enter reason for rejecting invoice claim:');
-                        if (reason) invoiceStatusMutation.mutate({ status: 'rejected', notes: reason });
-                      }}
-                      disabled={invoiceStatusMutation.isPending}
-                      className="px-3 py-2 bg-white border border-rose-300 hover:bg-rose-50 active:bg-rose-100 text-rose-700 text-xs font-medium rounded-lg transition-all active:scale-95 cursor-pointer"
-                    >
-                      Reject Claim
                     </button>
                   </div>
                 )}
@@ -1789,50 +1706,7 @@ export default function WorkOrderDetailPage() {
               </>
             )}
 
-            {/* Official Work Order Print & Download PDF Button (Only after assigned to contractor, Admin & Contractor only) */}
-            {['assigned', 'in_progress', 'completed', 'verified', 'closed'].includes(status) && (role === 'ADMIN' || role === 'CONTRACTOR') && (
-              <button
-                type="button"
-                onClick={() =>
-                  downloadWorkOrderPdf({
-                    tracking_number: workOrder.tracking_number,
-                    title: workOrder.title,
-                    description: workOrder.description,
-                    status: workOrder.status,
-                    category: workOrder.category,
-                    priority: workOrder.priority,
-                    urgency_category: workOrder.urgency_category,
-                    funding_route: workOrder.funding_route,
-                    created_at: workOrder.created_at,
-                    due_date: workOrder.due_date,
-                    estimated_days: workOrder.estimated_days,
-                    facility_name: workOrder.facility_name,
-                    facility_address: workOrder.facility_address,
-                    facility_city: workOrder.facility_city,
-                    location_details: workOrder.location_details,
-                    reported_by_name: workOrder.reported_by_name,
-                    assigned_to_name: workOrder.assigned_to_name,
-                    contractor_name: workOrder.contractor_name || workOrder.assigned_to_name,
-                    lead_assessor_name: workOrder.lead_assessor_name,
-                    lead_assessor_role: workOrder.lead_assessor_role,
-                    charge_code: workOrder.charge_code,
-                    assessment_mode: workOrder.assessment_type,
-                    assessment_notes: workOrder.assessment_notes,
-                    estimated_cost: workOrder.estimated_cost,
-                    actual_cost: workOrder.actual_cost,
-                    system_quote_no: workOrder.system_quote_no,
-                    contractor_quote_ref: workOrder.contractor_quote_ref
-                  })
-                }
-                title="Download and Print Official Work Order Dispatch PDF"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#008DA6] hover:bg-[#007387] active:bg-[#005c6d] rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer whitespace-nowrap"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zM7 9V5a2 2 0 012-2h6a2 2 0 012 2v4" />
-                </svg>
-                Print Work Order (PDF)
-              </button>
-            )}
+
 
             {/* Direct Download Quote PDF button (Route A only when quote submitted) */}
             {!isRouteB && workOrder.estimated_cost && Number(workOrder.estimated_cost) > 0 && (
@@ -2080,7 +1954,7 @@ export default function WorkOrderDetailPage() {
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase font-bold">Funding Route</span>
                   <span className="font-bold text-sky-700 font-mono">
-                    {workOrder.funding_route === 'route_b' ? 'Advance Float (Route B)' : 'Client Gateway (Route A)'}
+                    {workOrder.funding_route === 'route_b' ? 'Standard Route' : 'Client Gateway (Route A)'}
                   </span>
                 </div>
               </div>
@@ -2155,22 +2029,7 @@ export default function WorkOrderDetailPage() {
           </div>
         )}
 
-        {/* Fast-Track Advance Float Notice (Quantum Built Direct Advance Funded) */}
-        {isRouteB && hasPaymentScope && (
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1 shadow-2xs">
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-200 text-slate-800">
-                Advance Float Funded
-              </span>
-              <span className="text-xs font-semibold text-gray-900">
-                Quantum Built 24h Emergency Response
-              </span>
-            </div>
-            <p className="text-xs text-gray-600 leading-relaxed">
-              Operates under the Quantum Built fast-track facility agreement. Advance funding is provisioned directly by Quantum Built for rapid specialist dispatch without routine procurement delays.
-            </p>
-          </div>
-        )}
+
 
         {/* Statutory Pre-Notice Alert Banner */}
         {isStatutory && (
@@ -2189,15 +2048,15 @@ export default function WorkOrderDetailPage() {
           </div>
         )}
 
-        {/* Step 2: Contractor Assignment Stage Banner */}
-        {workOrder.status === 'approved' && hasPaymentScope && (
+        {/* Step 2: Critical Contractor Assignment Stage Banner */}
+        {workOrder.status === 'approved' && hasPaymentScope && isCriticalJob && (
           <div className="p-5 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-indigo-600 animate-pulse" />
                 <h3 className="text-sm font-bold text-indigo-950">
                   {isRouteB
-                    ? 'Step 2: Specialist Contractor Direct Dispatch (Advance Float)'
+                    ? 'Step 2: Specialist Contractor Direct Dispatch'
                     : 'Step 2: Contractor Price Quotation &amp; Assignment (Client Gateway)'}
                 </h3>
               </div>
@@ -2390,9 +2249,8 @@ export default function WorkOrderDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
 
-              {/* Multi-Contractor Quotations & Engineering Review Card (TOP PROMINENCE - Admin & Engineers only) */}
-              {(isWorksEngineer || hasAssignScope || (role as string) === 'APPROVER' || (role as string) === 'ADMIN') &&
-                (isAssessmentDone || workOrder.invited_contractor_ids || (workOrder.quotations && workOrder.quotations.length > 0) || workOrder.assigned_to) && (
+              {/* Multi-Contractor Quotations & Engineering Review Card (TOP PROMINENCE - Contractor Approver, Admin & Works Engineer) */}
+              {!isCriticalJob && (hasAssignScope || (role as string) === 'ADMIN' || (isWorksEngineer && (workOrder.quotations?.length || 0) > 0)) && (
                 <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
                     <div>
@@ -2421,7 +2279,7 @@ export default function WorkOrderDetailPage() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
-                      {!workOrder.assigned_to && ['reported', 'approved'].includes(status) && (
+                      {(hasAssignScope || (role as string) === 'ADMIN') && !workOrder.assigned_to && ['reported', 'approved'].includes(status) && (
                         <button
                           type="button"
                           onClick={() => setIsInviteContractorsModalOpen(true)}
@@ -2840,20 +2698,7 @@ export default function WorkOrderDetailPage() {
                             </div>
                           </div>
 
-                          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                            <div className="text-[11px] text-slate-500 font-medium">Funding Model</div>
-                            <div className="mt-0.5">
-                              {workOrder.funding_route === 'route_b' || urgency === 'Critical 0–24h' ? (
-                                <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-slate-200 text-slate-800">
-                                  Advance Float Funded
-                                </span>
-                              ) : (
-                                <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
-                                  Client Gateway (NC DOH)
-                                </span>
-                              )}
-                            </div>
-                          </div>
+
                         </div>
 
                         {/* Referral Notice if referred by Inspector */}
@@ -2931,12 +2776,12 @@ export default function WorkOrderDetailPage() {
                       <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-left space-y-2.5">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-slate-900">Emergency SLA Fast-Track Active</span>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-800">
-                            Advance Float Direct Dispatch
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                            Emergency Fast-Track
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed">
-                          Under the NC DOH SLA framework, Critical 0–24h work orders bypass preliminary offsite/onsite engineering assessment and client quoting gateway to enable immediate specialist contractor mobilization from the advance float.
+                          Under the NC DOH SLA framework, Critical 0–24h work orders bypass preliminary offsite/onsite engineering assessment and client quoting gateway to enable immediate specialist contractor mobilization.
                         </p>
                       </div>
                     ) : (
@@ -3212,13 +3057,25 @@ export default function WorkOrderDetailPage() {
 
                     <div className="flex items-center gap-2">
                       {canProvideCriticalQuote && (
-                        <button
-                          type="button"
-                          onClick={openCriticalQuoteModal}
-                          className="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold rounded-lg transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
-                        >
-                          {workOrder.contractor_critical_quote_status ? 'Edit Quote' : 'Provide Quote / Cost Breakdown'}
-                        </button>
+                        !isTriSignoffComplete ? (
+                          <button
+                            type="button"
+                            disabled
+                            title="Requires 3-Way Statutory Completion Sign-off (3/3 signatures) before submitting post-completion quote"
+                            className="px-3.5 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 text-xs font-semibold rounded-lg cursor-not-allowed select-none flex items-center gap-1.5 shadow-2xs"
+                          >
+                            <span>Provide Quote / Cost Breakdown</span>
+                            <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-medium">Sign-off Pending</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={openCriticalQuoteModal}
+                            className="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold rounded-lg transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 shadow-sm"
+                          >
+                            {workOrder.contractor_critical_quote_status ? 'Edit Quote' : 'Provide Quote / Cost Breakdown'}
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -3323,17 +3180,12 @@ export default function WorkOrderDetailPage() {
                       )}
                     </div>
                   ) : (
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center text-xs text-slate-500 py-6 space-y-2">
-                      <p>Work is completed. The assigned contractor can now provide the itemized quote &amp; cost breakdown for Works Engineer verification.</p>
-                      {canProvideCriticalQuote && (
-                        <button
-                          type="button"
-                          onClick={openCriticalQuoteModal}
-                          className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg text-xs transition-all active:scale-95 cursor-pointer inline-flex items-center gap-1.5 shadow-sm"
-                        >
-                          Provide Quote / Cost Breakdown
-                        </button>
-                      )}
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center text-xs text-slate-500 py-6">
+                      <p>
+                        {!isTriSignoffComplete
+                          ? 'Work is completed. 3-Way Statutory Completion Sign-off (3/3 signatures) must be completed before the contractor can submit the itemized quote & cost breakdown.'
+                          : '3-Way Statutory Sign-off completed. The assigned contractor can now provide the itemized quote & cost breakdown using the button above for Works Engineer verification.'}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -3393,12 +3245,14 @@ export default function WorkOrderDetailPage() {
                           {workOrder.signoff_inspector_at && (
                             <div className="text-[10px] text-slate-500">{formatDate(workOrder.signoff_inspector_at)}</div>
                           )}
-                          <div className="text-[11px] text-teal-800 font-sans font-semibold pt-0.5 flex items-center justify-between">
-                            <span>Logged QC Time:</span>
-                            <span className="px-1.5 py-0.5 bg-teal-50 border border-teal-200 rounded font-mono text-teal-900">
-                              {workOrder.inspector_timesheet_hours ? `${Number(workOrder.inspector_timesheet_hours).toFixed(1)} hrs` : 'Logged'}
-                            </span>
-                          </div>
+                          {role !== 'STAFF' && role !== 'CONTRACTOR' && (
+                            <div className="text-[11px] text-teal-800 font-sans font-semibold pt-0.5 flex items-center justify-between">
+                              <span>Logged QC Time:</span>
+                              <span className="px-1.5 py-0.5 bg-teal-50 border border-teal-200 rounded font-mono text-teal-900">
+                                {workOrder.inspector_timesheet_hours ? `${Number(workOrder.inspector_timesheet_hours).toFixed(1)} hrs` : 'Logged'}
+                              </span>
+                            </div>
+                          )}
                           {canViewInspectorTimesheet && (
                             <button
                               type="button"
@@ -3495,12 +3349,14 @@ export default function WorkOrderDetailPage() {
                           {workOrder.signoff_engineer_at && (
                             <div className="text-[10px] text-slate-500">{formatDate(workOrder.signoff_engineer_at)}</div>
                           )}
-                          <div className="text-[11px] text-sky-800 font-sans font-semibold pt-0.5 flex items-center justify-between">
-                            <span>Logged Tech Time:</span>
-                            <span className="px-1.5 py-0.5 bg-sky-50 border border-sky-200 rounded font-mono text-sky-900">
-                              {workOrder.engineer_timesheet_hours ? `${Number(workOrder.engineer_timesheet_hours).toFixed(1)} hrs` : 'Logged'}
-                            </span>
-                          </div>
+                          {role !== 'STAFF' && role !== 'CONTRACTOR' && (
+                            <div className="text-[11px] text-sky-800 font-sans font-semibold pt-0.5 flex items-center justify-between">
+                              <span>Logged Tech Time:</span>
+                              <span className="px-1.5 py-0.5 bg-sky-50 border border-sky-200 rounded font-mono text-sky-900">
+                                {workOrder.engineer_timesheet_hours ? `${Number(workOrder.engineer_timesheet_hours).toFixed(1)} hrs` : 'Logged'}
+                              </span>
+                            </div>
+                          )}
                           {canViewEngineerTimesheet && (
                             <button
                               type="button"
@@ -3896,12 +3752,7 @@ export default function WorkOrderDetailPage() {
                     <span className="text-gray-500">Urgency SLA</span>
                     <span className="font-semibold text-gray-900">{urgency}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
-                    <span className="text-gray-500">Funding Model</span>
-                    <span className={`font-bold ${isRouteB ? 'text-purple-700' : 'text-slate-800'}`}>
-                      {isRouteB ? 'Advance Float Funded' : 'Client Funded (NC DOH)'}
-                    </span>
-                  </div>
+
                   {isStatutory && (
                     <div className="flex justify-between py-1 border-b border-gray-100 text-xs">
                       <span className="text-gray-500">Statutory Notice</span>
@@ -3956,14 +3807,7 @@ export default function WorkOrderDetailPage() {
                       )}
                     </div>
 
-                    {isRouteB && (
-                      <div className="p-2 bg-purple-50/70 border border-purple-200 rounded text-[11px] text-purple-900">
-                        <div className="font-bold uppercase tracking-wider text-[9px] text-purple-700">24h Float Settlement SLA Active</div>
-                        <div className="text-[10px] text-purple-800 mt-0.5">
-                          Advance float pool enables 24-hour contractor invoice disbursement upon job verification.
-                        </div>
-                      </div>
-                    )}
+
 
                     {urgency === 'Critical 0–24h' && (
                       <div className="p-2 bg-slate-50 border border-slate-200 rounded text-[11px] text-slate-700">
@@ -4389,7 +4233,7 @@ export default function WorkOrderDetailPage() {
                   {(isRouteB || (!workOrder?.estimated_cost && !workOrder?.assessor_estimate)) && (
                     <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-lg text-xs space-y-1">
                       <div className="flex items-center gap-1.5 font-bold text-purple-900">
-                        Emergency Fast-Track Dispatch (Advance Float)
+                        Emergency Fast-Track Dispatch
                       </div>
                       <p className="text-purple-800 text-[11px] leading-relaxed">
                         Direct specialist contractor allocation without upfront payment delay. Actual costs and repair details will be logged by the contractor upon work completion.

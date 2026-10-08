@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import AppLayout from '@/components/layout/AppLayout';
@@ -11,10 +11,12 @@ import { formatDate, formatCurrency } from '@/lib/utils';
 import DashboardBanner from '@/components/dashboard/DashboardBanner';
 import StatCard from '@/components/dashboard/StatCard';
 import WorkOrderCard from '@/components/dashboard/WorkOrderCard';
+import { CreateTicketModal } from '@/components/work-orders/CreateTicketModal';
 import { ArrowRight, Lock, FileText, RefreshCw, FileCheck, Radio, Home } from 'lucide-react';
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [isCreateTicketModalOpen, setIsCreateTicketModalOpen] = useState(false);
 
   const { data: summary, isLoading } = useQuery({
     queryKey: ['dashboard-summary'],
@@ -354,12 +356,13 @@ export default function DashboardPage() {
             subtitle="Here's what's happening at the hospital today • Report broken equipment & facility breakdowns"
             roleBadge="STAFF"
             actions={
-              <Link
-                href="/work-orders"
-                className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700 transition shadow-xs"
+              <button
+                type="button"
+                onClick={() => setIsCreateTicketModalOpen(true)}
+                className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700 transition shadow-xs cursor-pointer active:scale-95"
               >
                 + Request a new ticket
-              </Link>
+              </button>
             }
           />
 
@@ -430,6 +433,11 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+
+        <CreateTicketModal
+          isOpen={isCreateTicketModalOpen}
+          onClose={() => setIsCreateTicketModalOpen(false)}
+        />
       </AppLayout>
     );
   }
@@ -1186,12 +1194,13 @@ export default function DashboardPage() {
           roleBadge={user?.role}
           actions={
             <>
-              <Link
-                href="/work-orders"
-                className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700 transition shadow-xs"
+              <button
+                type="button"
+                onClick={() => setIsCreateTicketModalOpen(true)}
+                className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700 transition shadow-xs cursor-pointer active:scale-95"
               >
                 + Create Work Order
-              </Link>
+              </button>
               <Link
                 href="/invoices?status=pending"
                 className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/80 rounded-xl transition shadow-xs"
@@ -1402,6 +1411,11 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <CreateTicketModal
+        isOpen={isCreateTicketModalOpen}
+        onClose={() => setIsCreateTicketModalOpen(false)}
+      />
     </AppLayout>
   );
 }

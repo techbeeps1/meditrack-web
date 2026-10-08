@@ -545,14 +545,7 @@ function InvoicesContent() {
                   </div>
                 </div>
 
-                {Number(selectedInvoice.total_amount) <= 50000 && (
-                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-purple-900 text-xs">
-                    <div className="font-bold uppercase tracking-wider text-[10px] text-purple-700">24-Hour Advance Float Settlement SLA Active</div>
-                    <div className="mt-0.5 text-[11px] text-purple-800">
-                      Disbursed directly from Quantum Built&apos;s advance float pool within 24h of contractor submission.
-                    </div>
-                  </div>
-                )}
+
 
                 <div className="space-y-2 border-t border-b border-slate-100 py-3">
                   <div className="flex justify-between">
