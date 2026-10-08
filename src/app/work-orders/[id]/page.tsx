@@ -18,10 +18,11 @@ import { downloadCompletionCertificatePdf } from '@/lib/completionCertificatePdf
 import { downloadQuotePdf } from '@/lib/quotePdf';
 import { downloadTimesheetPdf } from '@/lib/timesheetPdf';
 import { downloadEstimatePdf } from '@/lib/estimatePdf';
+import { downloadWorkOrderPdf } from '@/lib/workOrderPdf';
 import { useAuth } from '@/hooks/useAuth';
 
 const WORKFLOW_STEPS: { status: WorkOrderStatus; label: string }[] = [
-  { status: 'reported', label: 'Reported' },
+  { status: 'reported', label: 'Requested' },
   { status: 'approved', label: 'Approved' },
   { status: 'assigned', label: 'Assigned' },
   { status: 'in_progress', label: 'In Progress' },
@@ -115,7 +116,7 @@ export function matchesSpecialty(category: string | undefined | null, specialty:
 }
 
 const EVENT_CONFIG: Record<string, { title: string; color: string; badge: string; label?: string }> = {
-  reported: { title: 'Work Order Reported & Created', color: 'border-sky-500 text-sky-600', badge: 'bg-sky-50 text-sky-700 border-sky-200', label: 'Reported' },
+  reported: { title: 'Ticket Requested & Created', color: 'border-sky-500 text-sky-600', badge: 'bg-sky-50 text-sky-700 border-sky-200', label: 'Requested' },
   lead_assigned: { title: 'Lead Works Assessor Designated', color: 'border-blue-500 text-blue-600', badge: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Assessor Designated' },
   engineer_requested: { title: 'Works Engineer Referral Requested', color: 'border-amber-500 text-amber-600', badge: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Engineer Requested' },
   engineer_fulfilled: { title: 'Works Engineer Referral Fulfilled', color: 'border-blue-500 text-blue-600', badge: 'bg-blue-50 text-blue-700 border-blue-200', label: 'Engineer Joined' },
@@ -999,10 +1000,21 @@ export default function WorkOrderDetailPage() {
         {/* Breadcrumb Navigation */}
         <div className="flex items-center space-x-2 text-xs text-gray-500">
           <Link href="/work-orders" className="hover:text-gray-900 hover:underline">
-            Work Orders
+            {['assigned', 'in_progress', 'completed', 'verified', 'closed'].includes(status) ? 'Work Orders' : 'Service Requests'}
           </Link>
           <span>&rsaquo;</span>
           <span className="font-mono text-gray-700">{workOrder.tracking_number}</span>
+          <span
+            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+              ['assigned', 'in_progress', 'completed', 'verified', 'closed'].includes(status)
+                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                : 'bg-amber-50 text-amber-700 border border-amber-200'
+            }`}
+          >
+            {['assigned', 'in_progress', 'completed', 'verified', 'closed'].includes(status)
+              ? 'Official Work Order'
+              : 'Service Request (Pending Contractor Assignment)'}
+          </span>
         </div>
 
         {/* Top Header Card */}
@@ -1060,7 +1072,7 @@ export default function WorkOrderDetailPage() {
             <span
               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize border ${sBadge.bg} ${sBadge.text} ${sBadge.border}`}
             >
-              {workOrder.status.replace('_', ' ')}
+              {workOrder.status === 'reported' ? 'Requested' : workOrder.status.replace('_', ' ')}
             </span>
           </div>
 
@@ -1070,7 +1082,7 @@ export default function WorkOrderDetailPage() {
               {workOrder.title}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500">
-              Reported on {formatDate(workOrder.created_at)} by{' '}
+              Requested on {formatDate(workOrder.created_at)} by{' '}
               <span className="font-semibold text-slate-700">{workOrder.reported_by_name || 'Staff'}</span>
             </p>
           </div>
@@ -1734,7 +1746,7 @@ export default function WorkOrderDetailPage() {
         )}
 
         {/* Fast-Track Advance Float Notice (Quantum Built Direct Advance Funded) */}
-        {isRouteB && (
+        {isRouteB && hasPaymentScope && (
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1 shadow-2xs">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-200 text-slate-800">
@@ -1768,7 +1780,7 @@ export default function WorkOrderDetailPage() {
         )}
 
         {/* Step 2: Contractor Assignment Stage Banner */}
-        {workOrder.status === 'approved' && (
+        {workOrder.status === 'approved' && hasPaymentScope && (
           <div className="p-5 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -1804,17 +1816,6 @@ export default function WorkOrderDetailPage() {
                 <div className="text-[11px] text-slate-500 mt-1">
                   Scope Status: <strong className="text-slate-800">Pre-Approved for Specialist Dispatch</strong>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                {role === 'CONTRACTOR' && !isRouteB && (
-                  <button
-                    onClick={openQuoteModal}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition"
-                  >
-                    {workOrder.estimated_cost ? 'Update Price Quote' : 'Submit Price Quote (R)'} &rarr;
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -1979,7 +1980,8 @@ export default function WorkOrderDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               {/* Engineering Assessor Scope & Automated Funding Split Card */}
-              <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-4">
+              {hasPaymentScope && (
+                <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
                   <div>
                     <div className="flex items-center gap-2">
@@ -2261,6 +2263,7 @@ export default function WorkOrderDetailPage() {
                   </>
                 )}
               </div>
+              )}
 
               {/* Client Quotation Approval Lifecycle Card */}
               {!isRouteB && (
@@ -2816,7 +2819,7 @@ export default function WorkOrderDetailPage() {
                 </div>
               </div>
 
-              {!['STAFF', 'CONTRACTOR'].includes(user?.role || '') && (
+              {hasPaymentScope && (
                 <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-3">
                   <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
                     Financials & Schedule
@@ -3376,24 +3379,49 @@ export default function WorkOrderDetailPage() {
                     </div>
 
                     {(() => {
-                      const activeContractors = contractors.filter((c) => c.approval_status === 'active' || !c.approval_status);
+                      const activeContractors = contractors.length > 0
+                        ? contractors.filter((c) => c.approval_status === 'active' || !c.approval_status)
+                        : [
+                            { id: 'usr_contractor_01', name: 'Apex BioMed Solutions', specialty: 'Biomedical Equipment' },
+                            { id: 'usr_contractor_02', name: 'Contactor TBS', specialty: 'Electrical' },
+                            { id: 'usr_contractor_03', name: 'KZN Cooling & HVAC Specialists', specialty: 'HVAC' },
+                            { id: 'usr_contractor_04', name: 'Metro Plumbing & Gas', specialty: 'Plumbing' },
+                            { id: 'usr_contractor_05', name: 'Coastal Medical Gas Systems', specialty: 'Medical Gas' }
+                          ];
                       const matchedList = activeContractors.filter((c) => matchesSpecialty(workOrder?.category, c.specialty));
-                      const selected = matchedList.find((c) => c.id === assignedTechnician) || matchedList[0] || activeContractors[0] || {
-                        id: 'usr_contractor_01',
-                        name: 'Apex BioMed Solutions',
-                        specialty: workOrder?.category || 'Biomedical Equipment'
-                      };
+                      const otherList = activeContractors.filter((c) => !matchesSpecialty(workOrder?.category, c.specialty));
 
                       return (
-                        <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm font-medium text-slate-900 flex items-center justify-between select-none">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-900">{selected.name}</span>
-                            <span className="text-gray-400">—</span>
-                            <span className="text-xs text-gray-600">{selected.specialty || 'Specialist'}</span>
+                        <div className="relative">
+                          <select
+                            value={assignedTechnician}
+                            onChange={(e) => setAssignedTechnician(e.target.value)}
+                            className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:outline-none appearance-none cursor-pointer pr-10 shadow-2xs"
+                          >
+                            {matchedList.length > 0 && (
+                              <optgroup label={`Matched Specialists (${workOrder?.category || 'Category'})`}>
+                                {matchedList.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name} — {c.specialty || 'Specialist'} (Recommended)
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {otherList.length > 0 && (
+                              <optgroup label="All Registered Contractors">
+                                {otherList.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name} — {c.specialty || 'General Contractor'}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
                           </div>
-                          <span className="text-[11px] font-mono text-sky-700 bg-sky-100/70 px-1.5 py-0.5 rounded">
-                            Auto-Selected
-                          </span>
                         </div>
                       );
                     })()}

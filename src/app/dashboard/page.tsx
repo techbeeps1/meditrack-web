@@ -312,7 +312,7 @@ export default function DashboardPage() {
                 href="/work-orders"
                 className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-xl hover:bg-sky-700 transition shadow-xs"
               >
-                + Report New Work Order
+                + Request a new ticket
               </Link>
             }
           />
@@ -373,7 +373,7 @@ export default function DashboardPage() {
             {staffWorkOrders.length === 0 ? (
               <div className="p-8 text-center bg-white rounded-[18px] border border-slate-200 shadow-xs">
                 <div className="text-sm font-semibold text-slate-700">No tickets reported yet.</div>
-                <div className="text-xs text-slate-400 mt-1">Click &quot;+ Report New Work Order&quot; to log a maintenance issue.</div>
+                <div className="text-xs text-slate-400 mt-1">Click &quot;+ Request a new ticket&quot; to log a maintenance issue.</div>
               </div>
             ) : (
               <div className="space-y-3.5">
@@ -684,7 +684,7 @@ export default function DashboardPage() {
   // -------------------------------------------------------------
   if (user?.role === 'APPROVER') {
     const PIPELINE_STEPS = [
-      { key: 'reported', label: 'Reported', count: reportedCount, color: 'bg-[#FF7A00]' },
+      { key: 'reported', label: 'Requested', count: reportedCount, color: 'bg-[#FF7A00]' },
       { key: 'approved', label: 'Approved', count: approvedCount, color: 'bg-[#007B88]' },
       { key: 'assigned', label: 'Assigned', count: assignedCount, color: 'bg-[#00C2FF]' },
       { key: 'in_progress', label: 'In Progress', count: inProgressCount, color: 'bg-[#0038FF]' },
@@ -884,7 +884,7 @@ export default function DashboardPage() {
   // 6. ADMIN FULL EXECUTIVE COMMAND DASHBOARD
   // -------------------------------------------------------------
   const PIPELINE_STEPS = [
-    { key: 'reported', label: 'Reported', count: woStats.reported, color: 'bg-[#FF7A00]' },
+    { key: 'reported', label: 'Requested', count: woStats.reported, color: 'bg-[#FF7A00]' },
     { key: 'approved', label: 'Approved', count: woStats.approved, color: 'bg-[#007B88]' },
     { key: 'assigned', label: 'Assigned', count: woStats.assigned, color: 'bg-[#00C2FF]' },
     { key: 'in_progress', label: 'In Progress', count: woStats.in_progress, color: 'bg-[#0038FF]' },
