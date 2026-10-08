@@ -1297,7 +1297,12 @@ export default function WorkOrderDetailPage() {
   const isContractor = role === 'CONTRACTOR' || !!workOrder.is_blind_quoted;
   const mySubmittedQuote = role === 'CONTRACTOR' ? (workOrder.quotations || []).find((q: any) => q.contractor_id === user?.id) : null;
 
-  const isCriticalJob = urgency === 'Critical 0–24h' || workOrder.priority === 'critical';
+  const isCriticalJob =
+    (workOrder.priority || '').toLowerCase() === 'critical' ||
+    (workOrder.urgency_category || '').toLowerCase().includes('critical') ||
+    (workOrder.urgency_category || '').toLowerCase().includes('0-24') ||
+    (workOrder.urgency_category || '').toLowerCase().includes('0–24') ||
+    (urgency || '').toLowerCase().includes('critical');
 
   // 3-Way Tri-Signoff Permissions (Strictly Sequential: 1. Works Inspector -> 2. Works Engineer -> 3. Facilities Manager / Staff)
   const canSignInspector =

@@ -127,8 +127,8 @@ function WorkOrdersContent() {
     resolver: zodResolver(createWOSchema),
     defaultValues: {
       category: 'Biomedical Equipment',
-      priority: 'medium',
-      urgency_category: 'Urgent 4–8 days',
+      priority: 'critical',
+      urgency_category: 'Critical 0–24h',
       estimated_cost: 0
     }
   });
