@@ -3,6 +3,8 @@ import { formatDate } from './utils';
 export interface TimesheetDayEntry {
   day: string;
   date: string;
+  time_in?: string;
+  time_out?: string;
   task?: string;
   hours: number | string;
 }
@@ -20,6 +22,8 @@ export interface TimesheetPdfData {
   signature_date?: string;
 }
 
+const DEFAULT_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
 export function downloadTimesheetPdf(data: TimesheetPdfData) {
   const printWindow = window.open('', '_blank', 'width=850,height=900');
   if (!printWindow) {
@@ -30,19 +34,48 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const logoUrl = `${origin}/images/logo.png`;
 
-  // Filter or use active dynamic entries
-  const rawEntries = (data.entries && data.entries.length > 0)
-    ? data.entries
-    : [
-        { day: 'Day 1', date: '', task: 'Site inspection & diagnostic scoping', hours: '4.0' }
-      ];
+  // Build full 7-day entries from data.entries or default
+  let dayRows: Array<{
+    day: string;
+    date: string;
+    time_in: string;
+    time_out: string;
+    hours: string;
+  }> = [];
 
-  const dayRows = rawEntries.map((e, idx) => ({
-    day: e.day || `Day ${idx + 1}`,
-    date: e.date ? formatDate(e.date) : '',
-    task: e.task || '',
-    hours: e.hours !== undefined && e.hours !== '' && Number(e.hours) > 0 ? Number(e.hours).toFixed(1) : ''
-  }));
+  if (data.entries && data.entries.length > 0) {
+    dayRows = data.entries.map((e, idx) => ({
+      day: e.day || DEFAULT_DAYS[idx] || `Day ${idx + 1}`,
+      date: e.date ? formatDate(e.date) : '',
+      time_in: e.time_in || '',
+      time_out: e.time_out || '',
+      hours: e.hours !== undefined && e.hours !== '' && Number(e.hours) > 0 ? Number(e.hours).toFixed(1) : ''
+    }));
+  } else {
+    dayRows = DEFAULT_DAYS.map((day) => ({
+      day,
+      date: '',
+      time_in: '',
+      time_out: '',
+      hours: ''
+    }));
+  }
+
+  // Ensure minimum 7 days are displayed
+  if (dayRows.length < 7) {
+    const existingDays = dayRows.map((r) => r.day);
+    for (const d of DEFAULT_DAYS) {
+      if (!existingDays.includes(d)) {
+        dayRows.push({
+          day: d,
+          date: '',
+          time_in: '',
+          time_out: '',
+          hours: ''
+        });
+      }
+    }
+  }
 
   const totalCalculated = dayRows.reduce((acc, row) => acc + (Number(row.hours) || 0), 0);
   const totalDisplay = data.total_hours ? Number(data.total_hours).toFixed(1) : totalCalculated.toFixed(1);
@@ -54,8 +87,8 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
   <title>Time Sheet - ${data.work_order_tracking}</title>
   <style>
     @page {
-      size: A4 landscape;
-      margin: 15mm;
+      size: A4 portrait;
+      margin: 12mm 15mm;
     }
     * {
       box-sizing: border-box;
@@ -66,12 +99,12 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       color: #1e293b;
       background: #ffffff;
-      padding: 30px;
+      padding: 24px;
       font-size: 13px;
-      line-height: 1.5;
+      line-height: 1.4;
     }
     .timesheet-container {
-      max-width: 900px;
+      max-width: 820px;
       margin: 0 auto;
       background: #ffffff;
     }
@@ -79,8 +112,8 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 24px;
-      padding-bottom: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
       border-bottom: 2px solid #2B7A9B;
     }
     .company-brand {
@@ -89,38 +122,38 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
       gap: 12px;
     }
     .company-logo {
-      height: 44px;
+      height: 40px;
       width: auto;
-      max-width: 160px;
+      max-width: 150px;
       object-fit: contain;
     }
     .company-title {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 800;
       color: #2B7A9B;
       letter-spacing: 0.5px;
       text-transform: uppercase;
     }
     .doc-title {
-      font-size: 32px;
-      font-weight: 300;
+      font-size: 28px;
+      font-weight: 400;
       letter-spacing: 1px;
       color: #0f172a;
       text-align: center;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
     }
     .meta-fields {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
       gap: 20px;
       font-size: 13px;
     }
     .field-group {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       flex: 1;
     }
     .field-label {
@@ -144,43 +177,48 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
       margin-bottom: 0px;
     }
     .table th {
-      background: #94a3b8;
+      background: #cbd5e1;
       color: #0f172a;
       font-weight: 700;
       font-size: 12.5px;
-      padding: 9px 12px;
-      border: 1px solid #64748b;
-      text-align: left;
-    }
-    .table th.text-center {
+      padding: 8px 12px;
+      border: 1px solid #94a3b8;
       text-align: center;
     }
-    .table th.text-right {
+    .table th.th-day {
+      text-align: left;
+      width: 20%;
+    }
+    .table th.th-date {
+      width: 22%;
+    }
+    .table th.th-time {
+      width: 19%;
+    }
+    .table th.th-hours {
       text-align: right;
+      width: 20%;
     }
     .table td {
-      padding: 9px 12px;
+      padding: 8px 12px;
       font-size: 12.5px;
-      border: 1px solid #94a3b8;
+      border: 1px solid #cbd5e1;
       color: #1e293b;
-      height: 38px;
+      height: 34px;
     }
     .table td.day-col {
       font-weight: 600;
       background: #f8fafc;
-      width: 16%;
     }
     .table td.date-col {
-      width: 16%;
       text-align: center;
       font-family: monospace;
     }
-    .table td.task-col {
-      width: 52%;
-      color: #334155;
+    .table td.time-col {
+      text-align: center;
+      font-family: monospace;
     }
     .table td.hours-col {
-      width: 16%;
       text-align: right;
       font-weight: 700;
       font-family: monospace;
@@ -190,43 +228,43 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
       display: flex;
       justify-content: flex-end;
       margin-top: -1px;
-      margin-bottom: 36px;
+      margin-bottom: 30px;
     }
     .total-hours-box {
       display: flex;
-      width: 32%;
-      border: 1px solid #94a3b8;
+      width: 39%;
+      border: 1px solid #cbd5e1;
       border-top: none;
     }
     .total-hours-label {
-      width: 50%;
-      padding: 9px 12px;
+      width: 48.7%;
+      padding: 8px 12px;
       font-weight: 700;
       font-size: 12.5px;
-      border-right: 1px solid #94a3b8;
+      border-right: 1px solid #cbd5e1;
       text-align: right;
       background: #f1f5f9;
     }
     .total-hours-value {
-      width: 50%;
-      padding: 9px 12px;
+      width: 51.3%;
+      padding: 8px 12px;
       font-weight: 800;
-      font-size: 14px;
+      font-size: 13.5px;
       text-align: right;
       font-family: monospace;
-      color: #2B7A9B;
+      color: #0f172a;
       background: #f8fafc;
     }
     .signature-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 20px;
-      margin-top: 36px;
+      gap: 16px;
+      margin-top: 30px;
       font-size: 13px;
     }
     .print-actions {
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       text-align: center;
     }
     .print-btn {
@@ -269,66 +307,68 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
         </div>
       </div>
       <div style="font-size: 11px; color: #64748b; text-align: right;">
-        Ticket: <strong>${data.work_order_tracking || 'WO-REF'}</strong><br/>
-        Facility: <strong>${data.facility_name || 'Hospital Site'}</strong>
+        Job Ticket: <strong>${data.work_order_tracking || 'WO-REF'}</strong><br/>
+        Facility: <strong>${data.facility_name || 'Healthcare Site'}</strong>
       </div>
     </div>
 
-    <!-- Main Title -->
+    <!-- Main Title (Centered) -->
     <div class="doc-title">Time Sheet</div>
 
     <!-- Employee Name & Week Start Metadata -->
     <div class="meta-fields">
       <div class="field-group" style="flex: 1.2;">
         <span class="field-label">Employee's Name</span>
-        <div class="field-input-box">${data.employee_name || 'David Vance (Site Works Assessor)'}</div>
+        <div class="field-input-box">${data.employee_name || 'Assessor'}</div>
       </div>
       <div class="field-group" style="flex: 0.8;">
-        <span class="field-label">Period / Start Date</span>
+        <span class="field-label">Week Start</span>
         <div class="field-input-box">${data.week_start || formatDate(new Date().toISOString())}</div>
       </div>
     </div>
 
-    <!-- Dynamic Days Timesheet Table -->
+    <!-- Monday to Sunday Table (Matching Template) -->
     <table class="table">
       <thead>
         <tr>
-          <th class="day-col">Day</th>
-          <th class="date-col text-center">Date</th>
-          <th class="task-col">Task / Inspection Scope Description</th>
-          <th class="hours-col text-right">Total Hours</th>
+          <th class="th-day">Day</th>
+          <th class="th-date">Date</th>
+          <th class="th-time">Time In</th>
+          <th class="th-time">Time Out</th>
+          <th class="th-hours">Total Hours</th>
         </tr>
       </thead>
       <tbody>
         ${dayRows.map((row) => `
           <tr>
             <td class="day-col">${row.day}</td>
-            <td class="date-col">${row.date || '-'}</td>
-            <td class="task-col">${row.task || (row.hours ? `On-site diagnostic inspection for ${data.work_order_tracking}` : '-')}</td>
-            <td class="hours-col">${row.hours ? `${row.hours} hrs` : '-'}</td>
+            <td class="date-col">${row.date || ''}</td>
+            <td class="time-col">${row.time_in || ''}</td>
+            <td class="time-col">${row.time_out || ''}</td>
+            <td class="hours-col">${row.hours ? `${row.hours}` : ''}</td>
           </tr>
         `).join('')}
       </tbody>
     </table>
 
-    <!-- Total Hours Sum Block -->
+    <!-- Total Hours Sum Box on Right -->
     <div class="total-row-container">
       <div class="total-hours-box">
         <div class="total-hours-label">Total Hours</div>
-        <div class="total-hours-value">${totalDisplay} hrs</div>
+        <div class="total-hours-value">${totalDisplay}</div>
       </div>
     </div>
 
-    <!-- Bottom Sign-off Section -->
+    <!-- Bottom Signature Row (Matching Template) -->
     <div class="signature-row">
       <div class="field-group" style="flex: 1.1;">
         <span class="field-label">Employee's Name</span>
-        <div class="field-input-box">${data.signature_name || data.employee_name || 'David Vance'}</div>
+        <div class="field-input-box">${data.signature_name || data.employee_name || ''}</div>
       </div>
       <div class="field-group" style="flex: 1;">
         <span class="field-label">Signature</span>
-        <div class="field-input-box" style="font-family: cursive; font-size: 14px; color: #1e3a8a;">
-          ✓ ${data.signature_name || data.employee_name || 'David Vance'} (Digital Signed)
+        <div class="field-input-box" style="font-family: cursive; font-size: 13px; color: #1e3a8a;">
+          ✓ ${data.signature_name || data.employee_name || ''} (Signed)
         </div>
       </div>
       <div class="field-group" style="flex: 0.7;">

@@ -239,19 +239,55 @@ export default function WorkOrderDetailPage() {
   const [adjustmentNotesInput, setAdjustmentNotesInput] = useState('');
   const [reviewEstimateError, setReviewEstimateError] = useState<string | null>(null);
 
-  // Dedicated Separate Timesheet States for Inspector and Engineer
+  // Dedicated Separate Timesheet States for Inspector and Engineer (Monday to Sunday Template)
+  const defaultTimesheetWeek = [
+    { day: 'Monday', date: '', time_in: '', time_out: '', hours: '' },
+    { day: 'Tuesday', date: '', time_in: '', time_out: '', hours: '' },
+    { day: 'Wednesday', date: '', time_in: '', time_out: '', hours: '' },
+    { day: 'Thursday', date: '', time_in: '', time_out: '', hours: '' },
+    { day: 'Friday', date: '', time_in: '', time_out: '', hours: '' },
+    { day: 'Saturday', date: '', time_in: '', time_out: '', hours: '' },
+    { day: 'Sunday', date: '', time_in: '', time_out: '', hours: '' }
+  ];
+
+  const calculateHoursFromTimes = (timeIn: string, timeOut: string): string => {
+    if (!timeIn || !timeOut) return '';
+    const [inH, inM] = timeIn.split(':').map(Number);
+    const [outH, outM] = timeOut.split(':').map(Number);
+    if (isNaN(inH) || isNaN(inM) || isNaN(outH) || isNaN(outM)) return '';
+    const diffMinutes = (outH * 60 + outM) - (inH * 60 + inM);
+    if (diffMinutes <= 0) return '0.0';
+    return (diffMinutes / 60).toFixed(1);
+  };
+
+  const handleWeekStartUpdate = (
+    newWeekStart: string,
+    setWeekStart: (val: string) => void,
+    setDays: React.Dispatch<React.SetStateAction<typeof defaultTimesheetWeek>>
+  ) => {
+    setWeekStart(newWeekStart);
+    if (!newWeekStart) return;
+    const startDate = new Date(newWeekStart);
+    setDays((prev) =>
+      prev.map((item, i) => {
+        const d = new Date(startDate);
+        d.setDate(d.getDate() + i);
+        return {
+          ...item,
+          date: d.toISOString().split('T')[0]
+        };
+      })
+    );
+  };
+
   const [isInspectorSignoffModalOpen, setIsInspectorSignoffModalOpen] = useState(false);
-  const [inspectorTimesheetDate, setInspectorTimesheetDate] = useState<string>('');
-  const [inspectorTravelHours, setInspectorTravelHours] = useState<number | ''>(1.0);
-  const [inspectorOnsiteHours, setInspectorOnsiteHours] = useState<number | ''>(2.5);
-  const [inspectorNotes, setInspectorNotes] = useState<string>('Statutory compliance, safety checklist & QC audit verified.');
+  const [inspectorWeekStart, setInspectorWeekStart] = useState<string>('');
+  const [inspectorDays, setInspectorDays] = useState(defaultTimesheetWeek);
   const [inspectorSignoffError, setInspectorSignoffError] = useState<string | null>(null);
 
   const [isEngineerSignoffModalOpen, setIsEngineerSignoffModalOpen] = useState(false);
-  const [engineerTimesheetDate, setEngineerTimesheetDate] = useState<string>('');
-  const [engineerTravelHours, setEngineerTravelHours] = useState<number | ''>(1.0);
-  const [engineerTechnicalHours, setEngineerTechnicalHours] = useState<number | ''>(3.0);
-  const [engineerNotes, setEngineerNotes] = useState<string>('Technical execution, structural & component engineering standards certified.');
+  const [engineerWeekStart, setEngineerWeekStart] = useState<string>('');
+  const [engineerDays, setEngineerDays] = useState(defaultTimesheetWeek);
   const [engineerSignoffError, setEngineerSignoffError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'details' | 'timeline' | 'audit'>('details');
@@ -2575,11 +2611,8 @@ export default function WorkOrderDetailPage() {
                                   work_order_tracking: workOrder.tracking_number,
                                   work_order_title: workOrder.title,
                                   facility_name: workOrder.facility_name,
-                                  entries: entries.length > 0 ? entries : [
-                                    { day: 'Travel / Commute', date: '', task: 'Site travel and access inspection setup', hours: '1.0' },
-                                    { day: 'Onsite QC Audit', date: '', task: 'Statutory compliance & quality audit verification', hours: workOrder.inspector_timesheet_hours ? (Number(workOrder.inspector_timesheet_hours) - 1.0 > 0 ? (Number(workOrder.inspector_timesheet_hours) - 1.0).toFixed(1) : workOrder.inspector_timesheet_hours) : '2.5' }
-                                  ],
-                                  total_hours: workOrder.inspector_timesheet_hours || '3.5',
+                                  entries: entries,
+                                  total_hours: workOrder.inspector_timesheet_hours || '0.0',
                                   signature_name: workOrder.inspector_timesheet_by || workOrder.signoff_inspector_by || 'Works Inspector',
                                   signature_date: workOrder.signoff_inspector_at ? formatDate(workOrder.signoff_inspector_at) : new Date().toLocaleDateString('en-GB')
                                 });
@@ -2595,7 +2628,29 @@ export default function WorkOrderDetailPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              setInspectorTimesheetDate(new Date().toISOString().split('T')[0]);
+                              let initialWeekStart = new Date().toISOString().split('T')[0];
+                              let initialDays = defaultTimesheetWeek.map((d, i) => {
+                                const dt = new Date();
+                                dt.setDate(dt.getDate() + i);
+                                return { ...d, date: dt.toISOString().split('T')[0] };
+                              });
+
+                              if (workOrder.inspector_timesheet_data) {
+                                try {
+                                  const parsed = JSON.parse(workOrder.inspector_timesheet_data);
+                                  if (Array.isArray(parsed) && parsed.length > 0) {
+                                    initialDays = parsed;
+                                    if (parsed[0]?.date) initialWeekStart = parsed[0].date;
+                                  }
+                                } catch (_) {}
+                              } else {
+                                initialDays[0].time_in = '08:00';
+                                initialDays[0].time_out = '11:30';
+                                initialDays[0].hours = '3.5';
+                              }
+
+                              setInspectorWeekStart(initialWeekStart);
+                              setInspectorDays(initialDays);
                               setInspectorSignoffError(null);
                               setIsInspectorSignoffModalOpen(true);
                             }}
@@ -2660,11 +2715,8 @@ export default function WorkOrderDetailPage() {
                                   work_order_tracking: workOrder.tracking_number,
                                   work_order_title: workOrder.title,
                                   facility_name: workOrder.facility_name,
-                                  entries: entries.length > 0 ? entries : [
-                                    { day: 'Travel / Inspection', date: '', task: 'Site visit and engineering diagnosis', hours: '1.0' },
-                                    { day: 'Technical Review', date: '', task: 'Component standards & SANS technical certification', hours: workOrder.engineer_timesheet_hours ? (Number(workOrder.engineer_timesheet_hours) - 1.0 > 0 ? (Number(workOrder.engineer_timesheet_hours) - 1.0).toFixed(1) : workOrder.engineer_timesheet_hours) : '3.0' }
-                                  ],
-                                  total_hours: workOrder.engineer_timesheet_hours || '4.0',
+                                  entries: entries,
+                                  total_hours: workOrder.engineer_timesheet_hours || '0.0',
                                   signature_name: workOrder.engineer_timesheet_by || workOrder.signoff_engineer_by || 'Works Engineer',
                                   signature_date: workOrder.signoff_engineer_at ? formatDate(workOrder.signoff_engineer_at) : new Date().toLocaleDateString('en-GB')
                                 });
@@ -2684,7 +2736,29 @@ export default function WorkOrderDetailPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              setEngineerTimesheetDate(new Date().toISOString().split('T')[0]);
+                              let initialWeekStart = new Date().toISOString().split('T')[0];
+                              let initialDays = defaultTimesheetWeek.map((d, i) => {
+                                const dt = new Date();
+                                dt.setDate(dt.getDate() + i);
+                                return { ...d, date: dt.toISOString().split('T')[0] };
+                              });
+
+                              if (workOrder.engineer_timesheet_data) {
+                                try {
+                                  const parsed = JSON.parse(workOrder.engineer_timesheet_data);
+                                  if (Array.isArray(parsed) && parsed.length > 0) {
+                                    initialDays = parsed;
+                                    if (parsed[0]?.date) initialWeekStart = parsed[0].date;
+                                  }
+                                } catch (_) {}
+                              } else {
+                                initialDays[0].time_in = '08:00';
+                                initialDays[0].time_out = '12:00';
+                                initialDays[0].hours = '4.0';
+                              }
+
+                              setEngineerWeekStart(initialWeekStart);
+                              setEngineerDays(initialDays);
                               setEngineerSignoffError(null);
                               setIsEngineerSignoffModalOpen(true);
                             }}
@@ -5014,22 +5088,22 @@ export default function WorkOrderDetailPage() {
           </div>
         )}
 
-        {/* Step 1: Works Inspector Sign-off & Timesheet Modal */}
+        {/* Step 1: Works Inspector Sign-off & Timesheet Modal (Client Template) */}
         {isInspectorSignoffModalOpen && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex justify-between items-start pb-3 border-b border-slate-100">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Works Inspector Sign-off &amp; Timesheet
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Job #{workOrder.tracking_number} &bull; Quality Control &amp; Physical Compliance Sign-off
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-start pb-2 border-b border-slate-100">
+                <div className="text-center w-full">
+                  <h2 className="text-2xl font-light tracking-wide text-slate-900">
+                    Time Sheet
+                  </h2>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                    Job #{workOrder.tracking_number} &bull; Works Inspector Statutory Sign-off &amp; QC Audit
                   </p>
                 </div>
                 <button
                   onClick={() => setIsInspectorSignoffModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer font-bold text-sm"
+                  className="p-1 -mt-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer font-bold text-sm"
                 >
                   ✕
                 </button>
@@ -5041,144 +5115,218 @@ export default function WorkOrderDetailPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Inspector Name
-                  </label>
+              {/* Employee's Name & Week Start Header */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2">
+                  <span className="whitespace-nowrap font-semibold">Employee&apos;s Name:</span>
                   <input
                     type="text"
                     disabled
                     value={user?.name || 'Works Inspector'}
-                    className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                    className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-300 rounded text-xs font-semibold text-slate-800"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Inspection Date
-                  </label>
+                <div className="flex items-center gap-2">
+                  <span className="whitespace-nowrap font-semibold">Week Start:</span>
                   <input
                     type="date"
-                    value={inspectorTimesheetDate}
-                    onChange={(e) => setInspectorTimesheetDate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-[#2B7A9B] focus:outline-none"
+                    value={inspectorWeekStart}
+                    onChange={(e) => handleWeekStartUpdate(e.target.value, setInspectorWeekStart, setInspectorDays)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs text-slate-900 focus:ring-1 focus:ring-slate-500 focus:outline-none font-mono"
                   />
                 </div>
               </div>
 
-              <div className="p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-3">
-                <div className="text-xs font-bold text-emerald-900 flex items-center justify-between">
-                  <span>⏱️ Log Inspection &amp; Audit Hours</span>
-                  <span className="text-[11px] text-emerald-700 font-medium">Required for Audit</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Travel / Transit Hours
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      max="24"
-                      value={inspectorTravelHours}
-                      onChange={(e) => setInspectorTravelHours(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#2B7A9B]"
-                    />
+              {/* Monday to Sunday Table */}
+              <div className="border border-slate-300 rounded overflow-hidden">
+                <table className="w-full text-xs border-collapse">
+                  <thead className="bg-slate-200 border-b border-slate-300 text-slate-800 font-bold">
+                    <tr>
+                      <th className="py-2 px-3 text-left w-28 border-r border-slate-300">Day</th>
+                      <th className="py-2 px-3 text-center border-r border-slate-300">Date</th>
+                      <th className="py-2 px-3 text-center border-r border-slate-300">Time In</th>
+                      <th className="py-2 px-3 text-center border-r border-slate-300">Time Out</th>
+                      <th className="py-2 px-3 text-right w-24">Total Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {inspectorDays.map((row, idx) => (
+                      <tr key={row.day} className="hover:bg-slate-50">
+                        <td className="py-1.5 px-3 font-semibold bg-slate-50 border-r border-slate-200">
+                          {row.day}
+                        </td>
+                        <td className="py-1.5 px-2 text-center border-r border-slate-200">
+                          <input
+                            type="date"
+                            value={row.date}
+                            onChange={(e) => {
+                              const updated = [...inspectorDays];
+                              updated[idx].date = e.target.value;
+                              setInspectorDays(updated);
+                            }}
+                            className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs text-slate-800 font-mono"
+                          />
+                        </td>
+                        <td className="py-1.5 px-2 text-center border-r border-slate-200">
+                          <input
+                            type="time"
+                            value={row.time_in || ''}
+                            onChange={(e) => {
+                              const updated = [...inspectorDays];
+                              updated[idx].time_in = e.target.value;
+                              const calc = calculateHoursFromTimes(e.target.value, updated[idx].time_out || '');
+                              if (calc) updated[idx].hours = calc;
+                              setInspectorDays(updated);
+                            }}
+                            className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs font-mono text-slate-800"
+                          />
+                        </td>
+                        <td className="py-1.5 px-2 text-center border-r border-slate-200">
+                          <input
+                            type="time"
+                            value={row.time_out || ''}
+                            onChange={(e) => {
+                              const updated = [...inspectorDays];
+                              updated[idx].time_out = e.target.value;
+                              const calc = calculateHoursFromTimes(updated[idx].time_in || '', e.target.value);
+                              if (calc) updated[idx].hours = calc;
+                              setInspectorDays(updated);
+                            }}
+                            className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs font-mono text-slate-800"
+                          />
+                        </td>
+                        <td className="py-1.5 px-2 text-right">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            max="24"
+                            placeholder="0.0"
+                            value={row.hours || ''}
+                            onChange={(e) => {
+                              const updated = [...inspectorDays];
+                              updated[idx].hours = e.target.value;
+                              setInspectorDays(updated);
+                            }}
+                            className="w-full text-right px-2 py-1 border border-slate-200 rounded text-xs font-mono font-bold text-slate-900"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Total Hours Box on Bottom Right */}
+              <div className="flex justify-end">
+                <div className="flex border border-slate-300 rounded overflow-hidden text-xs">
+                  <div className="bg-slate-100 font-bold text-slate-700 px-4 py-1.5 border-r border-slate-300">
+                    Total Hours
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Onsite Physical QC Hours
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      max="24"
-                      value={inspectorOnsiteHours}
-                      onChange={(e) => setInspectorOnsiteHours(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#2B7A9B]"
-                    />
+                  <div className="px-4 py-1.5 font-bold font-mono text-slate-900 bg-white min-w-[80px] text-right">
+                    {inspectorDays.reduce((acc, r) => acc + (Number(r.hours) || 0), 0).toFixed(1)}
                   </div>
                 </div>
-                <div className="flex justify-between items-center pt-2 border-t border-emerald-200/60 text-xs">
-                  <span className="font-semibold text-emerald-900">Total Inspector Time:</span>
-                  <span className="font-mono text-sm font-bold text-emerald-900">
-                    {((Number(inspectorTravelHours) || 0) + (Number(inspectorOnsiteHours) || 0)).toFixed(1)} hrs
-                  </span>
+              </div>
+
+              {/* Bottom Sign-off Metadata */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs font-medium text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-1.5">
+                  <span className="whitespace-nowrap font-semibold">Employee&apos;s Name:</span>
+                  <input
+                    type="text"
+                    disabled
+                    value={user?.name || 'Works Inspector'}
+                    className="w-full px-2 py-1 bg-slate-100 border border-slate-300 rounded text-[11px] font-semibold text-slate-800 truncate"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="whitespace-nowrap font-semibold">Signature:</span>
+                  <div className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-semibold text-indigo-900 truncate">
+                    ✓ {user?.name || 'Works Inspector'} (Signed)
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="whitespace-nowrap font-semibold">Date:</span>
+                  <input
+                    type="text"
+                    disabled
+                    value={new Date().toLocaleDateString('en-GB')}
+                    className="w-full px-2 py-1 bg-slate-100 border border-slate-300 rounded text-[11px] text-center text-slate-800 font-mono font-semibold"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Inspection Notes &amp; QC Findings (Optional)
-                </label>
-                <textarea
-                  rows={2}
-                  value={inspectorNotes}
-                  onChange={(e) => setInspectorNotes(e.target.value)}
-                  placeholder="e.g. Work executed as per technical scope. Physical audit completed with zero defects."
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-[#2B7A9B] focus:outline-none shadow-2xs"
-                />
-              </div>
-
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 leading-relaxed">
-                By clicking <strong>Confirm Sign-off &amp; Submit Timesheet</strong>, you certify that you have physically inspected the site and verified the contractor's work against standard quality requirements.
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+              <div className="flex justify-between items-center pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsInspectorSignoffModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={signoffMutation.isPending}
                   onClick={() => {
-                    const travel = Number(inspectorTravelHours) || 0;
-                    const onsite = Number(inspectorOnsiteHours) || 0;
-                    const total = travel + onsite;
-                    const entries = [
-                      { day: 'Travel / Transit', date: inspectorTimesheetDate, task: 'Site transit and inspection preparation', hours: travel.toFixed(1) },
-                      { day: 'Onsite Physical QC Audit', date: inspectorTimesheetDate, task: inspectorNotes.trim() || 'Physical quality control and compliance verification', hours: onsite.toFixed(1) }
-                    ];
-                    signoffMutation.mutate({
-                      roleType: 'inspector',
-                      action: 'sign',
-                      timesheetData: {
-                        entries,
-                        total_hours: total
-                      }
+                    downloadTimesheetPdf({
+                      employee_name: user?.name || 'Works Inspector',
+                      employee_role: 'Works Inspector (Compliance & QC Audit)',
+                      week_start: inspectorWeekStart || formatDate(new Date().toISOString()),
+                      work_order_tracking: workOrder.tracking_number,
+                      work_order_title: workOrder.title,
+                      facility_name: workOrder.facility_name,
+                      entries: inspectorDays,
+                      total_hours: inspectorDays.reduce((acc, r) => acc + (Number(r.hours) || 0), 0).toFixed(1),
+                      signature_name: user?.name || 'Works Inspector',
+                      signature_date: new Date().toLocaleDateString('en-GB')
                     });
                   }}
-                  className="px-4 py-2 text-xs font-bold text-white bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                  className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  {signoffMutation.isPending ? 'Submitting...' : '✓ Confirm Sign-off & Submit Timesheet'}
+                  <span>📄</span> Preview Timesheet PDF
                 </button>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsInspectorSignoffModalOpen(false)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={signoffMutation.isPending}
+                    onClick={() => {
+                      const total = inspectorDays.reduce((acc, r) => acc + (Number(r.hours) || 0), 0);
+                      signoffMutation.mutate({
+                        roleType: 'inspector',
+                        action: 'sign',
+                        timesheetData: {
+                          entries: inspectorDays,
+                          total_hours: total
+                        }
+                      });
+                    }}
+                    className="px-4 py-2 text-xs font-bold text-white bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {signoffMutation.isPending ? 'Submitting...' : '✓ Confirm Sign-off & Submit Timesheet'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Step 2: Works Engineer Sign-off & Timesheet Modal */}
+        {/* Step 2: Works Engineer Sign-off & Timesheet Modal (Client Template) */}
         {isEngineerSignoffModalOpen && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex justify-between items-start pb-3 border-b border-slate-100">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Works Engineer Sign-off &amp; Timesheet
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Job #{workOrder.tracking_number} &bull; Technical Scoping &amp; SANS Component Standards Sign-off
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-start pb-2 border-b border-slate-100">
+                <div className="text-center w-full">
+                  <h2 className="text-2xl font-light tracking-wide text-slate-900">
+                    Time Sheet
+                  </h2>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                    Job #{workOrder.tracking_number} &bull; Works Engineer Technical Scoping &amp; SANS Sign-off
                   </p>
                 </div>
                 <button
                   onClick={() => setIsEngineerSignoffModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer font-bold text-sm"
+                  className="p-1 -mt-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer font-bold text-sm"
                 >
                   ✕
                 </button>
@@ -5190,123 +5338,197 @@ export default function WorkOrderDetailPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Engineer Name
-                  </label>
+              {/* Employee's Name & Week Start Header */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2">
+                  <span className="whitespace-nowrap font-semibold">Employee&apos;s Name:</span>
                   <input
                     type="text"
                     disabled
                     value={user?.name || 'Works Engineer'}
-                    className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                    className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-300 rounded text-xs font-semibold text-slate-800"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Engineering Review Date
-                  </label>
+                <div className="flex items-center gap-2">
+                  <span className="whitespace-nowrap font-semibold">Week Start:</span>
                   <input
                     type="date"
-                    value={engineerTimesheetDate}
-                    onChange={(e) => setEngineerTimesheetDate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-sky-600 focus:outline-none"
+                    value={engineerWeekStart}
+                    onChange={(e) => handleWeekStartUpdate(e.target.value, setEngineerWeekStart, setEngineerDays)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs text-slate-900 focus:ring-1 focus:ring-slate-500 focus:outline-none font-mono"
                   />
                 </div>
               </div>
 
-              <div className="p-3.5 bg-sky-50/50 border border-sky-200 rounded-xl space-y-3">
-                <div className="text-xs font-bold text-sky-900 flex items-center justify-between">
-                  <span>⚙️ Log Engineering &amp; Technical Hours</span>
-                  <span className="text-[11px] text-sky-700 font-medium">Required for Audit</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Travel / Site Inspection Hours
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      max="24"
-                      value={engineerTravelHours}
-                      onChange={(e) => setEngineerTravelHours(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-sky-600"
-                    />
+              {/* Monday to Sunday Table */}
+              <div className="border border-slate-300 rounded overflow-hidden">
+                <table className="w-full text-xs border-collapse">
+                  <thead className="bg-slate-200 border-b border-slate-300 text-slate-800 font-bold">
+                    <tr>
+                      <th className="py-2 px-3 text-left w-28 border-r border-slate-300">Day</th>
+                      <th className="py-2 px-3 text-center border-r border-slate-300">Date</th>
+                      <th className="py-2 px-3 text-center border-r border-slate-300">Time In</th>
+                      <th className="py-2 px-3 text-center border-r border-slate-300">Time Out</th>
+                      <th className="py-2 px-3 text-right w-24">Total Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {engineerDays.map((row, idx) => (
+                      <tr key={row.day} className="hover:bg-slate-50">
+                        <td className="py-1.5 px-3 font-semibold bg-slate-50 border-r border-slate-200">
+                          {row.day}
+                        </td>
+                        <td className="py-1.5 px-2 text-center border-r border-slate-200">
+                          <input
+                            type="date"
+                            value={row.date}
+                            onChange={(e) => {
+                              const updated = [...engineerDays];
+                              updated[idx].date = e.target.value;
+                              setEngineerDays(updated);
+                            }}
+                            className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs text-slate-800 font-mono"
+                          />
+                        </td>
+                        <td className="py-1.5 px-2 text-center border-r border-slate-200">
+                          <input
+                            type="time"
+                            value={row.time_in || ''}
+                            onChange={(e) => {
+                              const updated = [...engineerDays];
+                              updated[idx].time_in = e.target.value;
+                              const calc = calculateHoursFromTimes(e.target.value, updated[idx].time_out || '');
+                              if (calc) updated[idx].hours = calc;
+                              setEngineerDays(updated);
+                            }}
+                            className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs font-mono text-slate-800"
+                          />
+                        </td>
+                        <td className="py-1.5 px-2 text-center border-r border-slate-200">
+                          <input
+                            type="time"
+                            value={row.time_out || ''}
+                            onChange={(e) => {
+                              const updated = [...engineerDays];
+                              updated[idx].time_out = e.target.value;
+                              const calc = calculateHoursFromTimes(updated[idx].time_in || '', e.target.value);
+                              if (calc) updated[idx].hours = calc;
+                              setEngineerDays(updated);
+                            }}
+                            className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs font-mono text-slate-800"
+                          />
+                        </td>
+                        <td className="py-1.5 px-2 text-right">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            max="24"
+                            placeholder="0.0"
+                            value={row.hours || ''}
+                            onChange={(e) => {
+                              const updated = [...engineerDays];
+                              updated[idx].hours = e.target.value;
+                              setEngineerDays(updated);
+                            }}
+                            className="w-full text-right px-2 py-1 border border-slate-200 rounded text-xs font-mono font-bold text-slate-900"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Total Hours Box on Bottom Right */}
+              <div className="flex justify-end">
+                <div className="flex border border-slate-300 rounded overflow-hidden text-xs">
+                  <div className="bg-slate-100 font-bold text-slate-700 px-4 py-1.5 border-r border-slate-300">
+                    Total Hours
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Technical Scoping &amp; Review Hours
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      max="24"
-                      value={engineerTechnicalHours}
-                      onChange={(e) => setEngineerTechnicalHours(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-sky-600"
-                    />
+                  <div className="px-4 py-1.5 font-bold font-mono text-slate-900 bg-white min-w-[80px] text-right">
+                    {engineerDays.reduce((acc, r) => acc + (Number(r.hours) || 0), 0).toFixed(1)}
                   </div>
                 </div>
-                <div className="flex justify-between items-center pt-2 border-t border-sky-200/60 text-xs">
-                  <span className="font-semibold text-sky-900">Total Engineer Time:</span>
-                  <span className="font-mono text-sm font-bold text-sky-900">
-                    {((Number(engineerTravelHours) || 0) + (Number(engineerTechnicalHours) || 0)).toFixed(1)} hrs
-                  </span>
+              </div>
+
+              {/* Bottom Sign-off Metadata */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs font-medium text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-1.5">
+                  <span className="whitespace-nowrap font-semibold">Employee&apos;s Name:</span>
+                  <input
+                    type="text"
+                    disabled
+                    value={user?.name || 'Works Engineer'}
+                    className="w-full px-2 py-1 bg-slate-100 border border-slate-300 rounded text-[11px] font-semibold text-slate-800 truncate"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="whitespace-nowrap font-semibold">Signature:</span>
+                  <div className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-[11px] font-semibold text-sky-900 truncate">
+                    ✓ {user?.name || 'Works Engineer'} (Signed)
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="whitespace-nowrap font-semibold">Date:</span>
+                  <input
+                    type="text"
+                    disabled
+                    value={new Date().toLocaleDateString('en-GB')}
+                    className="w-full px-2 py-1 bg-slate-100 border border-slate-300 rounded text-[11px] text-center text-slate-800 font-mono font-semibold"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Technical Remarks &amp; Certification Notes (Optional)
-                </label>
-                <textarea
-                  rows={2}
-                  value={engineerNotes}
-                  onChange={(e) => setEngineerNotes(e.target.value)}
-                  placeholder="e.g. Mechanical components & specifications conform to SANS building regulations."
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
-                />
-              </div>
-
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 leading-relaxed">
-                By clicking <strong>Confirm Sign-off &amp; Submit Timesheet</strong>, you certify that the technical execution, replacement components, and mechanical integrity satisfy all technical standards.
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+              <div className="flex justify-between items-center pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsEngineerSignoffModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={signoffMutation.isPending}
                   onClick={() => {
-                    const travel = Number(engineerTravelHours) || 0;
-                    const tech = Number(engineerTechnicalHours) || 0;
-                    const total = travel + tech;
-                    const entries = [
-                      { day: 'Travel / Inspection', date: engineerTimesheetDate, task: 'Site visit and engineering diagnosis', hours: travel.toFixed(1) },
-                      { day: 'Technical Review & Scoping', date: engineerTimesheetDate, task: engineerNotes.trim() || 'Component standards & SANS technical certification', hours: tech.toFixed(1) }
-                    ];
-                    signoffMutation.mutate({
-                      roleType: 'engineer',
-                      action: 'sign',
-                      timesheetData: {
-                        entries,
-                        total_hours: total
-                      }
+                    downloadTimesheetPdf({
+                      employee_name: user?.name || 'Works Engineer',
+                      employee_role: 'Works Engineer (Technical & Scoping)',
+                      week_start: engineerWeekStart || formatDate(new Date().toISOString()),
+                      work_order_tracking: workOrder.tracking_number,
+                      work_order_title: workOrder.title,
+                      facility_name: workOrder.facility_name,
+                      entries: engineerDays,
+                      total_hours: engineerDays.reduce((acc, r) => acc + (Number(r.hours) || 0), 0).toFixed(1),
+                      signature_name: user?.name || 'Works Engineer',
+                      signature_date: new Date().toLocaleDateString('en-GB')
                     });
                   }}
-                  className="px-4 py-2 text-xs font-bold text-white bg-sky-700 hover:bg-sky-800 active:bg-sky-900 rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                  className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  {signoffMutation.isPending ? 'Submitting...' : '✓ Confirm Sign-off & Submit Timesheet'}
+                  <span>📄</span> Preview Timesheet PDF
                 </button>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEngineerSignoffModalOpen(false)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={signoffMutation.isPending}
+                    onClick={() => {
+                      const total = engineerDays.reduce((acc, r) => acc + (Number(r.hours) || 0), 0);
+                      signoffMutation.mutate({
+                        roleType: 'engineer',
+                        action: 'sign',
+                        timesheetData: {
+                          entries: engineerDays,
+                          total_hours: total
+                        }
+                      });
+                    }}
+                    className="px-4 py-2 text-xs font-bold text-white bg-sky-700 hover:bg-sky-800 active:bg-sky-900 rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {signoffMutation.isPending ? 'Submitting...' : '✓ Confirm Sign-off & Submit Timesheet'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
