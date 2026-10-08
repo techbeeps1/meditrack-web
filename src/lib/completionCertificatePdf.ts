@@ -393,9 +393,21 @@ export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
     <div class="section-heading">Tri-Signature Statutory Completion Sign-off (PDF Page 5)</div>
     <table class="signoff-table">
       <tr>
-        <!-- 1. Works Engineer -->
+        <!-- 1. Works Inspector -->
+        <td class="signoff-card ${workOrder.signoff_inspector_by ? 'certified' : ''}">
+          <div class="signoff-role">1. Works Inspector</div>
+          <div class="${workOrder.signoff_inspector_by ? 'badge-certified' : 'badge-pending'}">
+            ${workOrder.signoff_inspector_by ? 'QC Verified' : 'Pending Signature'}
+          </div>
+          <div class="signoff-name">${workOrder.signoff_inspector_by || 'Awaiting QC Inspector'}</div>
+          <div class="signoff-meta">
+            ${workOrder.signoff_inspector_at ? formatDate(workOrder.signoff_inspector_at) : 'Awaiting compliance QC'}
+          </div>
+        </td>
+
+        <!-- 2. Works Engineer -->
         <td class="signoff-card ${workOrder.signoff_engineer_by ? 'certified' : ''}">
-          <div class="signoff-role">1. Works Engineer</div>
+          <div class="signoff-role">2. Works Engineer</div>
           <div class="${workOrder.signoff_engineer_by ? 'badge-certified' : 'badge-pending'}">
             ${workOrder.signoff_engineer_by ? 'Technical Certified' : 'Pending Signature'}
           </div>
@@ -405,27 +417,15 @@ export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
           </div>
         </td>
 
-        <!-- 2. Facilities Manager -->
+        <!-- 3. Facilities Manager -->
         <td class="signoff-card ${workOrder.signoff_fm_by ? 'certified' : ''}">
-          <div class="signoff-role">2. Facilities Manager</div>
+          <div class="signoff-role">3. Facilities Manager / Staff</div>
           <div class="${workOrder.signoff_fm_by ? 'badge-certified' : 'badge-pending'}">
             ${workOrder.signoff_fm_by ? 'Site Accepted' : 'Pending Signature'}
           </div>
           <div class="signoff-name">${workOrder.signoff_fm_by || 'Awaiting Facilities Mgr'}</div>
           <div class="signoff-meta">
             ${workOrder.signoff_fm_at ? formatDate(workOrder.signoff_fm_at) : 'Awaiting site acceptance'}
-          </div>
-        </td>
-
-        <!-- 3. Works Inspector -->
-        <td class="signoff-card ${workOrder.signoff_inspector_by ? 'certified' : ''}">
-          <div class="signoff-role">3. Works Inspector</div>
-          <div class="${workOrder.signoff_inspector_by ? 'badge-certified' : 'badge-pending'}">
-            ${workOrder.signoff_inspector_by ? 'QC Verified' : 'Pending Signature'}
-          </div>
-          <div class="signoff-name">${workOrder.signoff_inspector_by || 'Awaiting QC Inspector'}</div>
-          <div class="signoff-meta">
-            ${workOrder.signoff_inspector_at ? formatDate(workOrder.signoff_inspector_at) : 'Awaiting compliance QC'}
           </div>
         </td>
       </tr>

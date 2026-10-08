@@ -562,7 +562,7 @@ export default function WorkOrderDetailPage() {
         direct_issue_justification: targetStatus === 'assigned' ? (directIssueJustification.trim() || undefined) : undefined,
         actual_cost:
           targetStatus === 'completed'
-            ? (workOrder?.estimated_cost ?? (actualCostInput !== '' ? Number(actualCostInput) : 0))
+            ? (actualCostInput !== '' ? Number(actualCostInput) : (workOrder?.actual_cost ?? workOrder?.estimated_cost ?? 0))
             : actualCostInput !== ''
             ? Number(actualCostInput)
             : undefined
@@ -977,12 +977,19 @@ export default function WorkOrderDetailPage() {
   // Direct approval on reported status is only for Critical (0–24h) Emergency Fast-Track Bypass.
   const canApprove = hasWoApproveScope && status === 'reported' && urgency === 'Critical 0–24h';
   const canAssign = hasAssignScope && !isSameApproverForAssignment && status === 'approved' && (isRouteB || workOrder.quote_status === 'client_approved');
-  // 3-Way Tri-Signoff Permissions (PDF Page 5)
-  // Strictly: 1. Works Engineer only, 2. Facilities Manager/Staff only, 3. Works Inspector only
-  const canSignEngineer = (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_engineer', 'both'].includes(inspectorScope))) && ['completed', 'verified', 'closed'].includes(status);
-  const canSignFm = (role === 'ADMIN' || role === 'STAFF') && ['completed', 'verified', 'closed'].includes(status);
-  const canSignInspector = (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope))) && ['completed', 'verified', 'closed'].includes(status);
-  const isTriSignoffComplete = !!(workOrder.signoff_engineer_by && workOrder.signoff_fm_by && workOrder.signoff_inspector_by);
+  // 3-Way Tri-Signoff Permissions (Strictly Sequential: 1. Works Inspector -> 2. Works Engineer -> 3. Facilities Manager / Staff)
+  const canSignInspector =
+    (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope))) &&
+    ['completed', 'verified', 'closed'].includes(status);
+  const canSignEngineer =
+    (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_engineer', 'both'].includes(inspectorScope))) &&
+    ['completed', 'verified', 'closed'].includes(status) &&
+    !!workOrder.signoff_inspector_by;
+  const canSignFm =
+    (role === 'ADMIN' || role === 'STAFF') &&
+    ['completed', 'verified', 'closed'].includes(status) &&
+    !!workOrder.signoff_engineer_by;
+  const isTriSignoffComplete = !!(workOrder.signoff_inspector_by && workOrder.signoff_engineer_by && workOrder.signoff_fm_by);
 
   const canStartWork = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'assigned';
   const canComplete = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'in_progress';
@@ -2599,7 +2606,7 @@ export default function WorkOrderDetailPage() {
                         )}
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Mandatory 3-way verification: Works Engineer (Technical), Facilities Manager (Site Acceptance), Works Inspector (Compliance)
+                        Mandatory sequential 3-way verification: 1. Works Inspector (Compliance &amp; QC) &rarr; 2. Works Engineer (Technical) &rarr; 3. Facilities Manager (Site Acceptance)
                       </p>
                     </div>
 
@@ -2614,104 +2621,12 @@ export default function WorkOrderDetailPage() {
                     )}
                   </div>
 
-                  {/* Tri-Signature 3-Column Grid */}
+                  {/* Tri-Signature 3-Column Grid: 1. Works Inspector -> 2. Works Engineer -> 3. Facilities Manager */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {/* 1. Works Engineer */}
-                    <div className={`p-4 rounded-lg border text-xs space-y-2.5 ${workOrder.signoff_engineer_by ? 'bg-slate-50 border-slate-300' : 'bg-gray-50/70 border-gray-200'}`}>
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-200/80">
-                        <span className="font-bold text-slate-900 text-xs">1. Works Engineer</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${workOrder.signoff_engineer_by ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                          {workOrder.signoff_engineer_by ? 'Certified' : 'Pending'}
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-700">
-                        Technical execution &amp; component standards sign-off.
-                      </div>
-                      {workOrder.signoff_engineer_by ? (
-                        <div className="pt-2 border-t border-slate-200 font-mono text-[11px] text-slate-800">
-                          <div>Signed by: <strong>{workOrder.signoff_engineer_by}</strong></div>
-                          {workOrder.signoff_engineer_at && (
-                            <div className="text-[10px] text-slate-500 mt-0.5">{formatDate(workOrder.signoff_engineer_at)}</div>
-                          )}
-                        </div>
-                      ) : canSignEngineer ? (
-                        <div className="pt-2 flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => signoffMutation.mutate({ roleType: 'engineer', action: 'sign' })}
-                            disabled={signoffMutation.isPending}
-                            className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
-                          >
-                            ✓ Sign Off
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSignoffRejectionReasonInput('');
-                              setSignoffError(null);
-                              setIsSignoffRejectModalOpen(true);
-                            }}
-                            disabled={signoffMutation.isPending}
-                            className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 cursor-pointer text-center whitespace-nowrap"
-                          >
-                            ✕ Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-slate-400 italic">Awaiting Works Engineer</div>
-                      )}
-                    </div>
-
-                    {/* 2. Facilities Manager */}
-                    <div className={`p-4 rounded-lg border text-xs space-y-2.5 ${workOrder.signoff_fm_by ? 'bg-slate-50 border-slate-300' : 'bg-gray-50/70 border-gray-200'}`}>
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-200/80">
-                        <span className="font-bold text-slate-900 text-xs">2. Facilities Manager</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${workOrder.signoff_fm_by ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                          {workOrder.signoff_fm_by ? 'Accepted' : 'Pending'}
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-700">
-                        Hospital facility physical handover &amp; site acceptance.
-                      </div>
-                      {workOrder.signoff_fm_by ? (
-                        <div className="pt-2 border-t border-slate-200 font-mono text-[11px] text-slate-800">
-                          <div>Signed by: <strong>{workOrder.signoff_fm_by}</strong></div>
-                          {workOrder.signoff_fm_at && (
-                            <div className="text-[10px] text-slate-500 mt-0.5">{formatDate(workOrder.signoff_fm_at)}</div>
-                          )}
-                        </div>
-                      ) : canSignFm ? (
-                        <div className="pt-2 flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => signoffMutation.mutate({ roleType: 'fm', action: 'sign' })}
-                            disabled={signoffMutation.isPending}
-                            className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
-                          >
-                            ✓ Sign Off
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSignoffRejectionReasonInput('');
-                              setSignoffError(null);
-                              setIsSignoffRejectModalOpen(true);
-                            }}
-                            disabled={signoffMutation.isPending}
-                            className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 cursor-pointer text-center whitespace-nowrap"
-                          >
-                            ✕ Reject
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-slate-400 italic">Awaiting Facilities Manager</div>
-                      )}
-                    </div>
-
-                    {/* 3. Works Inspector */}
+                    {/* Step 1: Works Inspector */}
                     <div className={`p-4 rounded-lg border text-xs space-y-2.5 ${workOrder.signoff_inspector_by ? 'bg-slate-50 border-slate-300' : 'bg-gray-50/70 border-gray-200'}`}>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-200/80">
-                        <span className="font-bold text-slate-900 text-xs">3. Works Inspector</span>
+                        <span className="font-bold text-slate-900 text-xs">1. Works Inspector</span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${workOrder.signoff_inspector_by ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
                           {workOrder.signoff_inspector_by ? 'QC Verified' : 'Pending'}
                         </span>
@@ -2751,6 +2666,106 @@ export default function WorkOrderDetailPage() {
                         </div>
                       ) : (
                         <div className="text-[11px] text-slate-400 italic">Awaiting Works Inspector</div>
+                      )}
+                    </div>
+
+                    {/* Step 2: Works Engineer */}
+                    <div className={`p-4 rounded-lg border text-xs space-y-2.5 ${workOrder.signoff_engineer_by ? 'bg-slate-50 border-slate-300' : 'bg-gray-50/70 border-gray-200'}`}>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-200/80">
+                        <span className="font-bold text-slate-900 text-xs">2. Works Engineer</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${workOrder.signoff_engineer_by ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {workOrder.signoff_engineer_by ? 'Certified' : 'Pending'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-700">
+                        Technical execution &amp; component standards sign-off.
+                      </div>
+                      {workOrder.signoff_engineer_by ? (
+                        <div className="pt-2 border-t border-slate-200 font-mono text-[11px] text-slate-800">
+                          <div>Signed by: <strong>{workOrder.signoff_engineer_by}</strong></div>
+                          {workOrder.signoff_engineer_at && (
+                            <div className="text-[10px] text-slate-500 mt-0.5">{formatDate(workOrder.signoff_engineer_at)}</div>
+                          )}
+                        </div>
+                      ) : !workOrder.signoff_inspector_by ? (
+                        <div className="pt-2 text-[11px] text-amber-700 font-medium bg-amber-50/80 p-2 rounded border border-amber-200">
+                          🔒 Awaiting Step 1: Works Inspector Sign-off first
+                        </div>
+                      ) : canSignEngineer ? (
+                        <div className="pt-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => signoffMutation.mutate({ roleType: 'engineer', action: 'sign' })}
+                            disabled={signoffMutation.isPending}
+                            className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
+                          >
+                            ✓ Sign Off
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSignoffRejectionReasonInput('');
+                              setSignoffError(null);
+                              setIsSignoffRejectModalOpen(true);
+                            }}
+                            disabled={signoffMutation.isPending}
+                            className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 cursor-pointer text-center whitespace-nowrap"
+                          >
+                            ✕ Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-400 italic">Awaiting Works Engineer</div>
+                      )}
+                    </div>
+
+                    {/* Step 3: Facilities Manager */}
+                    <div className={`p-4 rounded-lg border text-xs space-y-2.5 ${workOrder.signoff_fm_by ? 'bg-slate-50 border-slate-300' : 'bg-gray-50/70 border-gray-200'}`}>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-200/80">
+                        <span className="font-bold text-slate-900 text-xs">3. Facilities Manager</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${workOrder.signoff_fm_by ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {workOrder.signoff_fm_by ? 'Accepted' : 'Pending'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-700">
+                        Hospital facility physical handover &amp; site acceptance.
+                      </div>
+                      {workOrder.signoff_fm_by ? (
+                        <div className="pt-2 border-t border-slate-200 font-mono text-[11px] text-slate-800">
+                          <div>Signed by: <strong>{workOrder.signoff_fm_by}</strong></div>
+                          {workOrder.signoff_fm_at && (
+                            <div className="text-[10px] text-slate-500 mt-0.5">{formatDate(workOrder.signoff_fm_at)}</div>
+                          )}
+                        </div>
+                      ) : !workOrder.signoff_engineer_by ? (
+                        <div className="pt-2 text-[11px] text-amber-700 font-medium bg-amber-50/80 p-2 rounded border border-amber-200">
+                          🔒 Awaiting Step 2: Works Engineer Sign-off first
+                        </div>
+                      ) : canSignFm ? (
+                        <div className="pt-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => signoffMutation.mutate({ roleType: 'fm', action: 'sign' })}
+                            disabled={signoffMutation.isPending}
+                            className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
+                          >
+                            ✓ Sign Off
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSignoffRejectionReasonInput('');
+                              setSignoffError(null);
+                              setIsSignoffRejectModalOpen(true);
+                            }}
+                            disabled={signoffMutation.isPending}
+                            className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-rose-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 cursor-pointer text-center whitespace-nowrap"
+                          >
+                            ✕ Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-400 italic">Awaiting Facilities Manager</div>
                       )}
                     </div>
                   </div>
@@ -3425,38 +3440,43 @@ export default function WorkOrderDetailPage() {
 
               {targetStatus === 'assigned' && (
                 <div className="space-y-3">
-                  {/* Contractor Quoted Price Review */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-semibold text-gray-700">
-                        Contractor Price / Approved Budget (R) *
-                      </label>
-                      {workOrder?.estimated_cost ? (
+                  {/* For Route A or standard non-emergency jobs with existing estimate */}
+                  {!isRouteB && (workOrder?.estimated_cost || 0) > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-gray-700">
+                          Approved Budget (R) (Optional)
+                        </label>
                         <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          Quoted by Contractor: {formatCurrency(workOrder.estimated_cost)}
+                          Quoted: {formatCurrency(workOrder.estimated_cost)}
                         </span>
-                      ) : (
-                        <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                          Pending Contractor Quote
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative rounded-md shadow-xs">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <span className="text-gray-500 text-sm font-medium">R</span>
                       </div>
-                      <input
-                        type="number"
-                        value={actualCostInput}
-                        onChange={(e) => setActualCostInput(e.target.value === '' ? '' : Number(e.target.value))}
-                        placeholder="e.g. 1200"
-                        className="w-full pl-7 pr-3 py-2 bg-white border border-gray-300 rounded-md text-sm font-bold text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                      />
+                      <div className="relative rounded-md shadow-xs">
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                          <span className="text-gray-500 text-sm font-medium">R</span>
+                        </div>
+                        <input
+                          type="number"
+                          value={actualCostInput}
+                          onChange={(e) => setActualCostInput(e.target.value === '' ? '' : Number(e.target.value))}
+                          placeholder="e.g. 1200"
+                          className="w-full pl-7 pr-3 py-2 bg-white border border-gray-300 rounded-md text-sm font-bold text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                        />
+                      </div>
                     </div>
-                    <p className="text-[11px] text-gray-500 mt-1">
-                      Review and confirm the approved cost for this contractor assignment.
-                    </p>
-                  </div>
+                  )}
+
+                  {/* Fast-Track Emergency Dispatch Callout (No Upfront Payment Required) */}
+                  {(isRouteB || (!workOrder?.estimated_cost && !workOrder?.assessor_estimate)) && (
+                    <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-lg text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-purple-900">
+                        <span>⚡</span> Emergency Fast-Track Dispatch (Advance Float)
+                      </div>
+                      <p className="text-purple-800 text-[11px] leading-relaxed">
+                        Direct specialist contractor allocation without upfront payment delay. Actual costs and repair details will be logged by the contractor upon work completion.
+                      </p>
+                    </div>
+                  )}
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -3555,32 +3575,41 @@ export default function WorkOrderDetailPage() {
                 </div>
               )}
 
-              {/* Locked Approved Cost for Contractor Completion */}
+              {/* Contractor Cost Submission upon Completion */}
               {targetStatus === 'completed' && (
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-semibold text-gray-700">
-                      Approved Repair Cost (R)
-                    </label>
-                    <span className="inline-flex items-center text-[11px] font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                      Locked by Approver
-                    </span>
-                  </div>
-                  <div className="relative rounded-md shadow-xs">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                      <span className="text-gray-500 text-sm font-medium">R</span>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-gray-700">
+                        Final Incurred Repair Cost / Work Claim (R) *
+                      </label>
+                      {workOrder?.estimated_cost ? (
+                        <span className="inline-flex items-center text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          Est. Budget: {formatCurrency(workOrder.estimated_cost)}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                          Direct Emergency Claim
+                        </span>
+                      )}
                     </div>
-                    <input
-                      type="number"
-                      readOnly
-                      disabled
-                      value={actualCostInput !== '' ? actualCostInput : (workOrder?.estimated_cost ?? 0)}
-                      className="w-full pl-7 pr-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-sm font-bold text-slate-800 cursor-not-allowed select-none focus:outline-none"
-                    />
+                    <div className="relative rounded-md shadow-xs">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                        <span className="text-gray-500 text-sm font-medium">R</span>
+                      </div>
+                      <input
+                        type="number"
+                        value={actualCostInput}
+                        onChange={(e) => setActualCostInput(e.target.value === '' ? '' : Number(e.target.value))}
+                        placeholder="e.g. 15000"
+                        className="w-full pl-7 pr-3 py-2 bg-white border border-gray-300 rounded-md text-sm font-bold text-gray-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Enter the total actual cost of labour, replacement components, and specialist services.
+                    </p>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    This amount is pre-fixed according to the Approver&apos;s allocated budget and cannot be modified.
-                  </p>
                 </div>
               )}
 

@@ -479,7 +479,7 @@ function InvoicesContent() {
                     rows={2}
                     value={formData.notes || ''}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="e.g. Labor 12 hrs @ $150/hr + Replacement HVAC filters"
+                    placeholder="e.g. Labor 12 hrs @ R450/hr + Replacement HVAC filters"
                     className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
                 </div>
