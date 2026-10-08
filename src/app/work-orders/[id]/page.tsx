@@ -239,21 +239,20 @@ export default function WorkOrderDetailPage() {
   const [adjustmentNotesInput, setAdjustmentNotesInput] = useState('');
   const [reviewEstimateError, setReviewEstimateError] = useState<string | null>(null);
 
-  // Part 2: Site Engineer / Inspector Timesheet State
-  const [isTimesheetModalOpen, setIsTimesheetModalOpen] = useState(false);
-  const [timesheetWeekStart, setTimesheetWeekStart] = useState<string>('');
-  const [timesheetDays, setTimesheetDays] = useState<
-    { day: string; date: string; task: string; hours: string }[]
-  >([
-    { day: 'Monday', date: '', task: '', hours: '' },
-    { day: 'Tuesday', date: '', task: '', hours: '' },
-    { day: 'Wednesday', date: '', task: '', hours: '' },
-    { day: 'Thursday', date: '', task: '', hours: '' },
-    { day: 'Friday', date: '', task: '', hours: '' },
-    { day: 'Saturday', date: '', task: '', hours: '' },
-    { day: 'Sunday', date: '', task: '', hours: '' }
-  ]);
-  const [timesheetSaveError, setTimesheetSaveError] = useState<string | null>(null);
+  // Dedicated Separate Timesheet States for Inspector and Engineer
+  const [isInspectorSignoffModalOpen, setIsInspectorSignoffModalOpen] = useState(false);
+  const [inspectorTimesheetDate, setInspectorTimesheetDate] = useState<string>('');
+  const [inspectorTravelHours, setInspectorTravelHours] = useState<number | ''>(1.0);
+  const [inspectorOnsiteHours, setInspectorOnsiteHours] = useState<number | ''>(2.5);
+  const [inspectorNotes, setInspectorNotes] = useState<string>('Statutory compliance, safety checklist & QC audit verified.');
+  const [inspectorSignoffError, setInspectorSignoffError] = useState<string | null>(null);
+
+  const [isEngineerSignoffModalOpen, setIsEngineerSignoffModalOpen] = useState(false);
+  const [engineerTimesheetDate, setEngineerTimesheetDate] = useState<string>('');
+  const [engineerTravelHours, setEngineerTravelHours] = useState<number | ''>(1.0);
+  const [engineerTechnicalHours, setEngineerTechnicalHours] = useState<number | ''>(3.0);
+  const [engineerNotes, setEngineerNotes] = useState<string>('Technical execution, structural & component engineering standards certified.');
+  const [engineerSignoffError, setEngineerSignoffError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'details' | 'timeline' | 'audit'>('details');
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
@@ -496,12 +495,14 @@ export default function WorkOrderDetailPage() {
       roleType,
       actorName,
       action,
-      reason
+      reason,
+      timesheetData
     }: {
       roleType?: 'engineer' | 'fm' | 'inspector';
       actorName?: string;
       action: 'sign' | 'reject';
       reason?: string;
+      timesheetData?: { entries: any[]; total_hours: number };
     }) => {
       const now = new Date().toISOString();
       if (action === 'reject') {
@@ -514,12 +515,24 @@ export default function WorkOrderDetailPage() {
       if (roleType === 'engineer') {
         updates.signoff_engineer_by = actorName || user?.name || 'Works Engineer';
         updates.signoff_engineer_at = now;
+        if (timesheetData) {
+          updates.engineer_timesheet_data = JSON.stringify(timesheetData.entries);
+          updates.engineer_timesheet_hours = timesheetData.total_hours;
+          updates.engineer_timesheet_by = actorName || user?.name || 'Works Engineer';
+          updates.engineer_timesheet_at = now;
+        }
       } else if (roleType === 'fm') {
         updates.signoff_fm_by = actorName || user?.name || 'Facilities Manager';
         updates.signoff_fm_at = now;
       } else if (roleType === 'inspector') {
         updates.signoff_inspector_by = actorName || user?.name || 'Works Inspector';
         updates.signoff_inspector_at = now;
+        if (timesheetData) {
+          updates.inspector_timesheet_data = JSON.stringify(timesheetData.entries);
+          updates.inspector_timesheet_hours = timesheetData.total_hours;
+          updates.inspector_timesheet_by = actorName || user?.name || 'Works Inspector';
+          updates.inspector_timesheet_at = now;
+        }
       }
       return workOrderApi.updateWorkOrder(id, updates);
     },
@@ -528,11 +541,18 @@ export default function WorkOrderDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['audit-chain', id] });
       queryClient.invalidateQueries({ queryKey: ['work-orders'] });
       setIsSignoffRejectModalOpen(false);
+      setIsInspectorSignoffModalOpen(false);
+      setIsEngineerSignoffModalOpen(false);
       setSignoffRejectionReasonInput('');
       setSignoffError(null);
+      setInspectorSignoffError(null);
+      setEngineerSignoffError(null);
     },
     onError: (err: any) => {
-      setSignoffError(err.response?.data?.message || err.message || 'Failed to record sign-off');
+      const msg = err.response?.data?.message || err.message || 'Failed to record sign-off';
+      setSignoffError(msg);
+      setInspectorSignoffError(msg);
+      setEngineerSignoffError(msg);
     }
   });
 
@@ -871,67 +891,7 @@ export default function WorkOrderDetailPage() {
     }
   });
 
-  // Part 2: Open Timesheet Modal & Save Mutation
-  const openTimesheetModal = () => {
-    let parsed: any[] = [];
-    try {
-      if (workOrder?.timesheet_data) {
-        parsed = JSON.parse(workOrder.timesheet_data);
-      }
-    } catch (_) {}
 
-    const defaultWeekStart = workOrder?.assessment_date
-      ? new Date(workOrder.assessment_date).toISOString().split('T')[0]
-      : workOrder?.created_at
-      ? new Date(workOrder.created_at).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0];
-    setTimesheetWeekStart(defaultWeekStart);
-
-    if (parsed && parsed.length > 0) {
-      setTimesheetDays(parsed);
-    } else {
-      // Auto-generate rows matching the Turnaround (Days) entered in assessment
-      const turnaroundCount = Math.max(1, Math.min(30, Number(workOrder?.estimated_days || 3)));
-      const baseDate = new Date(defaultWeekStart);
-      const generatedDays = [];
-      for (let i = 0; i < turnaroundCount; i++) {
-        const rowDate = new Date(baseDate);
-        rowDate.setDate(baseDate.getDate() + i);
-        const dayName = rowDate.toLocaleDateString('en-GB', { weekday: 'short' });
-        generatedDays.push({
-          day: `Day ${i + 1} (${dayName})`,
-          date: rowDate.toISOString().split('T')[0],
-          task: i === 0 ? 'Onsite diagnostic inspection & scoping' : 'Technical assessment & engineering verification',
-          hours: '4.0'
-        });
-      }
-      setTimesheetDays(generatedDays);
-    }
-
-    setTimesheetSaveError(null);
-    setIsTimesheetModalOpen(true);
-  };
-
-  const saveTimesheetMutation = useMutation({
-    mutationFn: async () => {
-      const totalHrs = timesheetDays.reduce((acc, d) => acc + (Number(d.hours) || 0), 0);
-      return workOrderApi.updateWorkOrder(id, {
-        timesheet_data: JSON.stringify(timesheetDays),
-        timesheet_total_hours: totalHrs,
-        timesheet_submitted_by: user?.name || 'Site Assessor',
-        timesheet_submitted_at: new Date().toISOString()
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['work-order', id] });
-      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
-      setIsTimesheetModalOpen(false);
-      setTimesheetSaveError(null);
-    },
-    onError: (err: any) => {
-      setTimesheetSaveError(err.response?.data?.message || err.message || 'Failed to save timesheet');
-    }
-  });
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -1026,6 +986,16 @@ export default function WorkOrderDetailPage() {
     ['completed', 'verified', 'closed'].includes(status) &&
     !!workOrder.signoff_engineer_by;
   const isTriSignoffComplete = !!(workOrder.signoff_inspector_by && workOrder.signoff_engineer_by && workOrder.signoff_fm_by);
+
+  // Timesheet Visibility: Inspector sees Inspector TS, Engineer sees Engineer TS, Payment Approver & Admin see BOTH
+  const canViewInspectorTimesheet =
+    role === 'ADMIN' ||
+    hasPaymentScope ||
+    (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope));
+  const canViewEngineerTimesheet =
+    role === 'ADMIN' ||
+    hasPaymentScope ||
+    (role === 'INSPECTOR' && ['works_engineer', 'both'].includes(inspectorScope));
 
   const canStartWork = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'assigned';
   const canComplete = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'in_progress';
@@ -1584,37 +1554,7 @@ export default function WorkOrderDetailPage() {
               </button>
             )}
 
-            {/* Direct Download Timesheet PDF button */}
-            {(workOrder.timesheet_total_hours || workOrder.assessment_hours || workOrder.timesheet_data || isAssessmentDone) && (
-              <button
-                type="button"
-                onClick={() => {
-                  let entries: any[] = [];
-                  try {
-                    if (workOrder.timesheet_data) entries = JSON.parse(workOrder.timesheet_data);
-                  } catch (_) {}
-                  downloadTimesheetPdf({
-                    employee_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
-                    employee_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer' : 'Works Inspector',
-                    week_start: workOrder.created_at ? formatDate(workOrder.created_at) : new Date().toLocaleDateString('en-GB'),
-                    work_order_tracking: workOrder.tracking_number,
-                    work_order_title: workOrder.title,
-                    facility_name: workOrder.facility_name,
-                    entries,
-                    total_hours: workOrder.timesheet_total_hours || workOrder.assessment_hours || '0.0',
-                    signature_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
-                    signature_date: workOrder.assessment_date ? formatDate(workOrder.assessment_date) : new Date().toLocaleDateString('en-GB')
-                  });
-                }}
-                title="Download and Print Official Time Sheet PDF"
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Timesheet PDF
-              </button>
-            )}
+
 
             {/* Direct Download Invoice PDF button (Payment Approver, Admin, Contractor, Auditor only) */}
             {canViewInvoiceDetails && workOrder.invoice_id && (
@@ -2281,68 +2221,8 @@ export default function WorkOrderDetailPage() {
                           </div>
                         )}
 
-                        {/* Part 2: Site Assessment Time Sheet Card (All Routes) */}
-                        <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 flex flex-col gap-2.5">
-                          <div className="flex items-start justify-between gap-2 flex-wrap">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-bold text-slate-900">
-                                  Site Assessment Time Sheet
-                                </span>
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-800 shrink-0">
-                                  {workOrder.timesheet_total_hours ? `${Number(workOrder.timesheet_total_hours).toFixed(1)} hrs Logged` : workOrder.assessment_hours ? `${Number(workOrder.assessment_hours).toFixed(1)} hrs` : '0.0 hrs Logged'}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                Diagnostic testing, on-site scoping, and travel time breakdown (Mon–Sun)
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/80">
-                            {(isWorksInspector || isWorksEngineer || role === 'ADMIN' || role === 'APPROVER') && (
-                              <button
-                                type="button"
-                                onClick={openTimesheetModal}
-                                className="px-3 py-1.5 bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                {workOrder.timesheet_data ? 'Edit Timesheet' : 'Fill Timesheet'}
-                              </button>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                let entries: any[] = [];
-                                try {
-                                  if (workOrder.timesheet_data) entries = JSON.parse(workOrder.timesheet_data);
-                                } catch (_) {}
-                                downloadTimesheetPdf({
-                                  employee_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
-                                  employee_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer' : 'Works Inspector',
-                                  week_start: workOrder.created_at ? formatDate(workOrder.created_at) : new Date().toLocaleDateString('en-GB'),
-                                  work_order_tracking: workOrder.tracking_number,
-                                  work_order_title: workOrder.title,
-                                  facility_name: workOrder.facility_name,
-                                  entries,
-                                  total_hours: workOrder.timesheet_total_hours || workOrder.assessment_hours || '0.0',
-                                  signature_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
-                                  signature_date: workOrder.assessment_date ? formatDate(workOrder.assessment_date) : new Date().toLocaleDateString('en-GB')
-                                });
-                              }}
-                              className="px-3 py-1.5 bg-slate-900 hover:bg-black active:bg-slate-800 text-white rounded-lg text-xs font-semibold transition-all shadow-2xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              Download Timesheet (PDF)
-                            </button>
-
-                            {/* Estimate PDF download in Assessment Card */}
-                            {(workOrder.assessor_estimate !== null && workOrder.assessor_estimate !== undefined || isAssessmentDone) && (
+                        {/* Estimate PDF download in Assessment Card */}
+                        {(workOrder.assessor_estimate !== null && workOrder.assessor_estimate !== undefined || isAssessmentDone) && (
                               <button
                                 type="button"
                                 onClick={() =>
@@ -2369,8 +2249,6 @@ export default function WorkOrderDetailPage() {
                                 Estimate Form (PDF)
                               </button>
                             )}
-                          </div>
-                        </div>
                       </div>
                     ) : urgency === 'Critical 0–24h' ? (
                       <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-left space-y-2.5">
@@ -2671,21 +2549,60 @@ export default function WorkOrderDetailPage() {
                         Statutory compliance, safety checklist, and QC audit.
                       </div>
                       {workOrder.signoff_inspector_by ? (
-                        <div className="pt-2 border-t border-slate-200 font-mono text-[11px] text-slate-800">
+                        <div className="pt-2 border-t border-slate-200 font-mono text-[11px] text-slate-800 space-y-1.5">
                           <div>Signed by: <strong>{workOrder.signoff_inspector_by}</strong></div>
                           {workOrder.signoff_inspector_at && (
-                            <div className="text-[10px] text-slate-500 mt-0.5">{formatDate(workOrder.signoff_inspector_at)}</div>
+                            <div className="text-[10px] text-slate-500">{formatDate(workOrder.signoff_inspector_at)}</div>
+                          )}
+                          <div className="text-[11px] text-teal-800 font-sans font-semibold pt-0.5 flex items-center justify-between">
+                            <span>⏱️ Logged QC Time:</span>
+                            <span className="px-1.5 py-0.5 bg-teal-50 border border-teal-200 rounded font-mono text-teal-900">
+                              {workOrder.inspector_timesheet_hours ? `${Number(workOrder.inspector_timesheet_hours).toFixed(1)} hrs` : 'Logged'}
+                            </span>
+                          </div>
+                          {canViewInspectorTimesheet && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                let entries: any[] = [];
+                                try {
+                                  if (workOrder.inspector_timesheet_data) entries = JSON.parse(workOrder.inspector_timesheet_data);
+                                } catch (_) {}
+                                downloadTimesheetPdf({
+                                  employee_name: workOrder.inspector_timesheet_by || workOrder.signoff_inspector_by || 'Works Inspector',
+                                  employee_role: 'Works Inspector (Compliance & QC Audit)',
+                                  week_start: workOrder.inspector_timesheet_at ? formatDate(workOrder.inspector_timesheet_at) : formatDate(workOrder.created_at),
+                                  work_order_tracking: workOrder.tracking_number,
+                                  work_order_title: workOrder.title,
+                                  facility_name: workOrder.facility_name,
+                                  entries: entries.length > 0 ? entries : [
+                                    { day: 'Travel / Commute', date: '', task: 'Site travel and access inspection setup', hours: '1.0' },
+                                    { day: 'Onsite QC Audit', date: '', task: 'Statutory compliance & quality audit verification', hours: workOrder.inspector_timesheet_hours ? (Number(workOrder.inspector_timesheet_hours) - 1.0 > 0 ? (Number(workOrder.inspector_timesheet_hours) - 1.0).toFixed(1) : workOrder.inspector_timesheet_hours) : '2.5' }
+                                  ],
+                                  total_hours: workOrder.inspector_timesheet_hours || '3.5',
+                                  signature_name: workOrder.inspector_timesheet_by || workOrder.signoff_inspector_by || 'Works Inspector',
+                                  signature_date: workOrder.signoff_inspector_at ? formatDate(workOrder.signoff_inspector_at) : new Date().toLocaleDateString('en-GB')
+                                });
+                              }}
+                              className="mt-2 w-full py-1.5 px-2 bg-slate-900 hover:bg-black active:bg-slate-800 text-white text-[10px] font-bold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                            >
+                              <span>📄</span> Print Inspector Timesheet (PDF)
+                            </button>
                           )}
                         </div>
                       ) : canSignInspector ? (
                         <div className="pt-2 flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => signoffMutation.mutate({ roleType: 'inspector', action: 'sign' })}
+                            onClick={() => {
+                              setInspectorTimesheetDate(new Date().toISOString().split('T')[0]);
+                              setInspectorSignoffError(null);
+                              setIsInspectorSignoffModalOpen(true);
+                            }}
                             disabled={signoffMutation.isPending}
                             className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
                           >
-                            ✓ Sign Off
+                            ✓ Sign Off &amp; Timesheet
                           </button>
                           <button
                             type="button"
@@ -2717,10 +2634,45 @@ export default function WorkOrderDetailPage() {
                         Technical execution &amp; component standards sign-off.
                       </div>
                       {workOrder.signoff_engineer_by ? (
-                        <div className="pt-2 border-t border-slate-200 font-mono text-[11px] text-slate-800">
+                        <div className="pt-2 border-t border-slate-200 font-mono text-[11px] text-slate-800 space-y-1.5">
                           <div>Signed by: <strong>{workOrder.signoff_engineer_by}</strong></div>
                           {workOrder.signoff_engineer_at && (
-                            <div className="text-[10px] text-slate-500 mt-0.5">{formatDate(workOrder.signoff_engineer_at)}</div>
+                            <div className="text-[10px] text-slate-500">{formatDate(workOrder.signoff_engineer_at)}</div>
+                          )}
+                          <div className="text-[11px] text-sky-800 font-sans font-semibold pt-0.5 flex items-center justify-between">
+                            <span>⚙️ Logged Tech Time:</span>
+                            <span className="px-1.5 py-0.5 bg-sky-50 border border-sky-200 rounded font-mono text-sky-900">
+                              {workOrder.engineer_timesheet_hours ? `${Number(workOrder.engineer_timesheet_hours).toFixed(1)} hrs` : 'Logged'}
+                            </span>
+                          </div>
+                          {canViewEngineerTimesheet && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                let entries: any[] = [];
+                                try {
+                                  if (workOrder.engineer_timesheet_data) entries = JSON.parse(workOrder.engineer_timesheet_data);
+                                } catch (_) {}
+                                downloadTimesheetPdf({
+                                  employee_name: workOrder.engineer_timesheet_by || workOrder.signoff_engineer_by || 'Works Engineer',
+                                  employee_role: 'Works Engineer (Technical & Scoping)',
+                                  week_start: workOrder.engineer_timesheet_at ? formatDate(workOrder.engineer_timesheet_at) : formatDate(workOrder.created_at),
+                                  work_order_tracking: workOrder.tracking_number,
+                                  work_order_title: workOrder.title,
+                                  facility_name: workOrder.facility_name,
+                                  entries: entries.length > 0 ? entries : [
+                                    { day: 'Travel / Inspection', date: '', task: 'Site visit and engineering diagnosis', hours: '1.0' },
+                                    { day: 'Technical Review', date: '', task: 'Component standards & SANS technical certification', hours: workOrder.engineer_timesheet_hours ? (Number(workOrder.engineer_timesheet_hours) - 1.0 > 0 ? (Number(workOrder.engineer_timesheet_hours) - 1.0).toFixed(1) : workOrder.engineer_timesheet_hours) : '3.0' }
+                                  ],
+                                  total_hours: workOrder.engineer_timesheet_hours || '4.0',
+                                  signature_name: workOrder.engineer_timesheet_by || workOrder.signoff_engineer_by || 'Works Engineer',
+                                  signature_date: workOrder.signoff_engineer_at ? formatDate(workOrder.signoff_engineer_at) : new Date().toLocaleDateString('en-GB')
+                                });
+                              }}
+                              className="mt-2 w-full py-1.5 px-2 bg-slate-900 hover:bg-black active:bg-slate-800 text-white text-[10px] font-bold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow-2xs"
+                            >
+                              <span>📄</span> Print Engineer Timesheet (PDF)
+                            </button>
                           )}
                         </div>
                       ) : !workOrder.signoff_inspector_by ? (
@@ -2731,11 +2683,15 @@ export default function WorkOrderDetailPage() {
                         <div className="pt-2 flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => signoffMutation.mutate({ roleType: 'engineer', action: 'sign' })}
+                            onClick={() => {
+                              setEngineerTimesheetDate(new Date().toISOString().split('T')[0]);
+                              setEngineerSignoffError(null);
+                              setIsEngineerSignoffModalOpen(true);
+                            }}
                             disabled={signoffMutation.isPending}
                             className="flex-1 py-1.5 px-2 bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] text-white text-[11px] font-bold rounded-lg shadow-2xs active:scale-95 transition-all cursor-pointer text-center whitespace-nowrap"
                           >
-                            ✓ Sign Off
+                            ✓ Sign Off &amp; Timesheet
                           </button>
                           <button
                             type="button"
@@ -5058,229 +5014,299 @@ export default function WorkOrderDetailPage() {
           </div>
         )}
 
-        {/* Part 2: Site Assessment Time Sheet Modal (PDF Page / Template) */}
-        {isTimesheetModalOpen && (
+        {/* Step 1: Works Inspector Sign-off & Timesheet Modal */}
+        {isInspectorSignoffModalOpen && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
               <div className="flex justify-between items-start pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
-                    Site Assessment Time Sheet
+                    Works Inspector Sign-off &amp; Timesheet
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Job #{workOrder.tracking_number} &bull; Log daily engineering &amp; inspection hours (Monday &ndash; Sunday)
+                    Job #{workOrder.tracking_number} &bull; Quality Control &amp; Physical Compliance Sign-off
                   </p>
                 </div>
                 <button
-                  onClick={() => setIsTimesheetModalOpen(false)}
+                  onClick={() => setIsInspectorSignoffModalOpen(false)}
                   className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer font-bold text-sm"
                 >
                   ✕
                 </button>
               </div>
 
-              {timesheetSaveError && (
+              {inspectorSignoffError && (
                 <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
-                  {timesheetSaveError}
+                  {inspectorSignoffError}
                 </div>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Employee / Assessor Name
+                    Inspector Name
                   </label>
                   <input
                     type="text"
                     disabled
-                    value={workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor'}
+                    value={user?.name || 'Works Inspector'}
                     className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
                   />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Week Start Date
+                    Inspection Date
                   </label>
                   <input
                     type="date"
-                    value={timesheetWeekStart}
-                    onChange={(e) => setTimesheetWeekStart(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    value={inspectorTimesheetDate}
+                    onChange={(e) => setInspectorTimesheetDate(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-[#2B7A9B] focus:outline-none"
                   />
                 </div>
               </div>
 
-              {/* Dynamic Project Days Entry Table */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-slate-700">Project Days Breakdown ({timesheetDays.length} Days):</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextIndex = timesheetDays.length + 1;
-                      const lastDate = timesheetDays.length > 0 && timesheetDays[timesheetDays.length - 1].date
-                        ? new Date(timesheetDays[timesheetDays.length - 1].date)
-                        : new Date();
-                      lastDate.setDate(lastDate.getDate() + 1);
-                      const dayName = lastDate.toLocaleDateString('en-GB', { weekday: 'short' });
-                      setTimesheetDays([
-                        ...timesheetDays,
-                        {
-                          day: `Day ${nextIndex} (${dayName})`,
-                          date: lastDate.toISOString().split('T')[0],
-                          task: 'Technical inspection & compliance check',
-                          hours: '4.0'
-                        }
-                      ]);
-                    }}
-                    className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer inline-flex items-center gap-1"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    + Add Day Row
-                  </button>
+              <div className="p-3.5 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-3">
+                <div className="text-xs font-bold text-emerald-900 flex items-center justify-between">
+                  <span>⏱️ Log Inspection &amp; Audit Hours</span>
+                  <span className="text-[11px] text-emerald-700 font-medium">Required for Audit</span>
                 </div>
-
-                <div className="border border-slate-200 rounded-xl overflow-hidden max-h-[320px] overflow-y-auto">
-                  <table className="w-full text-xs">
-                    <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold sticky top-0">
-                      <tr>
-                        <th className="py-2 px-3 text-left w-28">Day</th>
-                        <th className="py-2 px-3 text-left w-28">Date</th>
-                        <th className="py-2 px-3 text-left">Task Activity Description</th>
-                        <th className="py-2 px-3 text-right w-20">Hours</th>
-                        <th className="py-2 px-2 text-center w-8"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {timesheetDays.map((d, index) => (
-                        <tr key={index} className="hover:bg-slate-50/70">
-                          <td className="py-2 px-3">
-                            <input
-                              type="text"
-                              value={d.day}
-                              onChange={(e) => {
-                                const updated = [...timesheetDays];
-                                updated[index].day = e.target.value;
-                                setTimesheetDays(updated);
-                              }}
-                              className="w-full px-1.5 py-1 border border-slate-200 rounded text-xs font-semibold text-slate-900 bg-slate-50 focus:ring-1 focus:ring-sky-500"
-                            />
-                          </td>
-                          <td className="py-2 px-3">
-                            <input
-                              type="date"
-                              value={d.date}
-                              onChange={(e) => {
-                                const updated = [...timesheetDays];
-                                updated[index].date = e.target.value;
-                                setTimesheetDays(updated);
-                              }}
-                              className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-900 focus:ring-1 focus:ring-sky-500"
-                            />
-                          </td>
-                          <td className="py-2 px-3">
-                            <input
-                              type="text"
-                              value={d.task}
-                              placeholder="e.g. Diagnostic scoping & inspection"
-                              onChange={(e) => {
-                                const updated = [...timesheetDays];
-                                updated[index].task = e.target.value;
-                                setTimesheetDays(updated);
-                              }}
-                              className="w-full px-2 py-1 border border-slate-200 rounded text-xs text-slate-900 focus:ring-1 focus:ring-sky-500"
-                            />
-                          </td>
-                          <td className="py-2 px-3 text-right">
-                            <input
-                              type="number"
-                              step="0.5"
-                              min="0"
-                              max="24"
-                              placeholder="0.0"
-                              value={d.hours}
-                              onChange={(e) => {
-                                const updated = [...timesheetDays];
-                                updated[index].hours = e.target.value;
-                                setTimesheetDays(updated);
-                              }}
-                              className="w-full text-right px-2 py-1 border border-slate-200 rounded text-xs font-mono font-bold text-slate-900 focus:ring-1 focus:ring-sky-500"
-                            />
-                          </td>
-                          <td className="py-2 px-2 text-center">
-                            {timesheetDays.length > 1 && (
-                              <button
-                                type="button"
-                                title="Remove this day"
-                                onClick={() => {
-                                  const updated = timesheetDays.filter((_, i) => i !== index);
-                                  setTimesheetDays(updated);
-                                }}
-                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer font-bold text-xs"
-                              >
-                                ✕
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Travel / Transit Hours
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="24"
+                      value={inspectorTravelHours}
+                      onChange={(e) => setInspectorTravelHours(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#2B7A9B]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Onsite Physical QC Hours
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="24"
+                      value={inspectorOnsiteHours}
+                      onChange={(e) => setInspectorOnsiteHours(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-[#2B7A9B]"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-emerald-200/60 text-xs">
+                  <span className="font-semibold text-emerald-900">Total Inspector Time:</span>
+                  <span className="font-mono text-sm font-bold text-emerald-900">
+                    {((Number(inspectorTravelHours) || 0) + (Number(inspectorOnsiteHours) || 0)).toFixed(1)} hrs
+                  </span>
                 </div>
               </div>
 
-              {/* Total Calculation Bar */}
-              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-                <span className="font-semibold text-slate-600">Calculated Total Work Hours:</span>
-                <span className="font-mono text-sm font-bold text-sky-700">
-                  {timesheetDays.reduce((acc, d) => acc + (Number(d.hours) || 0), 0).toFixed(1)} hrs
-                </span>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Inspection Notes &amp; QC Findings (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={inspectorNotes}
+                  onChange={(e) => setInspectorNotes(e.target.value)}
+                  placeholder="e.g. Work executed as per technical scope. Physical audit completed with zero defects."
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-[#2B7A9B] focus:outline-none shadow-2xs"
+                />
               </div>
 
-              <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 leading-relaxed">
+                By clicking <strong>Confirm Sign-off &amp; Submit Timesheet</strong>, you certify that you have physically inspected the site and verified the contractor's work against standard quality requirements.
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
+                  onClick={() => setIsInspectorSignoffModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={signoffMutation.isPending}
                   onClick={() => {
-                    downloadTimesheetPdf({
-                      employee_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
-                      employee_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer' : 'Works Inspector',
-                      week_start: timesheetWeekStart || (workOrder.created_at ? formatDate(workOrder.created_at) : new Date().toLocaleDateString('en-GB')),
-                      work_order_tracking: workOrder.tracking_number,
-                      work_order_title: workOrder.title,
-                      facility_name: workOrder.facility_name,
-                      entries: timesheetDays,
-                      total_hours: timesheetDays.reduce((acc, d) => acc + (Number(d.hours) || 0), 0).toFixed(1),
-                      signature_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
-                      signature_date: new Date().toLocaleDateString('en-GB')
+                    const travel = Number(inspectorTravelHours) || 0;
+                    const onsite = Number(inspectorOnsiteHours) || 0;
+                    const total = travel + onsite;
+                    const entries = [
+                      { day: 'Travel / Transit', date: inspectorTimesheetDate, task: 'Site transit and inspection preparation', hours: travel.toFixed(1) },
+                      { day: 'Onsite Physical QC Audit', date: inspectorTimesheetDate, task: inspectorNotes.trim() || 'Physical quality control and compliance verification', hours: onsite.toFixed(1) }
+                    ];
+                    signoffMutation.mutate({
+                      roleType: 'inspector',
+                      action: 'sign',
+                      timesheetData: {
+                        entries,
+                        total_hours: total
+                      }
                     });
                   }}
-                  className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1.5"
+                  className="px-4 py-2 text-xs font-bold text-white bg-[#2B7A9B] hover:bg-[#1E5D88] active:bg-[#164464] rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Preview Timesheet PDF
+                  {signoffMutation.isPending ? 'Submitting...' : '✓ Confirm Sign-off & Submit Timesheet'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
 
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsTimesheetModalOpen(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={saveTimesheetMutation.isPending}
-                    onClick={() => saveTimesheetMutation.mutate()}
-                    className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-black active:bg-slate-800 rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
-                  >
-                    {saveTimesheetMutation.isPending ? 'Saving...' : 'Save Time Sheet'}
-                  </button>
+        {/* Step 2: Works Engineer Sign-off & Timesheet Modal */}
+        {isEngineerSignoffModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-2xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Works Engineer Sign-off &amp; Timesheet
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Job #{workOrder.tracking_number} &bull; Technical Scoping &amp; SANS Component Standards Sign-off
+                  </p>
                 </div>
+                <button
+                  onClick={() => setIsEngineerSignoffModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {engineerSignoffError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                  {engineerSignoffError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Engineer Name
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    value={user?.name || 'Works Engineer'}
+                    className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Engineering Review Date
+                  </label>
+                  <input
+                    type="date"
+                    value={engineerTimesheetDate}
+                    onChange={(e) => setEngineerTimesheetDate(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-sky-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-sky-50/50 border border-sky-200 rounded-xl space-y-3">
+                <div className="text-xs font-bold text-sky-900 flex items-center justify-between">
+                  <span>⚙️ Log Engineering &amp; Technical Hours</span>
+                  <span className="text-[11px] text-sky-700 font-medium">Required for Audit</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Travel / Site Inspection Hours
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="24"
+                      value={engineerTravelHours}
+                      onChange={(e) => setEngineerTravelHours(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-sky-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Technical Scoping &amp; Review Hours
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="24"
+                      value={engineerTechnicalHours}
+                      onChange={(e) => setEngineerTechnicalHours(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-sky-600"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-sky-200/60 text-xs">
+                  <span className="font-semibold text-sky-900">Total Engineer Time:</span>
+                  <span className="font-mono text-sm font-bold text-sky-900">
+                    {((Number(engineerTravelHours) || 0) + (Number(engineerTechnicalHours) || 0)).toFixed(1)} hrs
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Technical Remarks &amp; Certification Notes (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={engineerNotes}
+                  onChange={(e) => setEngineerNotes(e.target.value)}
+                  placeholder="e.g. Mechanical components & specifications conform to SANS building regulations."
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-sky-600 focus:outline-none shadow-2xs"
+                />
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 leading-relaxed">
+                By clicking <strong>Confirm Sign-off &amp; Submit Timesheet</strong>, you certify that the technical execution, replacement components, and mechanical integrity satisfy all technical standards.
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEngineerSignoffModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={signoffMutation.isPending}
+                  onClick={() => {
+                    const travel = Number(engineerTravelHours) || 0;
+                    const tech = Number(engineerTechnicalHours) || 0;
+                    const total = travel + tech;
+                    const entries = [
+                      { day: 'Travel / Inspection', date: engineerTimesheetDate, task: 'Site visit and engineering diagnosis', hours: travel.toFixed(1) },
+                      { day: 'Technical Review & Scoping', date: engineerTimesheetDate, task: engineerNotes.trim() || 'Component standards & SANS technical certification', hours: tech.toFixed(1) }
+                    ];
+                    signoffMutation.mutate({
+                      roleType: 'engineer',
+                      action: 'sign',
+                      timesheetData: {
+                        entries,
+                        total_hours: total
+                      }
+                    });
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-white bg-sky-700 hover:bg-sky-800 active:bg-sky-900 rounded-lg shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {signoffMutation.isPending ? 'Submitting...' : '✓ Confirm Sign-off & Submit Timesheet'}
+                </button>
               </div>
             </div>
           </div>

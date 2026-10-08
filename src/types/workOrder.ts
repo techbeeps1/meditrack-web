@@ -91,6 +91,14 @@ export interface WorkOrder {
   timesheet_total_hours?: number | string | null;
   timesheet_submitted_by?: string | null;
   timesheet_submitted_at?: string | null;
+  inspector_timesheet_data?: string | null;
+  inspector_timesheet_hours?: number | string | null;
+  inspector_timesheet_by?: string | null;
+  inspector_timesheet_at?: string | null;
+  engineer_timesheet_data?: string | null;
+  engineer_timesheet_hours?: number | string | null;
+  engineer_timesheet_by?: string | null;
+  engineer_timesheet_at?: string | null;
   client_recovery_invoice_no?: string | null;
   client_recovery_status?: 'pending' | 'submitted' | 'recovered' | null;
   signoff_rejection_reason?: string | null;
