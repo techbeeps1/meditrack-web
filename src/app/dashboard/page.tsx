@@ -11,6 +11,7 @@ import { formatDate, formatCurrency } from '@/lib/utils';
 import DashboardBanner from '@/components/dashboard/DashboardBanner';
 import StatCard from '@/components/dashboard/StatCard';
 import WorkOrderCard from '@/components/dashboard/WorkOrderCard';
+import { ArrowRight, Lock, FileText, RefreshCw, FileCheck, Radio, Home } from 'lucide-react';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -683,13 +684,13 @@ export default function DashboardPage() {
   // -------------------------------------------------------------
   if (user?.role === 'APPROVER') {
     const PIPELINE_STEPS = [
-      { key: 'reported', label: 'Reported', count: reportedCount, color: 'bg-amber-400' },
-      { key: 'approved', label: 'Approved', count: approvedCount, color: 'bg-blue-400' },
-      { key: 'assigned', label: 'Assigned', count: assignedCount, color: 'bg-indigo-400' },
-      { key: 'in_progress', label: 'In Progress', count: inProgressCount, color: 'bg-sky-500' },
-      { key: 'completed', label: 'Completed', count: completedCount, color: 'bg-purple-500' },
-      { key: 'verified', label: 'Verified (QC)', count: verifiedCount, color: 'bg-teal-500' },
-      { key: 'closed', label: 'Closed', count: closedCount, color: 'bg-emerald-500' }
+      { key: 'reported', label: 'Reported', count: reportedCount, color: 'bg-[#FF7A00]' },
+      { key: 'approved', label: 'Approved', count: approvedCount, color: 'bg-[#007B88]' },
+      { key: 'assigned', label: 'Assigned', count: assignedCount, color: 'bg-[#00C2FF]' },
+      { key: 'in_progress', label: 'In Progress', count: inProgressCount, color: 'bg-[#0038FF]' },
+      { key: 'completed', label: 'Completed', count: completedCount, color: 'bg-[#9747FF]' },
+      { key: 'verified', label: 'Verified', count: verifiedCount, color: 'bg-[#00B027]' },
+      { key: 'closed', label: 'Closed', count: closedCount, color: 'bg-[#FF0000]' }
     ];
 
     const approverScope = user?.approver_scope || 'wo_approver';
@@ -826,33 +827,50 @@ export default function DashboardPage() {
           </div>
 
           {/* Workflow Pipeline Distribution (Clickable) */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  Work Order Lifecycle Pipeline
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Click on any stage to filter related work orders
-                </p>
+          <div className="bg-[#F5FEFFB8] p-6 sm:p-7 rounded-[18px] border border-[#DEDEDE] shadow-[0px_4px_4px_0px_#00000040]">
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-[60px] h-[60px] flex items-center justify-center shrink-0">
+                  <img
+                    src="/images/pipeline-icon.png"
+                    alt="Work Order Pipeline"
+                    className="w-[60px] h-[60px] object-contain"
+                  />
+                </div>
+                <div>
+                  <h2 className="text-[24px] sm:text-[32px] font-normal text-[#545454] tracking-tight leading-tight">
+                    Work Order Lifecycle Pipeline
+                  </h2>
+                  <p className="text-[14px] sm:text-[18px] font-normal text-[#545454] mt-0.5 leading-normal">
+                    Click any stage to filter work orders in that stage
+                  </p>
+                </div>
               </div>
-              <Link href="/work-orders" className="text-xs font-semibold text-sky-600 hover:text-sky-800">
-                View All &rarr;
+              <Link
+                href="/work-orders"
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl border-2 border-[#027D92] text-[#027D92] hover:bg-[#027D92]/5 font-semibold text-xs sm:text-sm transition-colors shadow-xs"
+              >
+                <span>View all orders</span>
+                <ArrowRight className="w-4 h-4" strokeWidth={2.4} />
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
               {PIPELINE_STEPS.map((step) => (
                 <Link
                   key={step.key}
                   href={`/work-orders?status=${step.key}`}
-                  className="p-3 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-sky-50/60 hover:border-sky-300 hover:shadow-2xs transition flex flex-col justify-between group cursor-pointer"
+                  className="bg-[#F5FEFFB8] rounded-[18px] p-4 sm:p-5 flex flex-col justify-start gap-[25px] shadow-[0px_4px_4px_0px_#00000040] border border-[#DEDEDE] hover:scale-[1.02] transition-transform group cursor-pointer"
                 >
-                  <div className="flex items-center space-x-1.5">
-                    <div className={`w-2 h-2 rounded-full ${step.color}`} />
-                    <span className="text-[11px] font-medium text-slate-600 group-hover:text-sky-700 truncate">{step.label}</span>
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2.5 h-2.5 rounded-full ${step.color} shrink-0`} />
+                    <span className="text-[14px] font-normal text-[#545454] group-hover:text-[#027D92] transition-colors truncate">
+                      {step.label}
+                    </span>
                   </div>
-                  <div className="text-lg font-bold text-slate-900 font-mono mt-2 group-hover:text-sky-700">{step.count}</div>
+                  <div className="text-[32px] font-semibold text-[#05484E] tracking-tight font-sans group-hover:text-[#027D92] transition-colors leading-tight">
+                    {step.count}
+                  </div>
                 </Link>
               ))}
             </div>
@@ -866,13 +884,13 @@ export default function DashboardPage() {
   // 6. ADMIN FULL EXECUTIVE COMMAND DASHBOARD
   // -------------------------------------------------------------
   const PIPELINE_STEPS = [
-    { key: 'reported', label: 'Reported', count: woStats.reported, color: 'bg-amber-400' },
-    { key: 'approved', label: 'Approved', count: woStats.approved, color: 'bg-blue-400' },
-    { key: 'assigned', label: 'Assigned', count: woStats.assigned, color: 'bg-indigo-400' },
-    { key: 'in_progress', label: 'In Progress', count: woStats.in_progress, color: 'bg-sky-500' },
-    { key: 'completed', label: 'Completed', count: woStats.completed, color: 'bg-purple-500' },
-    { key: 'verified', label: 'Verified (QC)', count: woStats.verified, color: 'bg-teal-500' },
-    { key: 'closed', label: 'Closed', count: woStats.closed, color: 'bg-emerald-500' }
+    { key: 'reported', label: 'Reported', count: woStats.reported, color: 'bg-[#FF7A00]' },
+    { key: 'approved', label: 'Approved', count: woStats.approved, color: 'bg-[#007B88]' },
+    { key: 'assigned', label: 'Assigned', count: woStats.assigned, color: 'bg-[#00C2FF]' },
+    { key: 'in_progress', label: 'In Progress', count: woStats.in_progress, color: 'bg-[#0038FF]' },
+    { key: 'completed', label: 'Completed', count: woStats.completed, color: 'bg-[#9747FF]' },
+    { key: 'verified', label: 'Verified', count: woStats.verified, color: 'bg-[#00B027]' },
+    { key: 'closed', label: 'Closed', count: woStats.closed, color: 'bg-[#FF0000]' }
   ];
 
   return (
@@ -976,33 +994,50 @@ export default function DashboardPage() {
         </div>
 
         {/* 7-Stage Workflow Pipeline Distribution (Clickable) */}
-        <div className="bg-white p-6 rounded-[20px] border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                Work Order Lifecycle Pipeline
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Click any stage to filter work orders in that state
-              </p>
+        <div className="bg-[#F5FEFFB8] p-6 sm:p-7 rounded-[18px] border border-[#DEDEDE] shadow-[0px_4px_4px_0px_#00000040]">
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-[60px] h-[60px] flex items-center justify-center shrink-0">
+                <img
+                  src="/images/pipeline-icon.png"
+                  alt="Work Order Pipeline"
+                  className="w-[60px] h-[60px] object-contain"
+                />
+              </div>
+              <div>
+                <h2 className="text-[24px] sm:text-[32px] font-normal text-[#545454] tracking-tight leading-tight">
+                  Work Order Lifecycle Pipeline
+                </h2>
+                <p className="text-[14px] sm:text-[18px] font-normal text-[#545454] mt-0.5 leading-normal">
+                  Click any stage to filter work orders in that stage
+                </p>
+              </div>
             </div>
-            <Link href="/work-orders" className="text-xs font-semibold text-sky-600 hover:text-sky-700">
-              View all orders &rarr;
+            <Link
+              href="/work-orders"
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl border-2 border-[#027D92] text-[#027D92] hover:bg-[#027D92]/5 font-semibold text-xs sm:text-sm transition-colors shadow-xs"
+            >
+              <span>View all orders</span>
+              <ArrowRight className="w-4 h-4" strokeWidth={2.4} />
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
             {PIPELINE_STEPS.map((step) => (
               <Link
                 key={step.key}
                 href={`/work-orders?status=${step.key}`}
-                className="p-3 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-sky-50/60 hover:border-sky-300 hover:shadow-2xs transition flex flex-col justify-between group cursor-pointer"
+                className="bg-[#F5FEFFB8] rounded-[18px] p-4 sm:p-5 flex flex-col justify-start gap-[25px] shadow-[0px_4px_4px_0px_#00000040] border border-[#DEDEDE] hover:scale-[1.02] transition-transform group cursor-pointer"
               >
-                <div className="flex items-center space-x-1.5">
-                  <div className={`w-2 h-2 rounded-full ${step.color}`} />
-                  <span className="text-[11px] font-medium text-slate-600 group-hover:text-sky-700 truncate">{step.label}</span>
+                <div className="flex items-center space-x-2">
+                  <div className={`w-2.5 h-2.5 rounded-full ${step.color} shrink-0`} />
+                  <span className="text-[14px] font-normal text-[#545454] group-hover:text-[#027D92] transition-colors truncate">
+                    {step.label}
+                  </span>
                 </div>
-                <div className="text-lg font-bold text-slate-900 font-mono mt-2 group-hover:text-sky-700">{step.count}</div>
+                <div className="text-[32px] font-semibold text-[#05484E] tracking-tight font-sans group-hover:text-[#027D92] transition-colors leading-tight">
+                  {step.count}
+                </div>
               </Link>
             ))}
           </div>
@@ -1010,7 +1045,7 @@ export default function DashboardPage() {
 
         {/* Facilities Workload & Live Stream */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-[20px] border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="bg-[#F5FEFFB8] p-6 sm:p-7 rounded-[18px] border border-[#DEDEDE] shadow-[0px_4px_4px_0px_#00000040] flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
@@ -1026,7 +1061,7 @@ export default function DashboardPage() {
                   <Link
                     key={fac.id}
                     href={`/facilities`}
-                    className="py-3 flex items-center justify-between hover:bg-slate-50 px-2 -mx-2 rounded-lg transition group"
+                    className="py-3 flex items-center justify-between hover:bg-white/60 px-2 -mx-2 rounded-lg transition group"
                   >
                     <div>
                       <div className="font-semibold text-xs text-slate-800 group-hover:text-sky-700">{fac.name}</div>
@@ -1043,7 +1078,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-[20px] border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="bg-[#F5FEFFB8] p-6 sm:p-7 rounded-[18px] border border-[#DEDEDE] shadow-[0px_4px_4px_0px_#00000040] flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
@@ -1059,7 +1094,7 @@ export default function DashboardPage() {
                   summary.recentEvents.slice(0, 5).map((evt) => (
                     <div
                       key={evt.id}
-                      className="p-3 rounded-xl border border-slate-100 bg-slate-50/50 flex items-start justify-between gap-3 text-xs"
+                      className="p-3 rounded-xl border border-slate-100 bg-white/70 flex items-start justify-between gap-3 text-xs"
                     >
                       <div className="space-y-1 overflow-hidden">
                         <div className="flex items-center space-x-2">
