@@ -187,6 +187,10 @@ export default function WorkOrderDetailPage() {
   const [actualCostInput, setActualCostInput] = useState<number | ''>('');
   const [transitionError, setTransitionError] = useState<string | null>(null);
 
+  // Contractor Completion Evidence States (Required Image + Optional PDF/DOC)
+  const [completionPhotos, setCompletionPhotos] = useState<File[]>([]);
+  const [completionDoc, setCompletionDoc] = useState<File | null>(null);
+
   // Inspection Modal state (for Inspector / Admin quality verification)
   const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
   const [inspectionResult, setInspectionResult] = useState<'PASS' | 'FAIL'>('PASS');
@@ -554,7 +558,13 @@ export default function WorkOrderDetailPage() {
         throw new Error('Direct Issue Justification note is required when directly assigning a specialist contractor on jobs over R50,000 without tender.');
       }
 
-      return workOrderApi.transitionStatus(id, {
+      if (targetStatus === 'completed') {
+        if (!completionPhotos || completionPhotos.length === 0) {
+          throw new Error('Mandatory Evidence Required: Please upload at least 1 image/photo proof of the completed repair work.');
+        }
+      }
+
+      const res = await workOrderApi.transitionStatus(id, {
         status: targetStatus,
         notes: transitionNotes,
         assigned_to: targetStatus === 'assigned' ? assignedTechnician : undefined,
@@ -567,6 +577,28 @@ export default function WorkOrderDetailPage() {
             ? Number(actualCostInput)
             : undefined
       });
+
+      // Upload completion evidence photos
+      if (targetStatus === 'completed' && completionPhotos && completionPhotos.length > 0) {
+        const photoFormData = new FormData();
+        for (let i = 0; i < completionPhotos.length; i++) {
+          photoFormData.append('photos', completionPhotos[i]);
+        }
+        photoFormData.append('caption', 'Contractor Work Completion Photo Evidence');
+        photoFormData.append('stage', 'completed');
+        await workOrderApi.uploadPhotos(id, photoFormData);
+      }
+
+      // Upload optional completion document (PDF or DOC/DOCX)
+      if (targetStatus === 'completed' && completionDoc) {
+        const docFormData = new FormData();
+        docFormData.append('photos', completionDoc);
+        docFormData.append('caption', `Supporting Completion Document: ${completionDoc.name}`);
+        docFormData.append('stage', 'completed');
+        await workOrderApi.uploadPhotos(id, docFormData);
+      }
+
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['work-order', id] });
@@ -577,9 +609,11 @@ export default function WorkOrderDetailPage() {
       setIsTransitionModalOpen(false);
       setTransitionNotes('');
       setTransitionError(null);
+      setCompletionPhotos([]);
+      setCompletionDoc(null);
     },
     onError: (err: any) => {
-      setTransitionError(err.response?.data?.message || 'Failed to update work order status');
+      setTransitionError(err.response?.data?.message || err.message || 'Failed to update work order status');
     }
   });
 
@@ -591,6 +625,8 @@ export default function WorkOrderDetailPage() {
       setActualCostInput('');
     } else if (status === 'completed') {
       setActualCostInput(workOrder?.estimated_cost ?? workOrder?.actual_cost ?? 0);
+      setCompletionPhotos([]);
+      setCompletionDoc(null);
     } else if (status === 'assigned') {
       const activeContractors = contractors.filter((c) => c.approval_status === 'active' || !c.approval_status);
       const matched = activeContractors.filter((c) => matchesSpecialty(workOrder?.category, c.specialty));
@@ -3575,9 +3611,9 @@ export default function WorkOrderDetailPage() {
                 </div>
               )}
 
-              {/* Contractor Cost Submission upon Completion */}
+              {/* Contractor Cost & Mandatory Evidence Submission upon Completion */}
               {targetStatus === 'completed' && (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-xs font-semibold text-gray-700">
@@ -3609,6 +3645,97 @@ export default function WorkOrderDetailPage() {
                     <p className="text-[11px] text-slate-500 mt-1">
                       Enter the total actual cost of labour, replacement components, and specialist services.
                     </p>
+                  </div>
+
+                  {/* 1. Mandatory Proof of Completion Images */}
+                  <div className="p-3.5 bg-sky-50/60 border border-sky-200 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-800">
+                        Proof of Work Completion Image(s) *
+                      </label>
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded ${completionPhotos.length > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                        {completionPhotos.length > 0 ? `✓ ${completionPhotos.length} photo(s) selected` : 'Mandatory (1+ required)'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600">
+                      Upload clear photo(s) showing the repaired equipment, replaced parts, or completed installation.
+                    </p>
+                    <input
+                      type="file"
+                      id="completion-photo-input"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          const newFiles = Array.from(e.target.files);
+                          setCompletionPhotos((prev) => [...prev, ...newFiles]);
+                        }
+                      }}
+                      className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sky-600 file:text-white hover:file:bg-sky-700 cursor-pointer"
+                    />
+
+                    {completionPhotos.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1.5">
+                        {completionPhotos.map((file, idx) => (
+                          <div key={idx} className="relative group bg-white border border-sky-300 rounded-lg p-1.5 pr-6 text-[11px] text-slate-800 flex items-center shadow-2xs">
+                            <span className="truncate max-w-[140px] font-medium">{file.name}</span>
+                            <span className="text-[10px] text-slate-400 ml-1">({Math.round(file.size / 1024)} KB)</span>
+                            <button
+                              type="button"
+                              onClick={() => setCompletionPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                              className="absolute right-1 text-slate-400 hover:text-rose-600 font-bold px-1"
+                              title="Remove photo"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. Optional Supporting Document (PDF / DOC / DOCX) */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-slate-800">
+                        Supporting Job Card / Service Report (Optional)
+                      </label>
+                      <span className="px-2 py-0.5 text-[10px] font-medium bg-slate-200 text-slate-700 rounded">
+                        Optional (PDF / DOC)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Attach contractor service report, timesheet, OEM calibration sheet, or signed job card if available.
+                    </p>
+                    <input
+                      type="file"
+                      id="completion-doc-input"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setCompletionDoc(e.target.files[0]);
+                        }
+                      }}
+                      className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-white hover:file:bg-slate-800 cursor-pointer"
+                    />
+
+                    {completionDoc && (
+                      <div className="flex items-center justify-between bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-800 shadow-2xs mt-1">
+                        <div className="flex items-center space-x-1.5 truncate">
+                          <span className="font-mono text-xs">📄</span>
+                          <span className="font-semibold truncate">{completionDoc.name}</span>
+                          <span className="text-[10px] text-slate-400">({Math.round(completionDoc.size / 1024)} KB)</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setCompletionDoc(null)}
+                          className="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 ml-2"
+                          title="Remove document"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
