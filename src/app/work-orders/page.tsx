@@ -496,7 +496,7 @@ function WorkOrdersContent() {
                         </td>
                         {user?.role !== 'STAFF' && (
                           <td className="px-6 py-4 font-mono font-medium text-slate-800 text-xs whitespace-nowrap">
-                            {formatCurrency(wo.estimated_cost)}
+                            {formatCurrency(wo.actual_cost || wo.invoice_total_amount || wo.contractor_critical_quote_cost || wo.estimated_cost || 0)}
                           </td>
                         )}
                         <td className="px-6 py-4 whitespace-nowrap">

@@ -1297,57 +1297,63 @@ export default function WorkOrderDetailPage() {
   const isContractor = role === 'CONTRACTOR' || !!workOrder.is_blind_quoted;
   const mySubmittedQuote = role === 'CONTRACTOR' ? (workOrder.quotations || []).find((q: any) => q.contractor_id === user?.id) : null;
 
-  // In Part 1 standard flow: Approval is done through the Quantum Built 3-Way Estimate Review stage after assessment & cost calculation.
-  // Direct approval on reported status is only for Critical (0–24h) Emergency Fast-Track Bypass.
-  const canApprove = hasWoApproveScope && status === 'reported' && urgency === 'Critical 0–24h';
-  const canAssign = hasAssignScope && !isSameApproverForAssignment && status === 'approved' && (isRouteB || workOrder.quote_status === 'client_approved');
+  const isCriticalJob = urgency === 'Critical 0–24h' || workOrder.priority === 'critical';
+
   // 3-Way Tri-Signoff Permissions (Strictly Sequential: 1. Works Inspector -> 2. Works Engineer -> 3. Facilities Manager / Staff)
   const canSignInspector =
-    (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope))) &&
+    ((role as string) === 'ADMIN' || (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope))) &&
     ['completed', 'verified', 'closed'].includes(status);
   const canSignEngineer =
-    (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_engineer', 'both'].includes(inspectorScope))) &&
+    ((role as string) === 'ADMIN' || (role === 'INSPECTOR' && ['works_engineer', 'both'].includes(inspectorScope))) &&
     ['completed', 'verified', 'closed'].includes(status) &&
     !!workOrder.signoff_inspector_by;
   const canSignFm =
-    (role === 'ADMIN' || role === 'STAFF') &&
+    ((role as string) === 'ADMIN' || role === 'STAFF') &&
     ['completed', 'verified', 'closed'].includes(status) &&
     !!workOrder.signoff_engineer_by;
   const isTriSignoffComplete = !!(workOrder.signoff_inspector_by && workOrder.signoff_engineer_by && workOrder.signoff_fm_by);
 
   // Timesheet Visibility: Inspector sees Inspector TS, Engineer sees Engineer TS, Payment Approver & Admin see BOTH
   const canViewInspectorTimesheet =
-    role === 'ADMIN' ||
+    (role as string) === 'ADMIN' ||
     hasPaymentScope ||
     (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope));
   const canViewEngineerTimesheet =
-    role === 'ADMIN' ||
+    (role as string) === 'ADMIN' ||
     hasPaymentScope ||
     (role === 'INSPECTOR' && ['works_engineer', 'both'].includes(inspectorScope));
 
-  const isCriticalJob = urgency === 'Critical 0–24h' || workOrder.priority === 'critical';
+  // In Part 1 standard flow: Approval is done through the Quantum Built 3-Way Estimate Review stage after assessment & cost calculation.
+  // Direct approval/assignment on reported status is for Critical (0–24h) Emergency Fast-Track Bypass.
+  const canApprove = (hasWoApproveScope || hasAssignScope || (role as string) === 'ADMIN') && status === 'reported' && isCriticalJob;
+  const canAssign =
+    (hasAssignScope || (role as string) === 'ADMIN' || (role === 'APPROVER' && isCriticalJob)) &&
+    !isSameApproverForAssignment &&
+    (status === 'approved' || (status === 'reported' && isCriticalJob)) &&
+    !workOrder.assigned_to &&
+    (isRouteB || isCriticalJob || workOrder.quote_status === 'client_approved');
 
   // Critical Job Contractor Quote & Works Engineer Review Permissions
   const canProvideCriticalQuote =
-    (role === 'CONTRACTOR' || role === 'ADMIN') &&
+    (role === 'CONTRACTOR' || (role as string) === 'ADMIN') &&
     isCriticalJob &&
     ['completed', 'verified', 'closed'].includes(status) &&
     workOrder.contractor_critical_quote_status !== 'approved';
 
   const canReviewCriticalQuote =
-    (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_engineer', 'both'].includes(inspectorScope))) &&
+    ((role as string) === 'ADMIN' || (role === 'INSPECTOR' && ['works_engineer', 'both'].includes(inspectorScope))) &&
     isCriticalJob &&
     ['submitted', 'adjusted'].includes(workOrder.contractor_critical_quote_status || '');
 
-  const canStartWork = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'assigned';
-  const canComplete = (role === 'CONTRACTOR' || role === 'ADMIN') && status === 'in_progress';
-  const canVerify = (role === 'ADMIN' || (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope))) && status === 'completed' && isTriSignoffComplete;
-  const canClose = (role === 'APPROVER' || role === 'ADMIN') && status === 'verified' && !workOrder.invoice_id;
-  const canReject = (role === 'APPROVER' || role === 'ADMIN') && status === 'reported';
-  const canGenerateInvoice = !isCriticalJob && (role === 'CONTRACTOR' || role === 'ADMIN') && ['verified', 'closed'].includes(status) && isTriSignoffComplete && !workOrder.invoice_id;
+  const canStartWork = (role === 'CONTRACTOR' || (role as string) === 'ADMIN') && status === 'assigned';
+  const canComplete = (role === 'CONTRACTOR' || (role as string) === 'ADMIN') && status === 'in_progress';
+  const canVerify = ((role as string) === 'ADMIN' || (role === 'INSPECTOR' && ['works_inspector', 'both'].includes(inspectorScope))) && status === 'completed' && isTriSignoffComplete;
+  const canClose = (role === 'APPROVER' || (role as string) === 'ADMIN') && status === 'verified' && !workOrder.invoice_id;
+  const canReject = (role === 'APPROVER' || (role as string) === 'ADMIN') && status === 'reported';
+  const canGenerateInvoice = !isCriticalJob && (role === 'CONTRACTOR' || (role as string) === 'ADMIN') && ['verified', 'closed'].includes(status) && isTriSignoffComplete && !workOrder.invoice_id;
   const canRequestInvoice = hasPaymentScope && ['verified', 'closed'].includes(status) && isTriSignoffComplete && !workOrder.invoice_id;
   const canApproveOrPayInvoice = hasPaymentScope && !isSodViolationForInvoice && !!workOrder.invoice_id;
-  const canViewAuditVault = role === 'ADMIN' || role === 'AUDITOR';
+  const canViewAuditVault = (role as string) === 'ADMIN' || role === 'AUDITOR';
 
   return (
     <AppLayout>
@@ -1585,6 +1591,16 @@ export default function WorkOrderDetailPage() {
 
 
 
+            {canAssign && (
+              <button
+                type="button"
+                onClick={() => openTransitionModal('assigned')}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+              >
+                <span>⚡</span>
+                <span>Assign Specialist Contractor</span>
+              </button>
+            )}
             {status === 'approved' && isSameApproverForAssignment && (
               <span
                 title="Segregation of Duties: You approved this work order scope/budget. To prevent single-point control, contractor assignment must be completed by Procurement or another authorized officer."
