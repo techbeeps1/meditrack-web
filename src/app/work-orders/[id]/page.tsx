@@ -241,24 +241,14 @@ export default function WorkOrderDetailPage() {
 
   // Dedicated Separate Timesheet States for Inspector and Engineer (Monday to Sunday Template)
   const defaultTimesheetWeek = [
-    { day: 'Monday', date: '', time_in: '', time_out: '', hours: '' },
-    { day: 'Tuesday', date: '', time_in: '', time_out: '', hours: '' },
-    { day: 'Wednesday', date: '', time_in: '', time_out: '', hours: '' },
-    { day: 'Thursday', date: '', time_in: '', time_out: '', hours: '' },
-    { day: 'Friday', date: '', time_in: '', time_out: '', hours: '' },
-    { day: 'Saturday', date: '', time_in: '', time_out: '', hours: '' },
-    { day: 'Sunday', date: '', time_in: '', time_out: '', hours: '' }
+    { day: 'Monday', date: '', hours: '' },
+    { day: 'Tuesday', date: '', hours: '' },
+    { day: 'Wednesday', date: '', hours: '' },
+    { day: 'Thursday', date: '', hours: '' },
+    { day: 'Friday', date: '', hours: '' },
+    { day: 'Saturday', date: '', hours: '' },
+    { day: 'Sunday', date: '', hours: '' }
   ];
-
-  const calculateHoursFromTimes = (timeIn: string, timeOut: string): string => {
-    if (!timeIn || !timeOut) return '';
-    const [inH, inM] = timeIn.split(':').map(Number);
-    const [outH, outM] = timeOut.split(':').map(Number);
-    if (isNaN(inH) || isNaN(inM) || isNaN(outH) || isNaN(outM)) return '';
-    const diffMinutes = (outH * 60 + outM) - (inH * 60 + inM);
-    if (diffMinutes <= 0) return '0.0';
-    return (diffMinutes / 60).toFixed(1);
-  };
 
   const handleWeekStartUpdate = (
     newWeekStart: string,
@@ -2644,8 +2634,6 @@ export default function WorkOrderDetailPage() {
                                   }
                                 } catch (_) {}
                               } else {
-                                initialDays[0].time_in = '08:00';
-                                initialDays[0].time_out = '11:30';
                                 initialDays[0].hours = '3.5';
                               }
 
@@ -2752,8 +2740,6 @@ export default function WorkOrderDetailPage() {
                                   }
                                 } catch (_) {}
                               } else {
-                                initialDays[0].time_in = '08:00';
-                                initialDays[0].time_out = '12:00';
                                 initialDays[0].hours = '4.0';
                               }
 
@@ -5142,11 +5128,9 @@ export default function WorkOrderDetailPage() {
                 <table className="w-full text-xs border-collapse">
                   <thead className="bg-slate-200 border-b border-slate-300 text-slate-800 font-bold">
                     <tr>
-                      <th className="py-2 px-3 text-left w-28 border-r border-slate-300">Day</th>
+                      <th className="py-2 px-3 text-left w-36 border-r border-slate-300">Day</th>
                       <th className="py-2 px-3 text-center border-r border-slate-300">Date</th>
-                      <th className="py-2 px-3 text-center border-r border-slate-300">Time In</th>
-                      <th className="py-2 px-3 text-center border-r border-slate-300">Time Out</th>
-                      <th className="py-2 px-3 text-right w-24">Total Hours</th>
+                      <th className="py-2 px-3 text-right w-32">Total Hours</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -5165,34 +5149,6 @@ export default function WorkOrderDetailPage() {
                               setInspectorDays(updated);
                             }}
                             className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs text-slate-800 font-mono"
-                          />
-                        </td>
-                        <td className="py-1.5 px-2 text-center border-r border-slate-200">
-                          <input
-                            type="time"
-                            value={row.time_in || ''}
-                            onChange={(e) => {
-                              const updated = [...inspectorDays];
-                              updated[idx].time_in = e.target.value;
-                              const calc = calculateHoursFromTimes(e.target.value, updated[idx].time_out || '');
-                              if (calc) updated[idx].hours = calc;
-                              setInspectorDays(updated);
-                            }}
-                            className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs font-mono text-slate-800"
-                          />
-                        </td>
-                        <td className="py-1.5 px-2 text-center border-r border-slate-200">
-                          <input
-                            type="time"
-                            value={row.time_out || ''}
-                            onChange={(e) => {
-                              const updated = [...inspectorDays];
-                              updated[idx].time_out = e.target.value;
-                              const calc = calculateHoursFromTimes(updated[idx].time_in || '', e.target.value);
-                              if (calc) updated[idx].hours = calc;
-                              setInspectorDays(updated);
-                            }}
-                            className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs font-mono text-slate-800"
                           />
                         </td>
                         <td className="py-1.5 px-2 text-right">
@@ -5365,11 +5321,9 @@ export default function WorkOrderDetailPage() {
                 <table className="w-full text-xs border-collapse">
                   <thead className="bg-slate-200 border-b border-slate-300 text-slate-800 font-bold">
                     <tr>
-                      <th className="py-2 px-3 text-left w-28 border-r border-slate-300">Day</th>
+                      <th className="py-2 px-3 text-left w-36 border-r border-slate-300">Day</th>
                       <th className="py-2 px-3 text-center border-r border-slate-300">Date</th>
-                      <th className="py-2 px-3 text-center border-r border-slate-300">Time In</th>
-                      <th className="py-2 px-3 text-center border-r border-slate-300">Time Out</th>
-                      <th className="py-2 px-3 text-right w-24">Total Hours</th>
+                      <th className="py-2 px-3 text-right w-32">Total Hours</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
@@ -5388,34 +5342,6 @@ export default function WorkOrderDetailPage() {
                               setEngineerDays(updated);
                             }}
                             className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs text-slate-800 font-mono"
-                          />
-                        </td>
-                        <td className="py-1.5 px-2 text-center border-r border-slate-200">
-                          <input
-                            type="time"
-                            value={row.time_in || ''}
-                            onChange={(e) => {
-                              const updated = [...engineerDays];
-                              updated[idx].time_in = e.target.value;
-                              const calc = calculateHoursFromTimes(e.target.value, updated[idx].time_out || '');
-                              if (calc) updated[idx].hours = calc;
-                              setEngineerDays(updated);
-                            }}
-                            className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs font-mono text-slate-800"
-                          />
-                        </td>
-                        <td className="py-1.5 px-2 text-center border-r border-slate-200">
-                          <input
-                            type="time"
-                            value={row.time_out || ''}
-                            onChange={(e) => {
-                              const updated = [...engineerDays];
-                              updated[idx].time_out = e.target.value;
-                              const calc = calculateHoursFromTimes(updated[idx].time_in || '', e.target.value);
-                              if (calc) updated[idx].hours = calc;
-                              setEngineerDays(updated);
-                            }}
-                            className="w-full text-center px-1.5 py-1 border border-slate-200 rounded text-xs font-mono text-slate-800"
                           />
                         </td>
                         <td className="py-1.5 px-2 text-right">

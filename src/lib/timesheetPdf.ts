@@ -3,8 +3,6 @@ import { formatDate } from './utils';
 export interface TimesheetDayEntry {
   day: string;
   date: string;
-  time_in?: string;
-  time_out?: string;
   task?: string;
   hours: number | string;
 }
@@ -38,8 +36,6 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
   let dayRows: Array<{
     day: string;
     date: string;
-    time_in: string;
-    time_out: string;
     hours: string;
   }> = [];
 
@@ -47,16 +43,12 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
     dayRows = data.entries.map((e, idx) => ({
       day: e.day || DEFAULT_DAYS[idx] || `Day ${idx + 1}`,
       date: e.date ? formatDate(e.date) : '',
-      time_in: e.time_in || '',
-      time_out: e.time_out || '',
       hours: e.hours !== undefined && e.hours !== '' && Number(e.hours) > 0 ? Number(e.hours).toFixed(1) : ''
     }));
   } else {
     dayRows = DEFAULT_DAYS.map((day) => ({
       day,
       date: '',
-      time_in: '',
-      time_out: '',
       hours: ''
     }));
   }
@@ -69,8 +61,6 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
         dayRows.push({
           day: d,
           date: '',
-          time_in: '',
-          time_out: '',
           hours: ''
         });
       }
@@ -187,17 +177,15 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
     }
     .table th.th-day {
       text-align: left;
-      width: 20%;
+      width: 35%;
     }
     .table th.th-date {
-      width: 22%;
-    }
-    .table th.th-time {
-      width: 19%;
+      text-align: center;
+      width: 35%;
     }
     .table th.th-hours {
       text-align: right;
-      width: 20%;
+      width: 30%;
     }
     .table td {
       padding: 8px 12px;
@@ -211,10 +199,6 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
       background: #f8fafc;
     }
     .table td.date-col {
-      text-align: center;
-      font-family: monospace;
-    }
-    .table td.time-col {
       text-align: center;
       font-family: monospace;
     }
@@ -232,12 +216,12 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
     }
     .total-hours-box {
       display: flex;
-      width: 39%;
+      width: 30%;
       border: 1px solid #cbd5e1;
       border-top: none;
     }
     .total-hours-label {
-      width: 48.7%;
+      width: 50%;
       padding: 8px 12px;
       font-weight: 700;
       font-size: 12.5px;
@@ -246,7 +230,7 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
       background: #f1f5f9;
     }
     .total-hours-value {
-      width: 51.3%;
+      width: 50%;
       padding: 8px 12px;
       font-weight: 800;
       font-size: 13.5px;
@@ -327,14 +311,12 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
       </div>
     </div>
 
-    <!-- Monday to Sunday Table (Matching Template) -->
+    <!-- Monday to Sunday Table (Matching Template: Day, Date, Total Hours) -->
     <table class="table">
       <thead>
         <tr>
           <th class="th-day">Day</th>
           <th class="th-date">Date</th>
-          <th class="th-time">Time In</th>
-          <th class="th-time">Time Out</th>
           <th class="th-hours">Total Hours</th>
         </tr>
       </thead>
@@ -343,8 +325,6 @@ export function downloadTimesheetPdf(data: TimesheetPdfData) {
           <tr>
             <td class="day-col">${row.day}</td>
             <td class="date-col">${row.date || ''}</td>
-            <td class="time-col">${row.time_in || ''}</td>
-            <td class="time-col">${row.time_out || ''}</td>
             <td class="hours-col">${row.hours ? `${row.hours}` : ''}</td>
           </tr>
         `).join('')}
