@@ -2550,7 +2550,7 @@ export default function WorkOrderDetailPage() {
                       </p>
                     </div>
 
-                    {isTriSignoffComplete && (
+                    {isTriSignoffComplete && hasPaymentScope && (
                       <button
                         type="button"
                         onClick={() => downloadCompletionCertificatePdf(workOrder)}
@@ -2830,8 +2830,8 @@ export default function WorkOrderDetailPage() {
                     </div>
                   )}
 
-                  {/* Tier 2 Client Recovery Invoicing Section */}
-                  {isTriSignoffComplete && (
+                  {/* Tier 2 Client Recovery Invoicing Section (Admin & Payment Approver Only) */}
+                  {isTriSignoffComplete && hasPaymentScope && (
                     <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-lg text-xs space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
