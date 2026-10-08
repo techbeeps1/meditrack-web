@@ -155,7 +155,7 @@ export const workOrderApi = {
 
   reviewContractorRecommendation: async (
     id: string,
-    payload: { action: 'approved' | 'reevaluate'; notes?: string }
+    payload: { action: 'approved' | 'reevaluate' | 'reject_quote' | 'rejected'; quoteId?: string; notes?: string }
   ) => {
     const res = await api.post<ApiResponse<WorkOrder>>(`/work-orders/${id}/review-quotation-recommendation`, payload);
     return res.data.data;

@@ -49,12 +49,29 @@ export const InviteContractorsModal: React.FC<InviteContractorsModalProps> = ({
       try {
         setFetchingContractors(true);
         setError(null);
-        const res = await userApi.getUsers();
-        const usersList: User[] = Array.isArray(res) ? res : (res.data || []);
-        const contractorUsers = usersList.filter(
-          (u: User) => u.role?.toUpperCase() === 'CONTRACTOR'
-        );
-        setContractors(contractorUsers);
+
+        let candidateUsers: User[] = [];
+
+        try {
+          const res = await userApi.getUsers({ role: 'CONTRACTOR' });
+          const usersList: User[] = Array.isArray(res) ? res : (res?.data || (res as any)?.users || []);
+          candidateUsers = usersList.filter(
+            (u: User) => !u.role || u.role?.toUpperCase() === 'CONTRACTOR'
+          );
+        } catch (uErr) {
+          console.warn('userApi.getUsers failed, falling back to all users:', uErr);
+        }
+
+        // Fallback: If empty, try general getUsers
+        if (candidateUsers.length === 0) {
+          try {
+            const resAll = await userApi.getUsers();
+            const allList: User[] = Array.isArray(resAll) ? resAll : (resAll?.data || (resAll as any)?.users || []);
+            candidateUsers = allList.filter((u: User) => u.role?.toUpperCase() === 'CONTRACTOR');
+          } catch (e) {}
+        }
+
+        setContractors(candidateUsers);
 
         // Pre-select already invited contractors if any
         if (workOrder.invited_contractor_ids) {
@@ -69,11 +86,11 @@ export const InviteContractorsModal: React.FC<InviteContractorsModalProps> = ({
         }
 
         // Default initial selection
-        if (contractorUsers.length > 0) {
-          if (contractorUsers.length >= 2) {
-            setSelectedContractorIds([contractorUsers[0].id, contractorUsers[1].id]);
+        if (candidateUsers.length > 0) {
+          if (candidateUsers.length >= 2) {
+            setSelectedContractorIds([candidateUsers[0].id, candidateUsers[1].id]);
           } else {
-            setSelectedContractorIds([contractorUsers[0].id]);
+            setSelectedContractorIds([candidateUsers[0].id]);
             setInvitationMode('single');
           }
         }

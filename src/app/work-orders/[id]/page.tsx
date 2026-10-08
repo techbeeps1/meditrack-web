@@ -1017,8 +1017,8 @@ export default function WorkOrderDetailPage() {
   });
 
   const reviewContractorRecommendationMutation = useMutation({
-    mutationFn: async ({ action, notes }: { action: 'approved' | 'reevaluate'; notes?: string }) => {
-      return workOrderApi.reviewContractorRecommendation(id, { action, notes });
+    mutationFn: async ({ action, quoteId, notes }: { action: 'approved' | 'reevaluate' | 'reject_quote' | 'rejected'; quoteId?: string; notes?: string }) => {
+      return workOrderApi.reviewContractorRecommendation(id, { action, quoteId, notes });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['work-order', id] });
@@ -1295,6 +1295,7 @@ export default function WorkOrderDetailPage() {
       (isWorksEngineer && (isReferredToEngineer || !!workOrder.assessment_type || workOrder.lead_assessor_id === user?.id || workOrder.assessor_request_engineer_id === user?.id))) &&
     status === 'reported';
   const isContractor = role === 'CONTRACTOR' || !!workOrder.is_blind_quoted;
+  const mySubmittedQuote = role === 'CONTRACTOR' ? (workOrder.quotations || []).find((q: any) => q.contractor_id === user?.id) : null;
 
   // In Part 1 standard flow: Approval is done through the Quantum Built 3-Way Estimate Review stage after assessment & cost calculation.
   // Direct approval on reported status is only for Critical (0–24h) Emergency Fast-Track Bypass.
@@ -1542,36 +1543,47 @@ export default function WorkOrderDetailPage() {
 
             
             {/* Contractor Multi-Quotation Button (when assessed) */}
-            {role === 'CONTRACTOR' && ['reported', 'approved'].includes(status) && isAssessmentDone && (
-              <button
-                type="button"
-                onClick={() => {
-                  setContractorQuoteAmountInput('');
-                  setContractorQuoteRefInput('');
-                  setContractorQuoteNotesInput('');
-                  setContractorQuoteError(null);
-                  setIsSubmitQuotationModalOpen(true);
-                }}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-              >
-                Submit Formal Quotation (R)
-              </button>
+            {role === 'CONTRACTOR' && ['reported', 'approved'].includes(status) && isAssessmentDone && !workOrder.assigned_to && (
+              mySubmittedQuote ? (
+                <div className="flex items-center gap-2">
+                  <span className="px-3.5 py-2 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-xs">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Quotation Submitted ({formatCurrency(mySubmittedQuote.amount)})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContractorQuoteAmountInput(mySubmittedQuote.amount || '');
+                      setContractorQuoteRefInput(mySubmittedQuote.quote_ref || '');
+                      setContractorQuoteNotesInput(mySubmittedQuote.notes || '');
+                      setContractorQuoteError(null);
+                      setIsSubmitQuotationModalOpen(true);
+                    }}
+                    className="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg shadow-xs transition active:scale-95 cursor-pointer whitespace-nowrap"
+                  >
+                    Edit / Update Quote
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContractorQuoteAmountInput('');
+                    setContractorQuoteRefInput('');
+                    setContractorQuoteNotesInput('');
+                    setContractorQuoteError(null);
+                    setIsSubmitQuotationModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  Submit Formal Quotation (R)
+                </button>
+              )
             )}
 
 
 
-            {/* Phase 2: Invite Contractor(s) for Quoting (Single vs Multi) */}
-            {!workOrder.assigned_to && ['reported', 'approved'].includes(status) && (isWorksEngineer || hasAssignScope || role === 'APPROVER') && (
-              <button
-                type="button"
-                onClick={() => setIsInviteContractorsModalOpen(true)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-              >
-                {workOrder.invited_contractor_ids
-                  ? 'Manage Contractor Invitations'
-                  : 'Invite Contractor(s) for Quoting'}
-              </button>
-            )}
+
 
             {status === 'approved' && isSameApproverForAssignment && (
               <span
@@ -1633,7 +1645,7 @@ export default function WorkOrderDetailPage() {
                 onClick={() => openTransitionModal('closed')}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer"
               >
-                Close Work Order
+                Approve Work Order
               </button>
             )}
 
@@ -1693,25 +1705,7 @@ export default function WorkOrderDetailPage() {
               </button>
             )}
 
-            {/* Approver / Admin sees button to Request Invoice from Contractor */}
-            {canRequestInvoice && (
-              <button
-                type="button"
-                onClick={() => requestInvoiceMutation.mutate()}
-                disabled={requestInvoiceMutation.isPending || invoiceRequestSuccess}
-                className={`px-3.5 py-2 text-xs font-semibold rounded-lg shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 ${
-                  invoiceRequestSuccess
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 cursor-default'
-                    : 'bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white'
-                }`}
-              >
-                {requestInvoiceMutation.isPending
-                  ? 'Requesting...'
-                  : invoiceRequestSuccess
-                  ? 'Invoice Requested from Contractor'
-                  : 'Request Invoice from Contractor'}
-              </button>
-            )}
+
 
             {/* When Invoice Exists: 1 Single "Approve & Pay Invoice" Button for Approver/Admin */}
             {workOrder.invoice_id && (
@@ -2379,6 +2373,346 @@ export default function WorkOrderDetailPage() {
         {activeTab === 'details' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
+
+              {/* Multi-Contractor Quotations & Engineering Review Card (TOP PROMINENCE - Admin & Engineers only) */}
+              {(isWorksEngineer || hasAssignScope || (role as string) === 'APPROVER' || (role as string) === 'ADMIN') &&
+                (isAssessmentDone || workOrder.invited_contractor_ids || (workOrder.quotations && workOrder.quotations.length > 0) || workOrder.assigned_to) && (
+                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+                          Contractor Quotations &amp; Commercial Review
+                        </h2>
+                        {workOrder.quotations && workOrder.quotations.length > 0 ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                            {workOrder.quotations.length} Quote(s) Received
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            Awaiting Contractor Quotes
+                          </span>
+                        )}
+                        {workOrder.assigned_to && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Contractor Assigned
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Candidate contractor commercial bids &bull; Works Engineer recommendation &bull; Direct Approver Accept / Reject
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {!workOrder.assigned_to && ['reported', 'approved'].includes(status) && (
+                        <button
+                          type="button"
+                          onClick={() => setIsInviteContractorsModalOpen(true)}
+                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-lg shadow-xs transition active:scale-95 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                          </svg>
+                          {workOrder.invited_contractor_ids ? 'Manage Invitations' : '+ Invite Contractor(s)'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Contractor Approver Recommendation Banner */}
+                  {workOrder.selected_contractor_quote_id && ['reported', 'approved'].includes(status) && !workOrder.assigned_to && (
+                    <div className="p-4 bg-purple-50/90 border border-purple-200 rounded-xl space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-purple-600 animate-pulse" />
+                          <span className="font-bold text-purple-950 text-sm">
+                            Works Engineer Recommendation Active
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-200 text-purple-900 uppercase tracking-wide">
+                          Awaiting Approver Decision
+                        </span>
+                      </div>
+
+                      <div className="bg-white p-3 rounded-lg border border-purple-100 space-y-1 text-slate-700">
+                        <div>
+                          Recommended Contractor:{' '}
+                          <strong className="text-purple-950 text-sm">
+                            {workOrder.quotations?.find(q => q.id === workOrder.selected_contractor_quote_id)?.contractor_name || 'Selected Contractor'}
+                          </strong>{' '}
+                          (Quoted:{' '}
+                          <strong className="text-purple-950 font-mono text-sm">
+                            {formatCurrency(workOrder.quotations?.find(q => q.id === workOrder.selected_contractor_quote_id)?.amount || 0)}
+                          </strong>)
+                        </div>
+                        {workOrder.engineer_recommendation_notes && (
+                          <div className="text-[11px] text-slate-600 pt-1 border-t border-purple-50">
+                            <strong>Engineer Rationale:</strong> {workOrder.engineer_recommendation_notes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Re-evaluation Alert if returned by Approver */}
+                  {workOrder.contractor_approver_action === 'reevaluate' && !workOrder.selected_contractor_quote_id && (
+                    <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 space-y-1">
+                      <div className="font-bold flex items-center justify-between">
+                        <span>Quotation Re-evaluation Requested by Procurement</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-amber-200 text-amber-900 uppercase font-bold">
+                          Re-evaluation Required
+                        </span>
+                      </div>
+                      <p className="text-amber-800 text-[11px]">
+                        <strong>Approver Feedback:</strong> {workOrder.contractor_approver_notes || 'Please re-evaluate candidate quotes.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Quotations List / Comparison Table */}
+                  {workOrder.quotations && workOrder.quotations.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                            <tr>
+                              <th className="p-3">Contractor / Entity</th>
+                              <th className="p-3">Quote Ref</th>
+                              <th className="p-3">Quoted Amount (R)</th>
+                              <th className="p-3">Submitted Date</th>
+                              <th className="p-3">Status</th>
+                              <th className="p-3 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {workOrder.quotations.map((q) => {
+                              const isRecommended = q.id === workOrder.selected_contractor_quote_id;
+                              const isAssigned = q.status === 'assigned' || q.contractor_id === workOrder.assigned_to;
+                              const isSelected = selectedQuoteIdToRecommend === q.id || (!selectedQuoteIdToRecommend && isRecommended);
+                              const isApproverRole = hasAssignScope || (role as string) === 'APPROVER' || (role as string) === 'ADMIN';
+
+                              return (
+                                <tr
+                                  key={q.id}
+                                  className={
+                                    isAssigned
+                                      ? 'bg-emerald-50/40'
+                                      : isRecommended
+                                      ? 'bg-purple-50/50'
+                                      : isSelected && isWorksEngineer
+                                      ? 'bg-purple-50/20'
+                                      : ''
+                                  }
+                                >
+                                  <td className="p-3">
+                                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                                      <span>{q.contractor_name || 'Contractor'}</span>
+                                      {isAssigned && (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase">
+                                          Assigned
+                                        </span>
+                                      )}
+                                      {isRecommended && !isAssigned && (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-200 uppercase">
+                                          Recommended
+                                        </span>
+                                      )}
+                                    </div>
+                                    {q.notes && (
+                                      <div className="text-[11px] text-slate-500 mt-0.5 max-w-xs truncate">
+                                        {q.notes}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="p-3 font-mono text-slate-600">{q.quote_ref || '-'}</td>
+                                  <td className="p-3 font-mono font-bold text-slate-900 text-sm">
+                                    {formatCurrency(q.amount)}
+                                  </td>
+                                  <td className="p-3 text-slate-500 font-mono text-[11px]">
+                                    {formatDate(q.created_at)}
+                                  </td>
+                                  <td className="p-3">
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                        isAssigned
+                                          ? 'bg-emerald-100 text-emerald-800'
+                                          : isRecommended
+                                          ? 'bg-purple-100 text-purple-800'
+                                          : q.status === 'rejected'
+                                          ? 'bg-rose-100 text-rose-800'
+                                          : 'bg-slate-100 text-slate-700'
+                                      }`}
+                                    >
+                                      {isAssigned ? 'Assigned' : isRecommended ? 'Recommended' : q.status}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-right whitespace-nowrap">
+                                    {/* Approver / Admin Actions */}
+                                    {isApproverRole && !workOrder.assigned_to && ['reported', 'approved'].includes(status) && (
+                                      <div className="flex items-center justify-end gap-1.5">
+                                        {q.status !== 'rejected' ? (
+                                          <>
+                                            <button
+                                              type="button"
+                                              disabled={reviewContractorRecommendationMutation.isPending}
+                                              onClick={() => {
+                                                reviewContractorRecommendationMutation.mutate({
+                                                  action: 'approved',
+                                                  quoteId: q.id,
+                                                  notes: `Directly approved and assigned by ${user?.name || 'Approver'}`
+                                                });
+                                              }}
+                                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50 inline-flex items-center gap-1"
+                                            >
+                                              Accept &amp; Assign
+                                            </button>
+                                            <button
+                                              type="button"
+                                              disabled={reviewContractorRecommendationMutation.isPending}
+                                              onClick={() => {
+                                                reviewContractorRecommendationMutation.mutate({
+                                                  action: 'reject_quote',
+                                                  quoteId: q.id,
+                                                  notes: 'Quotation rejected by Approver'
+                                                });
+                                              }}
+                                              className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200 text-xs font-semibold rounded-lg transition active:scale-95 cursor-pointer disabled:opacity-50"
+                                            >
+                                              Reject
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <span className="text-[11px] text-rose-500 font-medium italic">Rejected</span>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* Works Engineer Selection */}
+                                    {isWorksEngineer && !workOrder.assigned_to && ['reported', 'approved'].includes(status) && (
+                                      <div className="flex items-center justify-end gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => setSelectedQuoteIdToRecommend(q.id)}
+                                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition active:scale-95 cursor-pointer flex items-center gap-1.5 ${
+                                            isSelected
+                                              ? 'bg-purple-700 text-white shadow-xs font-bold'
+                                              : 'bg-white border border-purple-300 text-purple-700 hover:bg-purple-50'
+                                          }`}
+                                        >
+                                          {isSelected ? '✓ Selected' : 'Select'}
+                                        </button>
+                                      </div>
+                                    )}
+
+                                    {/* If already assigned */}
+                                    {workOrder.assigned_to && (
+                                      <span className={`text-xs font-bold ${isAssigned ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                        {isAssigned ? '✓ Assigned Winner' : '—'}
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Works Engineer Recommendation Box */}
+                      {isWorksEngineer && ['reported', 'approved'].includes(status) && !workOrder.assigned_to && (
+                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+                          {recommendationError && (
+                            <div className="p-2 rounded bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+                              {recommendationError}
+                            </div>
+                          )}
+                          <label className="block text-xs font-bold text-slate-800">
+                            Works Engineer Recommendation Rationale:
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={engineerRecommendationNotesInput}
+                            onChange={(e) => setEngineerRecommendationNotesInput(e.target.value)}
+                            placeholder="State technical justification, rate competitiveness, or contractor OEM specialty..."
+                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                          />
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              disabled={!selectedQuoteIdToRecommend && !workOrder.selected_contractor_quote_id || recommendQuoteMutation.isPending}
+                              onClick={() =>
+                                recommendQuoteMutation.mutate({
+                                  quoteId: selectedQuoteIdToRecommend || workOrder.selected_contractor_quote_id || '',
+                                  notes: engineerRecommendationNotesInput.trim()
+                                })
+                              }
+                              className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
+                            >
+                              {recommendQuoteMutation.isPending ? 'Submitting...' : 'Recommend Selected Contractor to Approver'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 text-xs text-slate-500">
+                      No commercial quotations submitted by contractors yet. When contractors submit quotes, they will appear here for Works Engineer evaluation and Approver award.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Contractor Commercial Quotation Card (For Contractor View Only) */}
+              {role === 'CONTRACTOR' && !workOrder.assigned_to && ['reported', 'approved'].includes(status) && (
+                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-emerald-200 shadow-sm space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                        Contractor Commercial Quotation
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Submit your official itemized quote and proposed turnaround time for this work order.
+                      </p>
+                    </div>
+                    {mySubmittedQuote ? (
+                      <div className="flex items-center gap-2">
+                        <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
+                          ✓ Your Quote Submitted ({formatCurrency(mySubmittedQuote.amount)})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContractorQuoteAmountInput(mySubmittedQuote.amount ? mySubmittedQuote.amount : '');
+                            setContractorQuoteRefInput(mySubmittedQuote.quote_ref || '');
+                            setContractorQuoteNotesInput(mySubmittedQuote.notes || '');
+                            setContractorQuoteError(null);
+                            setIsSubmitQuotationModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition active:scale-95 cursor-pointer"
+                        >
+                          Edit Quote
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setContractorQuoteAmountInput('');
+                          setContractorQuoteRefInput('');
+                          setContractorQuoteNotesInput('');
+                          setContractorQuoteError(null);
+                          setIsSubmitQuotationModalOpen(true);
+                        }}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+                      >
+                        + Submit Formal Quote &rarr;
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Engineering Assessor Scope & Automated Funding Split Card */}
               {hasPaymentScope && (
                 <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm space-y-4">
@@ -2603,235 +2937,6 @@ export default function WorkOrderDetailPage() {
               </div>
               )}
 
-
-              {/* Multi-Contractor Quotations & Engineering Review Card */}
-              {isAssessmentDone && (
-                <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
-                          Contractor Quotations &amp; Engineering Review
-                        </h2>
-                        {workOrder.quotations && workOrder.quotations.length > 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">
-                            {workOrder.quotations.length} Quote(s) Received
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                            Awaiting Contractor Quotes
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Multiple contractor commercial bids &bull; Works Engineer recommendation &bull; Procurement Approver assignment
-                      </p>
-                    </div>
-
-                    {role === 'CONTRACTOR' && ['reported', 'approved'].includes(status) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setContractorQuoteAmountInput('');
-                          setContractorQuoteRefInput('');
-                          setContractorQuoteNotesInput('');
-                          setContractorQuoteError(null);
-                          setIsSubmitQuotationModalOpen(true);
-                        }}
-                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-lg shadow-xs transition active:scale-95 cursor-pointer whitespace-nowrap"
-                      >
-                        + Submit Formal Quote &rarr;
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Contractor Approver Recommendation Action Banner */}
-                  {workOrder.selected_contractor_quote_id && status === 'reported' && (
-                    <div className="p-4 bg-purple-50/80 border border-purple-200 rounded-xl space-y-2 text-xs">
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 rounded-full bg-purple-600 animate-pulse" />
-                          <span className="font-bold text-purple-950 text-sm">
-                            Works Engineer Recommendation Submitted
-                          </span>
-                        </div>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-200 text-purple-900 uppercase">
-                          Awaiting Procurement Approval
-                        </span>
-                      </div>
-
-                      <div className="bg-white p-3 rounded-lg border border-purple-100 space-y-1 text-slate-700">
-                        <div>
-                          Recommended Contractor:{' '}
-                          <strong className="text-purple-950">
-                            {workOrder.quotations?.find(q => q.id === workOrder.selected_contractor_quote_id)?.contractor_name || 'Selected Contractor'}
-                          </strong>{' '}
-                          (Quoted:{' '}
-                          <strong className="text-purple-950 font-mono">
-                            {formatCurrency(workOrder.quotations?.find(q => q.id === workOrder.selected_contractor_quote_id)?.amount || 0)}
-                          </strong>)
-                        </div>
-                        {workOrder.engineer_recommendation_notes && (
-                          <div className="text-[11px] text-slate-600 pt-1 border-t border-purple-50">
-                            <strong>Engineer Rationale:</strong> {workOrder.engineer_recommendation_notes}
-                          </div>
-                        )}
-                      </div>
-
-                      {hasAssignScope && (
-                        <div className="flex items-center justify-end gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setReevaluateNotesInput('');
-                              setReevaluateError(null);
-                              setIsReevaluateModalOpen(true);
-                            }}
-                            className="px-3.5 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-xs font-semibold rounded-lg transition active:scale-95 cursor-pointer"
-                          >
-                            Re-evaluate Quotes
-                          </button>
-                          <button
-                            type="button"
-                            disabled={reviewContractorRecommendationMutation.isPending}
-                            onClick={() =>
-                              reviewContractorRecommendationMutation.mutate({
-                                action: 'approved',
-                                notes: 'Approved by Procurement Approver'
-                              })
-                            }
-                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
-                          >
-                            {reviewContractorRecommendationMutation.isPending ? 'Assigning...' : 'Approve & Assign Contractor'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Re-evaluation Alert if returned by Approver */}
-                  {workOrder.contractor_approver_action === 'reevaluate' && !workOrder.selected_contractor_quote_id && (
-                    <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 space-y-1">
-                      <div className="font-bold flex items-center justify-between">
-                        <span>Quotation Re-evaluation Requested by Procurement</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-amber-200 text-amber-900 uppercase font-bold">
-                          Re-evaluation Required
-                        </span>
-                      </div>
-                      <p className="text-amber-800 text-[11px]">
-                        <strong>Approver Feedback:</strong> {workOrder.contractor_approver_notes || 'Please re-evaluate candidate quotes.'}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Quotations List / Comparison Table */}
-                  {workOrder.quotations && workOrder.quotations.length > 0 ? (
-                    <div className="space-y-3">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
-                          <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-                            <tr>
-                              <th className="p-3">Contractor / Entity</th>
-                              <th className="p-3">Quote Ref</th>
-                              <th className="p-3">Quoted Amount (R)</th>
-                              <th className="p-3">Submitted Date</th>
-                              <th className="p-3">Status</th>
-                              {isWorksEngineer && status === 'reported' && <th className="p-3 text-right">Select</th>}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 bg-white">
-                            {workOrder.quotations.map((q) => {
-                              const isRecommended = q.id === workOrder.selected_contractor_quote_id;
-                              const isAssigned = q.status === 'assigned' || q.contractor_id === workOrder.assigned_to;
-                              return (
-                                <tr key={q.id} className={isRecommended ? 'bg-purple-50/40' : isAssigned ? 'bg-emerald-50/40' : ''}>
-                                  <td className="p-3">
-                                    <div className="font-bold text-slate-900">{q.contractor_name || 'Contractor'}</div>
-                                    {q.notes && <div className="text-[11px] text-slate-500 mt-0.5 max-w-xs truncate">{q.notes}</div>}
-                                  </td>
-                                  <td className="p-3 font-mono text-slate-600">{q.quote_ref || '-'}</td>
-                                  <td className="p-3 font-mono font-bold text-slate-900 text-sm">
-                                    {formatCurrency(q.amount)}
-                                  </td>
-                                  <td className="p-3 text-slate-500 font-mono text-[11px]">
-                                    {formatDate(q.created_at)}
-                                  </td>
-                                  <td className="p-3">
-                                    <span
-                                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                        isAssigned
-                                          ? 'bg-emerald-100 text-emerald-800'
-                                          : isRecommended
-                                          ? 'bg-purple-100 text-purple-800'
-                                          : q.status === 'rejected'
-                                          ? 'bg-rose-100 text-rose-800'
-                                          : 'bg-slate-100 text-slate-700'
-                                      }`}
-                                    >
-                                      {isAssigned ? 'Assigned' : isRecommended ? 'Recommended' : q.status}
-                                    </span>
-                                  </td>
-                                  {isWorksEngineer && status === 'reported' && (
-                                    <td className="p-3 text-right">
-                                      <input
-                                        type="radio"
-                                        name="selectedQuote"
-                                        checked={selectedQuoteIdToRecommend === q.id || (!selectedQuoteIdToRecommend && isRecommended)}
-                                        onChange={() => setSelectedQuoteIdToRecommend(q.id)}
-                                        className="h-4 w-4 text-purple-600 border-slate-300 focus:ring-purple-500 cursor-pointer"
-                                      />
-                                    </td>
-                                  )}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Works Engineer Recommendation Box */}
-                      {isWorksEngineer && status === 'reported' && (
-                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
-                          {recommendationError && (
-                            <div className="p-2 rounded bg-rose-50 border border-rose-200 text-rose-700 text-xs">
-                              {recommendationError}
-                            </div>
-                          )}
-                          <label className="block text-xs font-bold text-slate-800">
-                            Works Engineer Recommendation Rationale:
-                          </label>
-                          <textarea
-                            rows={2}
-                            value={engineerRecommendationNotesInput}
-                            onChange={(e) => setEngineerRecommendationNotesInput(e.target.value)}
-                            placeholder="State technical justification, rate competitiveness, or contractor OEM specialty..."
-                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                          />
-                          <div className="flex justify-end">
-                            <button
-                              type="button"
-                              disabled={!selectedQuoteIdToRecommend && !workOrder.selected_contractor_quote_id || recommendQuoteMutation.isPending}
-                              onClick={() =>
-                                recommendQuoteMutation.mutate({
-                                  quoteId: selectedQuoteIdToRecommend || workOrder.selected_contractor_quote_id || '',
-                                  notes: engineerRecommendationNotesInput.trim()
-                                })
-                              }
-                              className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
-                            >
-                              {recommendQuoteMutation.isPending ? 'Submitting...' : 'Recommend Selected Contractor to Approver'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 text-xs text-slate-500">
-                      No commercial quotations submitted by contractors yet. When contractors submit quotes, they will appear here for Works Engineer evaluation.
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* Client Quotation Approval Lifecycle Card */}
               {!isRouteB && (
@@ -3574,23 +3679,23 @@ export default function WorkOrderDetailPage() {
                 )}
               </div>
 
-              {/* Photos Gallery */}
+              {/* Photos & Documents Evidence Gallery */}
               <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
-                    Attached Inspection Evidence ({workOrder.photos?.length || 0})
+                    Attached Evidence &amp; Documents ({workOrder.photos?.length || 0})
                   </h2>
                   <button
                     onClick={() => setIsPhotoModalOpen(true)}
-                    className="text-xs text-sky-600 hover:text-sky-800 font-medium"
+                    className="text-xs text-sky-600 hover:text-sky-800 font-medium cursor-pointer"
                   >
-                    + Upload Photo
+                    + Upload Photo / Doc
                   </button>
                 </div>
 
                 {!workOrder.photos || workOrder.photos.length === 0 ? (
                   <div className="py-8 text-center text-xs text-gray-400 border border-dashed border-gray-200 rounded">
-                    No inspection photos attached to this ticket yet.
+                    No inspection photos or evidence documents attached to this ticket yet.
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -3599,36 +3704,82 @@ export default function WorkOrderDetailPage() {
                         ? photo.photo_url
                         : `${API_SERVER_URL}${photo.photo_url.startsWith('/') ? '' : '/'}${photo.photo_url}`;
 
+                      const isPdf =
+                        photo.photo_url.toLowerCase().endsWith('.pdf') ||
+                        (photo.caption && photo.caption.toLowerCase().includes('.pdf'));
+
+                      const isDoc =
+                        photo.photo_url.toLowerCase().endsWith('.doc') ||
+                        photo.photo_url.toLowerCase().endsWith('.docx') ||
+                        (photo.caption &&
+                          (photo.caption.toLowerCase().includes('.doc') ||
+                            photo.caption.toLowerCase().includes('.docx')));
+
                       return (
                         <a
                           key={photo.id}
                           href={photoUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="border border-slate-200 rounded-lg overflow-hidden bg-slate-50 text-xs block group hover:shadow-md transition"
-                          title="Click to view full image"
+                          className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 text-xs block group hover:shadow-md hover:border-slate-300 transition"
+                          title={`Click to view / download ${isPdf ? 'PDF Document' : isDoc ? 'Document' : 'Evidence Image'}`}
                         >
                           <div className="h-36 bg-slate-100 flex items-center justify-center relative overflow-hidden">
-                            <img
-                              src={photoUrl}
-                              alt={photo.caption || 'Work order photo'}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                              <span className="p-1.5 rounded-full bg-white/90 text-slate-800 shadow">
+                            {isPdf ? (
+                              <div className="w-full h-full bg-gradient-to-br from-rose-50 via-red-50 to-rose-100/60 flex flex-col items-center justify-center p-4 text-center group-hover:scale-105 transition-transform duration-200">
+                                <div className="w-12 h-12 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-md shadow-rose-200 mb-2">
+                                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 3v6a1 1 0 001 1h6" />
+                                  </svg>
+                                </div>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-200/80 text-rose-900 uppercase tracking-wider">
+                                  PDF Document
+                                </span>
+                              </div>
+                            ) : isDoc ? (
+                              <div className="w-full h-full bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100/60 flex flex-col items-center justify-center p-4 text-center group-hover:scale-105 transition-transform duration-200">
+                                <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200 mb-2">
+                                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                </div>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-200/80 text-blue-900 uppercase tracking-wider">
+                                  Word Document
+                                </span>
+                              </div>
+                            ) : (
+                              <img
+                                src={photoUrl}
+                                alt={photo.caption || 'Work order photo'}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              />
+                            )}
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                              <span className="p-2 rounded-full bg-white/95 text-slate-800 shadow-md">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                 </svg>
                               </span>
                             </div>
                           </div>
                           <div className="p-2.5 bg-white border-t border-slate-100">
-                            <div className="font-medium text-slate-800 truncate">
+                            <div className="font-semibold text-slate-800 truncate" title={photo.caption || 'Attachment'}>
                               {photo.caption || 'Photo attachment'}
                             </div>
-                            <div className="text-[10px] text-slate-400 uppercase mt-0.5 font-mono">
-                              Stage: {photo.stage}
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 uppercase mt-1 font-mono">
+                              <span>Stage: {photo.stage}</span>
+                              <span
+                                className={`px-1.5 py-0.2 rounded font-bold ${
+                                  isPdf
+                                    ? 'bg-rose-100 text-rose-800'
+                                    : isDoc
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-slate-100 text-slate-600'
+                                }`}
+                              >
+                                {isPdf ? 'PDF' : isDoc ? 'DOC' : 'IMG'}
+                              </span>
                             </div>
                           </div>
                         </a>
@@ -4159,6 +4310,8 @@ export default function WorkOrderDetailPage() {
                     ? 'Cancel / Reject Work Order'
                     : targetStatus === 'approved'
                     ? 'Approve Work Order'
+                    : targetStatus === 'closed'
+                    ? 'Approve Work Order'
                     : `Transition Status → ${targetStatus?.replace('_', ' ')}`}
                 </h3>
                 <button
@@ -4179,6 +4332,12 @@ export default function WorkOrderDetailPage() {
               {targetStatus === 'approved' && (
                 <div className="p-3 bg-sky-50 border border-sky-200 rounded-md text-xs text-sky-800 font-medium">
                   Approve this work order scope for contractor quotation.
+                </div>
+              )}
+
+              {targetStatus === 'closed' && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md text-xs text-emerald-800 font-medium">
+                  Final sign-off and approval for completed & verified work order.
                 </div>
               )}
 
@@ -4553,6 +4712,8 @@ export default function WorkOrderDetailPage() {
                     ? 'Confirm Cancellation'
                     : targetStatus === 'approved'
                     ? 'Confirm Approval'
+                    : targetStatus === 'closed'
+                    ? 'Approve Work Order'
                     : 'Confirm Status Change'}
                 </button>
               </div>
@@ -6601,6 +6762,7 @@ export default function WorkOrderDetailPage() {
             isOpen={isSubmitQuotationModalOpen}
             onClose={() => setIsSubmitQuotationModalOpen(false)}
             workOrder={workOrder}
+            initialQuotation={mySubmittedQuote}
             onSuccess={() => {
               queryClient.invalidateQueries({ queryKey: ['work-order', id] });
               queryClient.invalidateQueries({ queryKey: ['work-orders'] });

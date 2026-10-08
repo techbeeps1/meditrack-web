@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { WorkOrder } from '@/types/workOrder';
+import { WorkOrder, ContractorQuotation } from '@/types/workOrder';
 import { workOrderApi } from '@/services/work-orders';
 
 interface SubmitQuotationModalProps {
   isOpen: boolean;
   onClose: () => void;
   workOrder: WorkOrder;
+  initialQuotation?: ContractorQuotation | null;
   onSuccess?: () => void;
 }
 
@@ -16,6 +17,7 @@ export default function SubmitQuotationModal({
   isOpen,
   onClose,
   workOrder,
+  initialQuotation,
   onSuccess
 }: SubmitQuotationModalProps) {
   const queryClient = useQueryClient();
@@ -25,6 +27,36 @@ export default function SubmitQuotationModal({
   const [quoteRef, setQuoteRef] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill existing quotation details when opening for edit
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Find quote from props or from workOrder.quotations list
+    const existingQuote = initialQuotation || (workOrder.quotations && workOrder.quotations.length > 0 ? workOrder.quotations[0] : null);
+
+    if (existingQuote) {
+      setAmount(existingQuote.amount || '');
+      setQuoteRef(existingQuote.quote_ref || '');
+
+      const existingNotes = existingQuote.notes || '';
+      const turnaroundMatch = existingNotes.match(/Proposed Turnaround:\s*(\d+)/i);
+      if (turnaroundMatch && turnaroundMatch[1]) {
+        setTurnaroundDays(Number(turnaroundMatch[1]));
+      }
+
+      // Clean notes from turnaround prefix
+      const cleanNotes = existingNotes
+        .replace(/Proposed Turnaround:\s*\d+\s*working day\(s\)\s*(•\s*)?/i, '')
+        .trim();
+      setNotes(cleanNotes);
+    } else {
+      setAmount('');
+      setTurnaroundDays(5);
+      setQuoteRef('');
+      setNotes('');
+    }
+  }, [isOpen, workOrder, initialQuotation]);
 
   const submitMutation = useMutation({
     mutationFn: async () => {

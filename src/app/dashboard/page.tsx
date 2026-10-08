@@ -108,7 +108,37 @@ export default function DashboardPage() {
 
   const approverPendingContractorAssignments = allWorkOrders.filter((wo) => {
     const s = (wo.status || '').toLowerCase();
-    return s === 'approved' && !!wo.selected_contractor_quote_id && wo.contractor_approver_action !== 'approved';
+    return ['reported', 'approved'].includes(s) && !wo.assigned_to && (
+      !!wo.selected_contractor_quote_id ||
+      (wo.quotations && wo.quotations.length > 0)
+    );
+  });
+
+  const approverAwaitingActionWorkOrders = allWorkOrders.filter((wo) => {
+    const s = (wo.status || '').toLowerCase();
+    if (['closed', 'cancelled'].includes(s)) return false;
+
+    // 1. Initial reported tickets awaiting approval
+    if (s === 'reported') return true;
+
+    // 2. Contractor quotations or recommendations awaiting approval / assignment
+    if (['reported', 'approved'].includes(s) && !wo.assigned_to) {
+      if (wo.selected_contractor_quote_id || (wo.quotations && wo.quotations.length > 0) || wo.invited_contractor_ids) {
+        return true;
+      }
+    }
+
+    // 3. Client quoting gateway under review or awaiting client approval
+    if (wo.quote_status === 'awaiting_client' || wo.quote_status === 'under_review') {
+      return true;
+    }
+
+    // 4. Completed or Verified tickets awaiting sign-off, invoice claim or payment settlement
+    if (s === 'completed' || s === 'verified') {
+      return true;
+    }
+
+    return false;
   });
 
   // -------------------------------------------------------------
@@ -948,27 +978,27 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-5">
             {approverScope === 'contractor_approver' ? (
               <StatCard
-                href="/work-orders?status=approved"
+                href="/work-orders"
                 title="Approved (Assign Vendor)"
-                value={isLoading ? '...' : approvedCount}
+                value={isLoading ? '...' : approverAwaitingActionWorkOrders.length}
                 subtitle="Assign specialized contractor"
                 variant="blue"
               />
             ) : (
               <StatCard
-                href="/work-orders?status=reported"
+                href="/work-orders"
                 title="Awaiting Your Approval"
-                value={isLoading ? '...' : reportedCount}
-                subtitle="New requests pending review"
+                value={isLoading ? '...' : approverAwaitingActionWorkOrders.length}
+                subtitle={`${approverAwaitingActionWorkOrders.length} ticket(s) require review &amp; decision`}
                 variant="orange"
               />
             )}
 
             <StatCard
-              href="/work-orders?status=active"
+              href="/work-orders"
               title="Active Jobs in Pipeline"
-              value={isLoading ? '...' : (approvedCount + assignedCount + inProgressCount)}
-              subtitle="Contractor repairs underway"
+              value={isLoading ? '...' : (assignedCount + inProgressCount + completedCount + verifiedCount)}
+              subtitle="Repairs, inspections &amp; verification"
               variant="blue"
             />
 
@@ -983,7 +1013,7 @@ export default function DashboardPage() {
             ) : (
               <StatCard
                 href="/work-orders?status=completed"
-                title="Completed & QC Verified"
+                title="Completed &amp; QC Verified"
                 value={isLoading ? '...' : (completedCount + verifiedCount)}
                 subtitle="Repairs awaiting closure"
                 variant="green"
@@ -1048,31 +1078,31 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                    <span>Pending Work Orders Awaiting Approval</span>
-                    {pendingWorkOrders.length > 0 && (
+                    <span>Work Orders Awaiting Approval &amp; Action</span>
+                    {approverAwaitingActionWorkOrders.length > 0 && (
                       <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-amber-100 text-amber-800">
-                        {pendingWorkOrders.length}
+                        {approverAwaitingActionWorkOrders.length}
                       </span>
                     )}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 font-normal">
-                    Review reported issue details, verify priority/SLA, and assign or approve funding.
+                    Review reported issues, contractor bid recommendations, and verified repairs awaiting sign-off.
                   </p>
                 </div>
               </div>
-              <Link href="/work-orders?status=reported" className="text-xs sm:text-sm font-semibold text-sky-600 hover:text-sky-800 transition">
-                View All Awaiting Approval &rarr;
+              <Link href="/work-orders" className="text-xs sm:text-sm font-semibold text-sky-600 hover:text-sky-800 transition">
+                View All Work Orders &rarr;
               </Link>
             </div>
 
-            {pendingWorkOrders.length === 0 ? (
+            {approverAwaitingActionWorkOrders.length === 0 ? (
               <div className="p-8 text-center bg-white rounded-[18px] border border-slate-200 shadow-xs">
                 <div className="text-sm font-semibold text-slate-700">All caught up!</div>
                 <div className="text-xs text-slate-400 mt-1">No work orders currently awaiting approval.</div>
               </div>
             ) : (
               <div className="space-y-3.5">
-                {pendingWorkOrders.map((wo) => (
+                {approverAwaitingActionWorkOrders.map((wo) => (
                   <WorkOrderCard key={wo.id} workOrder={wo} />
                 ))}
               </div>
