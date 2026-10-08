@@ -1074,6 +1074,51 @@ export default function WorkOrderDetailPage() {
             >
               {workOrder.status === 'reported' ? 'Requested' : workOrder.status.replace('_', ' ')}
             </span>
+
+            {/* Prominent Print Work Order Button in Top Header (Admin & Contractor) */}
+            {['assigned', 'in_progress', 'completed', 'verified', 'closed'].includes(status) && (role === 'ADMIN' || role === 'CONTRACTOR') && (
+              <button
+                type="button"
+                onClick={() =>
+                  downloadWorkOrderPdf({
+                    tracking_number: workOrder.tracking_number,
+                    title: workOrder.title,
+                    description: workOrder.description,
+                    status: workOrder.status,
+                    category: workOrder.category,
+                    priority: workOrder.priority,
+                    urgency_category: workOrder.urgency_category,
+                    funding_route: workOrder.funding_route,
+                    created_at: workOrder.created_at,
+                    due_date: workOrder.due_date,
+                    estimated_days: workOrder.estimated_days,
+                    facility_name: workOrder.facility_name,
+                    facility_address: workOrder.facility_address,
+                    facility_city: workOrder.facility_city,
+                    location_details: workOrder.location_details,
+                    reported_by_name: workOrder.reported_by_name,
+                    assigned_to_name: workOrder.assigned_to_name,
+                    contractor_name: workOrder.contractor_name || workOrder.assigned_to_name,
+                    lead_assessor_name: workOrder.lead_assessor_name,
+                    lead_assessor_role: workOrder.lead_assessor_role,
+                    charge_code: workOrder.charge_code,
+                    assessment_mode: workOrder.assessment_type,
+                    assessment_notes: workOrder.assessment_notes,
+                    estimated_cost: workOrder.estimated_cost,
+                    actual_cost: workOrder.actual_cost,
+                    system_quote_no: workOrder.system_quote_no,
+                    contractor_quote_ref: workOrder.contractor_quote_ref
+                  })
+                }
+                title="Print and Download Official Work Order (PDF)"
+                className="ml-auto inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-[#008DA6] hover:bg-[#007387] active:bg-[#005c6d] rounded-lg shadow-xs hover:shadow active:scale-95 transition-all cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zM7 9V5a2 2 0 012-2h6a2 2 0 012 2v4" />
+                </svg>
+                Print Work Order (PDF)
+              </button>
+            )}
           </div>
 
           {/* Row 2: Title & Reporter (Full Width) */}
@@ -1391,124 +1436,169 @@ export default function WorkOrderDetailPage() {
                     Invoice {workOrder.invoice_number} (REJECTED) &rarr;
                   </Link>
                 )}
-
-                {/* Direct Download Quote PDF button (Route A only when quote submitted) */}
-                {!isRouteB && workOrder.estimated_cost && Number(workOrder.estimated_cost) > 0 && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      downloadQuotePdf({
-                        quote_number: `QTE-${new Date().getFullYear()}-${workOrder.tracking_number?.replace(/\D/g, '').slice(-4) || '1001'}`,
-                        issued_date: workOrder.assessment_date || workOrder.created_at,
-                        work_order_tracking: workOrder.tracking_number,
-                        work_order_title: workOrder.title,
-                        client_name: workOrder.reported_by_name || 'Muzikayise Nkosi',
-                        facility_name: workOrder.facility_name,
-                        contractor_name: workOrder.assigned_to_name || 'Apex BioMed Solutions',
-                        quote_amount: Number(workOrder.estimated_cost || 0),
-                        quote_notes: workOrder.assessment_notes || workOrder.description
-                      })
-                    }
-                    title="Download and Print Official Formal Quote PDF"
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Quote PDF
-                  </button>
-                )}
-
-                {/* Direct Download Estimate PDF button */}
-                {(workOrder.assessor_estimate !== null && workOrder.assessor_estimate !== undefined && Number(workOrder.assessor_estimate) > 0 || isAssessmentDone) && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      downloadEstimatePdf({
-                        estimate_number: `EST-${new Date().getFullYear()}-${workOrder.tracking_number?.replace(/\D/g, '').slice(-4) || '1001'}`,
-                        estimate_date: workOrder.assessment_date || workOrder.created_at,
-                        work_order_tracking: workOrder.tracking_number,
-                        work_order_title: workOrder.title,
-                        customer_name: 'Northern Cape Department of Health',
-                        facility_name: workOrder.facility_name,
-                        facility_address: 'Northern Cape Provincial Campus',
-                        estimate_by_name: workOrder.assessor_name || workOrder.lead_assessor_name || 'David Vance (Site Works Assessor)',
-                        estimate_by_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer (HVAC Specialist)' : 'Works Inspector (Quality Officer)',
-                        estimate_by_charge_code: workOrder.charge_code || 'ONS',
-                        subtotal: Number(workOrder.assessor_estimate || workOrder.estimated_cost || 0),
-                        comments: workOrder.assessment_notes || `Technical assessment and scope estimation for ${workOrder.tracking_number} (${workOrder.title}). All works to adhere to SANS healthcare engineering standards.`
-                      })
-                    }
-                    title="Download and Print Official Assessment Estimate PDF"
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Estimate PDF
-                  </button>
-                )}
-
-                {/* Direct Download Timesheet PDF button */}
-                {(workOrder.timesheet_total_hours || workOrder.assessment_hours || workOrder.timesheet_data || isAssessmentDone) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      let entries: any[] = [];
-                      try {
-                        if (workOrder.timesheet_data) entries = JSON.parse(workOrder.timesheet_data);
-                      } catch (_) {}
-                      downloadTimesheetPdf({
-                        employee_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
-                        employee_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer' : 'Works Inspector',
-                        week_start: workOrder.created_at ? formatDate(workOrder.created_at) : new Date().toLocaleDateString('en-GB'),
-                        work_order_tracking: workOrder.tracking_number,
-                        work_order_title: workOrder.title,
-                        facility_name: workOrder.facility_name,
-                        entries,
-                        total_hours: workOrder.timesheet_total_hours || workOrder.assessment_hours || '0.0',
-                        signature_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
-                        signature_date: workOrder.assessment_date ? formatDate(workOrder.assessment_date) : new Date().toLocaleDateString('en-GB')
-                      });
-                    }}
-                    title="Download and Print Official Time Sheet PDF"
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Timesheet PDF
-                  </button>
-                )}
-
-                {/* Direct Download Invoice PDF button (Payment Approver, Admin, Contractor, Auditor only) */}
-                {canViewInvoiceDetails && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      downloadInvoicePdf({
-                        id: workOrder.invoice_id || id,
-                        invoice_number: workOrder.invoice_number || 'INV-REF',
-                        created_at: workOrder.created_at,
-                        status: workOrder.invoice_status || 'pending',
-                        amount: Number(workOrder.actual_cost || workOrder.estimated_cost || 0),
-                        notes: `Invoice claim for completed maintenance on ${workOrder.tracking_number} (${workOrder.title})`,
-                        contractor_name: workOrder.assigned_to_name || 'Apex BioMed Solutions',
-                        work_order_tracking: workOrder.tracking_number,
-                        work_order_title: workOrder.title,
-                        facility_name: workOrder.facility_name
-                      })
-                    }
-                    title="Download and Print Official Invoice PDF"
-                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 border border-sky-200 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Invoice PDF
-                  </button>
-                )}
               </>
+            )}
+
+            {/* Official Work Order Print & Download PDF Button (Only after assigned to contractor, Admin & Contractor only) */}
+            {['assigned', 'in_progress', 'completed', 'verified', 'closed'].includes(status) && (role === 'ADMIN' || role === 'CONTRACTOR') && (
+              <button
+                type="button"
+                onClick={() =>
+                  downloadWorkOrderPdf({
+                    tracking_number: workOrder.tracking_number,
+                    title: workOrder.title,
+                    description: workOrder.description,
+                    status: workOrder.status,
+                    category: workOrder.category,
+                    priority: workOrder.priority,
+                    urgency_category: workOrder.urgency_category,
+                    funding_route: workOrder.funding_route,
+                    created_at: workOrder.created_at,
+                    due_date: workOrder.due_date,
+                    estimated_days: workOrder.estimated_days,
+                    facility_name: workOrder.facility_name,
+                    facility_address: workOrder.facility_address,
+                    facility_city: workOrder.facility_city,
+                    location_details: workOrder.location_details,
+                    reported_by_name: workOrder.reported_by_name,
+                    assigned_to_name: workOrder.assigned_to_name,
+                    contractor_name: workOrder.contractor_name || workOrder.assigned_to_name,
+                    lead_assessor_name: workOrder.lead_assessor_name,
+                    lead_assessor_role: workOrder.lead_assessor_role,
+                    charge_code: workOrder.charge_code,
+                    assessment_mode: workOrder.assessment_type,
+                    assessment_notes: workOrder.assessment_notes,
+                    estimated_cost: workOrder.estimated_cost,
+                    actual_cost: workOrder.actual_cost,
+                    system_quote_no: workOrder.system_quote_no,
+                    contractor_quote_ref: workOrder.contractor_quote_ref
+                  })
+                }
+                title="Download and Print Official Work Order Dispatch PDF"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#008DA6] hover:bg-[#007387] active:bg-[#005c6d] rounded-lg shadow-sm hover:shadow active:scale-95 transition-all cursor-pointer whitespace-nowrap"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zM7 9V5a2 2 0 012-2h6a2 2 0 012 2v4" />
+                </svg>
+                Print Work Order (PDF)
+              </button>
+            )}
+
+            {/* Direct Download Quote PDF button (Route A only when quote submitted) */}
+            {!isRouteB && workOrder.estimated_cost && Number(workOrder.estimated_cost) > 0 && (
+              <button
+                type="button"
+                onClick={() =>
+                  downloadQuotePdf({
+                    quote_number: `QTE-${new Date().getFullYear()}-${workOrder.tracking_number?.replace(/\D/g, '').slice(-4) || '1001'}`,
+                    issued_date: workOrder.assessment_date || workOrder.created_at,
+                    work_order_tracking: workOrder.tracking_number,
+                    work_order_title: workOrder.title,
+                    client_name: workOrder.reported_by_name || 'Muzikayise Nkosi',
+                    facility_name: workOrder.facility_name,
+                    contractor_name: workOrder.assigned_to_name || 'Apex BioMed Solutions',
+                    quote_amount: Number(workOrder.estimated_cost || 0),
+                    quote_notes: workOrder.assessment_notes || workOrder.description
+                  })
+                }
+                title="Download and Print Official Formal Quote PDF"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Quote PDF
+              </button>
+            )}
+
+            {/* Direct Download Estimate PDF button */}
+            {hasPaymentScope && ((workOrder.assessor_estimate !== null && workOrder.assessor_estimate !== undefined && Number(workOrder.assessor_estimate) > 0) || isAssessmentDone) && (
+              <button
+                type="button"
+                onClick={() =>
+                  downloadEstimatePdf({
+                    estimate_number: `EST-${new Date().getFullYear()}-${workOrder.tracking_number?.replace(/\D/g, '').slice(-4) || '1001'}`,
+                    estimate_date: workOrder.assessment_date || workOrder.created_at,
+                    work_order_tracking: workOrder.tracking_number,
+                    work_order_title: workOrder.title,
+                    customer_name: 'Northern Cape Department of Health',
+                    facility_name: workOrder.facility_name,
+                    facility_address: 'Northern Cape Provincial Campus',
+                    estimate_by_name: workOrder.assessor_name || workOrder.lead_assessor_name || 'David Vance (Site Works Assessor)',
+                    estimate_by_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer (HVAC Specialist)' : 'Works Inspector (Quality Officer)',
+                    estimate_by_charge_code: workOrder.charge_code || 'ONS',
+                    subtotal: Number(workOrder.assessor_estimate || workOrder.estimated_cost || 0),
+                    comments: workOrder.assessment_notes || `Technical assessment and scope estimation for ${workOrder.tracking_number} (${workOrder.title}). All works to adhere to SANS healthcare engineering standards.`
+                  })
+                }
+                title="Download and Print Official Assessment Estimate PDF"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Estimate PDF
+              </button>
+            )}
+
+            {/* Direct Download Timesheet PDF button */}
+            {(workOrder.timesheet_total_hours || workOrder.assessment_hours || workOrder.timesheet_data || isAssessmentDone) && (
+              <button
+                type="button"
+                onClick={() => {
+                  let entries: any[] = [];
+                  try {
+                    if (workOrder.timesheet_data) entries = JSON.parse(workOrder.timesheet_data);
+                  } catch (_) {}
+                  downloadTimesheetPdf({
+                    employee_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
+                    employee_role: workOrder.assessor_role === 'works_engineer' ? 'Works Engineer' : 'Works Inspector',
+                    week_start: workOrder.created_at ? formatDate(workOrder.created_at) : new Date().toLocaleDateString('en-GB'),
+                    work_order_tracking: workOrder.tracking_number,
+                    work_order_title: workOrder.title,
+                    facility_name: workOrder.facility_name,
+                    entries,
+                    total_hours: workOrder.timesheet_total_hours || workOrder.assessment_hours || '0.0',
+                    signature_name: workOrder.assessor_name || workOrder.lead_assessor_name || user?.name || 'Site Works Assessor',
+                    signature_date: workOrder.assessment_date ? formatDate(workOrder.assessment_date) : new Date().toLocaleDateString('en-GB')
+                  });
+                }}
+                title="Download and Print Official Time Sheet PDF"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Timesheet PDF
+              </button>
+            )}
+
+            {/* Direct Download Invoice PDF button (Payment Approver, Admin, Contractor, Auditor only) */}
+            {canViewInvoiceDetails && workOrder.invoice_id && (
+              <button
+                type="button"
+                onClick={() =>
+                  downloadInvoicePdf({
+                    id: workOrder.invoice_id || id,
+                    invoice_number: workOrder.invoice_number || 'INV-REF',
+                    created_at: workOrder.created_at,
+                    status: workOrder.invoice_status || 'pending',
+                    amount: Number(workOrder.actual_cost || workOrder.estimated_cost || 0),
+                    notes: `Invoice claim for completed maintenance on ${workOrder.tracking_number} (${workOrder.title})`,
+                    contractor_name: workOrder.assigned_to_name || 'Apex BioMed Solutions',
+                    work_order_tracking: workOrder.tracking_number,
+                    work_order_title: workOrder.title,
+                    facility_name: workOrder.facility_name
+                  })
+                }
+                title="Download and Print Official Invoice PDF"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 border border-sky-200 rounded-lg shadow-xs transition-all active:scale-95 cursor-pointer"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Invoice PDF
+              </button>
             )}
 
             {canReject && (
