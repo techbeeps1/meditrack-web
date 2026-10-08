@@ -189,7 +189,7 @@ function InvoicesContent() {
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Billed</p>
             <p className="text-2xl font-bold text-slate-900 mt-2">
-              ${summary.totalBilled.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatCurrency(summary.totalBilled)}
             </p>
             <p className="text-xs text-slate-400 mt-1">Cumulative invoices generated</p>
           </div>
@@ -197,7 +197,7 @@ function InvoicesContent() {
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <p className="text-xs font-medium text-amber-600 uppercase tracking-wider">Pending Review</p>
             <p className="text-2xl font-bold text-amber-600 mt-2">
-              ${summary.totalPending.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatCurrency(summary.totalPending)}
             </p>
             <p className="text-xs text-slate-400 mt-1">Awaiting finance approval</p>
           </div>
@@ -205,7 +205,7 @@ function InvoicesContent() {
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <p className="text-xs font-medium text-sky-600 uppercase tracking-wider">Approved for Payment</p>
             <p className="text-2xl font-bold text-sky-600 mt-2">
-              ${summary.totalApproved.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatCurrency(summary.totalApproved)}
             </p>
             <p className="text-xs text-slate-400 mt-1">Ready for settlement payout</p>
           </div>
@@ -213,7 +213,7 @@ function InvoicesContent() {
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">Settled & Paid</p>
             <p className="text-2xl font-bold text-emerald-600 mt-2">
-              ${summary.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatCurrency(summary.totalPaid)}
             </p>
             <p className="text-xs text-slate-400 mt-1">Cleared transactions</p>
           </div>
@@ -400,7 +400,7 @@ function InvoicesContent() {
                         ?.filter((wo: any) => (wo.status === 'verified' || wo.status === 'closed') && !wo.invoice_id)
                         ?.map((wo: any) => (
                           <option key={wo.id} value={wo.id}>
-                            {wo.tracking_number} - {wo.title} (Verified — ${wo.actual_cost || wo.estimated_cost || 0})
+                            {wo.tracking_number} - {wo.title} (Verified — {formatCurrency(wo.actual_cost || wo.estimated_cost || 0)})
                           </option>
                         ))}
                     </select>
@@ -458,7 +458,7 @@ function InvoicesContent() {
                 <div className="bg-slate-50 p-3 rounded-lg flex justify-between items-center text-xs">
                   <span className="font-medium text-slate-600">Calculated Total Payout:</span>
                   <span className="text-base font-bold text-slate-900 font-mono">
-                    ${((formData.amount || 0) + (formData.tax_amount || 0)).toFixed(2)}
+                    {formatCurrency((formData.amount || 0) + (formData.tax_amount || 0))}
                   </span>
                 </div>
 
@@ -613,7 +613,7 @@ function InvoicesContent() {
                         onClick={() => statusMutation.mutate({ id: selectedInvoice.id, status: 'paid' })}
                         className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 rounded hover:bg-emerald-700 transition shadow-xs"
                       >
-                        Approve & Pay Claim (${Number(selectedInvoice.total_amount).toFixed(2)})
+                        Approve & Pay Claim ({formatCurrency(selectedInvoice.total_amount)})
                       </button>
                     </div>
                   )}
