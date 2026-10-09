@@ -219,8 +219,18 @@ function WorkOrdersContent() {
 
   const [photoError, setPhotoError] = useState<string | null>(null);
 
+  // Automatically sync and pre-fill facility_id when modal opens or facilities load
+  useEffect(() => {
+    if (isModalOpen) {
+      const activeFacilityId = user?.facility_id || userFacility?.id || (facilities.length > 0 ? facilities[0].id : '');
+      if (activeFacilityId) {
+        setValue('facility_id', activeFacilityId, { shouldValidate: true });
+      }
+    }
+  }, [isModalOpen, user?.facility_id, userFacility, facilities, setValue]);
+
   const openModal = () => {
-    const defaultFacilityId = user?.facility_id || (facilities.length > 0 ? facilities[0].id : '');
+    const defaultFacilityId = user?.facility_id || userFacility?.id || (facilities.length > 0 ? facilities[0].id : '');
     reset({
       title: '',
       description: '',
@@ -246,6 +256,9 @@ function WorkOrdersContent() {
   };
 
   const onSubmit = (formData: CreateWOFormData) => {
+    if (!formData.facility_id) {
+      formData.facility_id = user?.facility_id || userFacility?.id || (facilities.length > 0 ? facilities[0].id : '');
+    }
     if (!selectedPhotos || selectedPhotos.length === 0) {
       setPhotoError('At least 1 photo / evidence image is required to report this issue.');
       return;

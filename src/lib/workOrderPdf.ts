@@ -1,4 +1,4 @@
-import { formatCurrency, formatDate } from './utils';
+import { formatDate } from './utils';
 
 export interface WorkOrderPdfData {
   tracking_number: string;
@@ -45,15 +45,6 @@ export function downloadWorkOrderPdf(wo: WorkOrderPdfData) {
     ? formatDate(wo.created_at)
     : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const dueDate = wo.due_date ? formatDate(wo.due_date) : 'Within SLA Framework';
-  const approvedBudget = Number(
-    wo.actual_cost !== undefined && wo.actual_cost !== null && Number(wo.actual_cost) > 0
-      ? wo.actual_cost
-      : wo.contractor_critical_quote_cost !== undefined && wo.contractor_critical_quote_cost !== null && Number(wo.contractor_critical_quote_cost) > 0
-      ? wo.contractor_critical_quote_cost
-      : wo.estimated_cost || 0
-  );
-  const subtotal = Math.round((approvedBudget / 1.15) * 100) / 100;
-  const vat = Math.round((approvedBudget - subtotal) * 100) / 100;
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const logoUrl = `${origin}/images/logo.png`;
@@ -471,14 +462,15 @@ export function downloadWorkOrderPdf(wo: WorkOrderPdfData) {
       </tbody>
     </table>
 
-    <!-- Commercial & Financial Authorization -->
-    <div class="section-title">3. Approved Budget &amp; Commercial Terms</div>
-    <table class="amount-table">
+    <!-- Statutory Scope & Technical Execution Authorization -->
+    <div class="section-title">3. Statutory Execution &amp; Technical Compliance Terms</div>
+    <table class="table-spec">
       <thead>
         <tr>
           <th>Item / Service Description</th>
+          <th style="width: 140px; text-align: center;">Category / Discipline</th>
           <th style="width: 90px; text-align: center;">Charge Code</th>
-          <th style="width: 140px; text-align: right;">Amount (ZAR)</th>
+          <th style="width: 140px; text-align: center;">Execution SLA</th>
         </tr>
       </thead>
       <tbody>
@@ -487,35 +479,19 @@ export function downloadWorkOrderPdf(wo: WorkOrderPdfData) {
             <strong>${wo.title}</strong><br>
             <span style="font-size: 10.5px; color:#64748b;">Healthcare facility maintenance, repairs &amp; commissioning adherence</span>
           </td>
+          <td style="text-align: center; font-weight: 600;">${wo.category || 'Biomedical Equipment'}</td>
           <td style="text-align: center; font-family: monospace; font-weight: bold;">${wo.charge_code || 'PRE'}</td>
-          <td style="text-align: right; font-weight: 600;">${formatCurrency(subtotal)}</td>
+          <td style="text-align: center; font-weight: 600; color: #008DA6;">${wo.urgency_category || 'Within SLA Framework'}</td>
         </tr>
       </tbody>
     </table>
 
-    <div class="totals-block">
-      <table class="totals-table">
-        <tr>
-          <td class="info-label">Subtotal (Excl. VAT):</td>
-          <td class="info-value">${formatCurrency(subtotal)}</td>
-        </tr>
-        <tr>
-          <td class="info-label">VAT (15%):</td>
-          <td class="info-value">${formatCurrency(vat)}</td>
-        </tr>
-        <tr class="grand-total">
-          <td style="padding: 6px 8px; font-weight: 800;">Total Approved Budget:</td>
-          <td style="padding: 6px 8px; text-align: right; font-weight: 800;">${formatCurrency(approvedBudget)}</td>
-        </tr>
-      </table>
-    </div>
-
     <!-- Execution Instructions -->
-    <div class="instruction-box">
-      <strong>Specialist Execution &amp; Invoicing Mandatory Notice:</strong><br>
+    <div class="instruction-box" style="margin-top: 14px;">
+      <strong>Specialist Execution &amp; Statutory Compliance Notice:</strong><br>
       1. All work must adhere to SANS 10400 healthcare facility regulations and occupational safety requirements.<br>
       2. Digital sign-off (Works Engineer, Facilities Manager, Works Inspector) is mandatory upon job completion.<br>
-      3. Submitted contractor invoice claims are verified and disbursed in compliance with healthcare maintenance SLA.
+      3. Submitted contractor execution deliverables are verified in compliance with healthcare maintenance SLA standards.
     </div>
 
     <!-- Dual Sign-off Grid -->

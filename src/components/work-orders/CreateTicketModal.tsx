@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -71,12 +71,23 @@ export function CreateTicketModal({ isOpen, onClose, onSuccess }: CreateTicketMo
   } = useForm<CreateWOFormData>({
     resolver: zodResolver(createWOSchema),
     defaultValues: {
+      facility_id: user?.facility_id || '',
       category: 'Biomedical Equipment',
       priority: 'critical',
       urgency_category: 'Critical 0–24h',
       estimated_cost: 0
     }
   });
+
+  // Automatically sync and pre-fill facility_id when modal opens or facilities load
+  useEffect(() => {
+    if (isOpen) {
+      const activeFacilityId = user?.facility_id || userFacility?.id || (facilities.length > 0 ? facilities[0].id : '');
+      if (activeFacilityId) {
+        setValue('facility_id', activeFacilityId, { shouldValidate: true });
+      }
+    }
+  }, [isOpen, user?.facility_id, userFacility, facilities, setValue]);
 
   const selectedUrgency = watch('urgency_category');
 
@@ -131,6 +142,13 @@ export function CreateTicketModal({ isOpen, onClose, onSuccess }: CreateTicketMo
   };
 
   const onSubmit = (data: CreateWOFormData) => {
+    if (!data.facility_id) {
+      data.facility_id = user?.facility_id || userFacility?.id || (facilities.length > 0 ? facilities[0].id : '');
+    }
+    if (!data.facility_id) {
+      setFormError('Please select a valid hospital facility');
+      return;
+    }
     if (!selectedPhotos || selectedPhotos.length === 0) {
       setPhotoError('Please attach at least 1 initial evidence photo');
       return;

@@ -1,4 +1,4 @@
-import { formatCurrency, formatDate } from './utils';
+import { formatDate } from './utils';
 import { WorkOrder } from '@/types/workOrder';
 
 export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
@@ -13,7 +13,6 @@ export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
   const certNo = workOrder.completion_cert_no || `CERT-${new Date().getFullYear()}-${workOrder.tracking_number.replace(/\D/g, '').slice(-4) || '1001'}`;
   const recNo = workOrder.client_recovery_invoice_no || `REC-${new Date().getFullYear()}-${workOrder.tracking_number.replace(/\D/g, '').slice(-4) || '1001'}`;
   const issueDate = new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' });
-  const totalAmount = workOrder.actual_cost || workOrder.estimated_cost || 0;
   const isRouteB = workOrder.funding_route === 'route_b' || workOrder.urgency_category === 'Critical 0–24h';
 
   const htmlContent = `<!DOCTYPE html>
@@ -383,8 +382,8 @@ export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
           <td class="val-col">${workOrder.assigned_to_name || workOrder.contractor_name || 'Specialist Contractor'}</td>
         </tr>
         <tr>
-          <td class="label-col">Contract Value / Cost:</td>
-          <td class="val-col font-mono">${formatCurrency(totalAmount)}</td>
+          <td class="label-col">Execution Status:</td>
+          <td class="val-col" style="color: #0369a1; font-weight: 700;">100% Completed &amp; Verified</td>
         </tr>
       </table>
     </div>
@@ -431,18 +430,18 @@ export function downloadCompletionCertificatePdf(workOrder: WorkOrder) {
       </tr>
     </table>
 
-    <!-- Financial Disbursement Banner - Unified Cohesive Blue Theme -->
+    <!-- Statutory Completion & Verification Banner -->
     <div class="settlement-banner">
       <div class="settlement-left">
         <div class="settlement-title">
-          Financial Claim Settlement &amp; Invoice Authorization
+          Statutory Verification &amp; Acceptance Certification
         </div>
         <div class="settlement-sub">
-          Verified for contractor invoice settlement and formal hospital maintenance closure.
+          Tri-Signature verification complete. Physical execution, technical standards, and hospital facility acceptance fully certified.
         </div>
       </div>
       <div class="settlement-right">
-        <div class="settlement-amount">${formatCurrency(totalAmount)}</div>
+        <div class="settlement-amount" style="font-size: 13px; font-weight: 800; color: #0369a1;">Certified &amp; Verified</div>
       </div>
     </div>
 

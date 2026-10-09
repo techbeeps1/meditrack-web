@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { WorkOrder } from '@/types/workOrder';
 import { workOrderApi } from '@/services/work-orders';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { downloadQuotePdf } from '@/lib/quotePdf';
 
 interface QuotationComparisonSectionProps {
   workOrder: WorkOrder;
@@ -27,6 +28,7 @@ export default function QuotationComparisonSection({
   const [selectedQuoteId, setSelectedQuoteId] = useState<string>('');
   const [recommendationNotes, setRecommendationNotes] = useState('');
   const [recommendationError, setRecommendationError] = useState<string | null>(null);
+  const [expandedQuoteIds, setExpandedQuoteIds] = useState<Record<string, boolean>>({});
 
   const recommendQuoteMutation = useMutation({
     mutationFn: async ({ quoteId, notes }: { quoteId: string; notes: string }) => {
@@ -188,46 +190,241 @@ export default function QuotationComparisonSection({
                 {workOrder.quotations.map((q) => {
                   const isRecommended = q.id === workOrder.selected_contractor_quote_id;
                   const isAssigned = q.status === 'assigned' || q.contractor_id === workOrder.assigned_to;
+                  const isExpanded = !!expandedQuoteIds[q.id];
+
+                  let parsedBreakdown: { work_types?: string[]; turnaround_days?: number | string; items?: any[] } | null = null;
+                  if (q.breakdown) {
+                    try {
+                      parsedBreakdown = typeof q.breakdown === 'string' ? JSON.parse(q.breakdown) : q.breakdown;
+                    } catch (_) {}
+                  }
+                  const itemCount = parsedBreakdown?.items && Array.isArray(parsedBreakdown.items) ? parsedBreakdown.items.length : 0;
+
                   return (
-                    <tr key={q.id} className={isRecommended ? 'bg-purple-50/40' : isAssigned ? 'bg-emerald-50/40' : ''}>
-                      <td className="p-3">
-                        <div className="font-bold text-slate-900">{q.contractor_name || 'Contractor'}</div>
-                        {q.notes && <div className="text-[11px] text-slate-500 mt-0.5 max-w-xs truncate">{q.notes}</div>}
-                      </td>
-                      <td className="p-3 font-mono text-slate-600">{q.quote_ref || '-'}</td>
-                      <td className="p-3 font-mono font-bold text-slate-900 text-sm">
-                        {formatCurrency(q.amount)}
-                      </td>
-                      <td className="p-3 text-slate-500 font-mono text-[11px]">
-                        {formatDate(q.created_at)}
-                      </td>
-                      <td className="p-3">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            isAssigned
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : isRecommended
-                              ? 'bg-purple-100 text-purple-800'
-                              : q.status === 'rejected'
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {isAssigned ? 'Assigned' : isRecommended ? 'Recommended' : q.status}
-                        </span>
-                      </td>
-                      {isWorksEngineer && isQuotingPhase && (
-                        <td className="p-3 text-right">
-                          <input
-                            type="radio"
-                            name="selectedQuote"
-                            checked={selectedQuoteId === q.id || (!selectedQuoteId && isRecommended)}
-                            onChange={() => setSelectedQuoteId(q.id)}
-                            className="h-4 w-4 text-purple-600 border-slate-300 focus:ring-purple-500 cursor-pointer"
-                          />
+                    <React.Fragment key={q.id}>
+                      <tr key={q.id} className={isRecommended ? 'bg-purple-50/40' : isAssigned ? 'bg-emerald-50/40' : ''}>
+                        <td className="p-3">
+                          <div className="font-bold text-slate-900">{q.contractor_name || 'Contractor'}</div>
+                          {q.notes && <div className="text-[11px] text-slate-500 mt-0.5 max-w-xs truncate">{q.notes}</div>}
                         </td>
+                        <td className="p-3 font-mono text-slate-600">{q.quote_ref || '-'}</td>
+                        <td className="p-3 font-mono font-bold text-slate-900 text-sm">
+                          {formatCurrency(q.amount)}
+                        </td>
+                        <td className="p-3 text-slate-500 font-mono text-[11px]">
+                          {formatDate(q.created_at)}
+                        </td>
+                        <td className="p-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              isAssigned
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : isRecommended
+                                ? 'bg-purple-100 text-purple-800'
+                                : q.status === 'rejected'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {isAssigned ? 'Assigned' : isRecommended ? 'Recommended' : q.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedQuoteIds((prev) => ({
+                                  ...prev,
+                                  [q.id]: !prev[q.id]
+                                }))
+                              }
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition active:scale-95 cursor-pointer ${
+                                isExpanded
+                                  ? 'bg-slate-800 text-white shadow-xs'
+                                  : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200'
+                              }`}
+                              title="View Itemized Work Scope & Rates Breakdown"
+                            >
+                              <svg
+                                className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                              <span>{isExpanded ? 'Hide' : itemCount > 0 ? `Breakdown (${itemCount})` : 'Breakdown'}</span>
+                            </button>
+
+                            {isWorksEngineer && isQuotingPhase && (
+                              <input
+                                type="radio"
+                                name="selectedQuote"
+                                checked={selectedQuoteId === q.id || (!selectedQuoteId && isRecommended)}
+                                onChange={() => setSelectedQuoteId(q.id)}
+                                className="h-4 w-4 text-purple-600 border-slate-300 focus:ring-purple-500 cursor-pointer ml-1"
+                              />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expandable Itemized Work Scope Breakdown Sub-Row */}
+                      {isExpanded && (
+                        <tr className="bg-slate-50/90 border-b border-slate-200">
+                          <td colSpan={6} className="p-3 sm:p-5">
+                            <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs space-y-4">
+                              {/* Header Info */}
+                              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                                <div>
+                                  <div className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                                    <span>Itemized Work Scope &amp; Commercial Breakdown</span>
+                                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px]">
+                                      {q.quote_ref || `QTE-${q.id.slice(-6).toUpperCase()}`}
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 mt-0.5">
+                                    Vendor: <strong className="text-slate-800">{q.contractor_name || 'Contractor'}</strong> &bull; Submitted: {formatDate(q.created_at)}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {parsedBreakdown?.turnaround_days && (
+                                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                                      ⏱️ Turnaround: {parsedBreakdown.turnaround_days} Days
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      let parsedItems = undefined;
+                                      let parsedWorkTypes = undefined;
+                                      let turnaroundDays = undefined;
+                                      if (q.breakdown) {
+                                        try {
+                                          const parsed = typeof q.breakdown === 'string' ? JSON.parse(q.breakdown) : q.breakdown;
+                                          if (parsed && Array.isArray(parsed.items)) parsedItems = parsed.items;
+                                          if (parsed && Array.isArray(parsed.work_types)) parsedWorkTypes = parsed.work_types;
+                                          if (parsed && parsed.turnaround_days) turnaroundDays = parsed.turnaround_days;
+                                        } catch (_) {}
+                                      }
+                                      downloadQuotePdf({
+                                        quote_number: q.quote_ref || `QTE-${q.id.slice(-6).toUpperCase()}`,
+                                        issued_date: q.created_at,
+                                        work_order_tracking: workOrder.tracking_number,
+                                        work_order_title: workOrder.title,
+                                        client_name: workOrder.facility_name || 'Northern Cape Department of Health',
+                                        facility_name: workOrder.facility_name,
+                                        contractor_name: q.contractor_name || 'Contractor',
+                                        quote_amount: Number(q.amount || 0),
+                                        items: parsedItems,
+                                        work_types: parsedWorkTypes,
+                                        terms_days: turnaroundDays || 15,
+                                        quote_notes: q.notes
+                                      });
+                                    }}
+                                    className="px-2.5 py-1 bg-[#008DA6] hover:bg-[#007387] text-white rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Official PDF
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Work Scope Classification Pills */}
+                              {parsedBreakdown?.work_types && parsedBreakdown.work_types.length > 0 && (
+                                <div className="space-y-1.5">
+                                  <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                                    Required Scope Classification:
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {parsedBreakdown.work_types.map((type, idx) => (
+                                      <span
+                                        key={idx}
+                                        className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-sky-50 text-sky-800 border border-sky-200 inline-flex items-center gap-1"
+                                      >
+                                        <span className="text-sky-600">✓</span> {type}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Line Items Table */}
+                              {parsedBreakdown?.items && parsedBreakdown.items.length > 0 ? (
+                                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                                  <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                                      <tr>
+                                        <th className="p-2.5 w-12 text-center">#</th>
+                                        <th className="p-2.5">Scope / Item Description</th>
+                                        <th className="p-2.5 w-20 text-center">Qty</th>
+                                        <th className="p-2.5 w-28 text-right">Unit Price (R)</th>
+                                        <th className="p-2.5 w-32 text-right">Subtotal (R)</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                      {parsedBreakdown.items.map((it: any, itemIdx: number) => {
+                                        const qty = Number(it.qty) || 1;
+                                        const cost = Number(it.cost !== undefined ? it.cost : it.unit_price !== undefined ? it.unit_price : it.subtotal || 0);
+                                        const unitPrice = it.unit_price !== undefined ? Number(it.unit_price) : (qty > 0 ? cost / qty : cost);
+                                        const lineSubtotal = qty * unitPrice;
+                                        return (
+                                          <tr key={itemIdx}>
+                                            <td className="p-2.5 text-center font-mono text-slate-400 font-bold">{itemIdx + 1}</td>
+                                            <td className="p-2.5 text-slate-800 font-medium">{it.description || 'Specialist Healthcare Service'}</td>
+                                            <td className="p-2.5 text-center font-mono text-slate-600">{qty}</td>
+                                            <td className="p-2.5 text-right font-mono text-slate-600">
+                                              {unitPrice.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
+                                            <td className="p-2.5 text-right font-mono font-bold text-slate-900">
+                                              {lineSubtotal.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                    <tfoot className="bg-slate-50/70 border-t border-slate-200 font-medium text-xs">
+                                      <tr>
+                                        <td colSpan={4} className="p-2 text-right text-slate-600">Subtotal (Excl. VAT):</td>
+                                        <td className="p-2 text-right font-mono font-bold text-slate-800">
+                                          R{(Number(q.amount || 0) / 1.15).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </td>
+                                      </tr>
+                                      <tr>
+                                        <td colSpan={4} className="p-2 text-right text-slate-600">VAT (15.00%):</td>
+                                        <td className="p-2 text-right font-mono font-bold text-slate-800">
+                                          R{(Number(q.amount || 0) - (Number(q.amount || 0) / 1.15)).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </td>
+                                      </tr>
+                                      <tr className="border-t border-slate-300 bg-slate-100/90 font-bold">
+                                        <td colSpan={4} className="p-2.5 text-right text-slate-900">Total Commercial Bid (ZAR):</td>
+                                        <td className="p-2.5 text-right font-mono text-[#008DA6] text-sm">
+                                          {formatCurrency(q.amount)}
+                                        </td>
+                                      </tr>
+                                    </tfoot>
+                                  </table>
+                                </div>
+                              ) : (
+                                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+                                  Lump-Sum Commercial Bid: <strong className="font-mono text-slate-900">{formatCurrency(q.amount)}</strong>
+                                </div>
+                              )}
+
+                              {/* Technical Notes */}
+                              {q.notes && (
+                                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-700">
+                                  <strong>Technical &amp; Execution Notes:</strong> {q.notes}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </tr>
+                    </React.Fragment>
                   );
                 })}
               </tbody>
