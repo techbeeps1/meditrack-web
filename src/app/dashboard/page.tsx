@@ -90,20 +90,43 @@ export default function DashboardPage() {
   const contractorPendingCriticalQuotes = allWorkOrders.filter((wo) => {
     const isCritical = wo.urgency_category === 'Critical 0–24h' || wo.priority === 'critical';
     const s = (wo.status || '').toLowerCase();
-    return isCritical && ['completed', 'verified', 'closed'].includes(s) && wo.contractor_critical_quote_status !== 'approved';
+    if (['closed', 'cancelled'].includes(s)) return false;
+    if (wo.invoice_id || wo.invoice_status === 'paid' || wo.contractor_critical_quote_status === 'approved') return false;
+    return isCritical && ['completed', 'verified'].includes(s) && (!wo.contractor_critical_quote_cost || wo.contractor_critical_quote_status === 'adjusted');
   });
 
   const engineerPendingCriticalQuotes = allWorkOrders.filter((wo) => {
     const isCritical = wo.urgency_category === 'Critical 0–24h' || wo.priority === 'critical';
+    const s = (wo.status || '').toLowerCase();
+    if (['closed', 'cancelled'].includes(s)) return false;
+    if (wo.invoice_id || wo.invoice_status === 'paid' || wo.contractor_critical_quote_status === 'approved') return false;
     return isCritical && ['submitted', 'adjusted'].includes(wo.contractor_critical_quote_status || '');
   });
 
   const contractorAvailableBidding = allWorkOrders.filter((wo) => {
+    const isCritical = wo.urgency_category === 'Critical 0–24h' || wo.priority === 'critical';
+    if (isCritical) return false; // Critical emergency jobs do not use upfront blind bidding
+
     const s = (wo.status || '').toLowerCase();
-    return s === 'approved' && !wo.assigned_to;
+    if (s !== 'approved' || wo.assigned_to) return false;
+
+    if (wo.invited_contractor_ids) {
+      try {
+        const ids = JSON.parse(wo.invited_contractor_ids);
+        if (Array.isArray(ids) && ids.length > 0) {
+          const myId = user?.id;
+          const myContractorId = (user as any)?.contractor_id;
+          return ids.includes(myId) || (myContractorId && ids.includes(myContractorId));
+        }
+      } catch (_) {}
+    }
+
+    return true;
   });
 
   const engineerPendingQuotationChecks = allWorkOrders.filter((wo) => {
+    const isCritical = wo.urgency_category === 'Critical 0–24h' || wo.priority === 'critical';
+    if (isCritical) return false;
     const s = (wo.status || '').toLowerCase();
     return s === 'approved' && (!wo.selected_contractor_quote_id || wo.contractor_approver_action === 'reevaluate');
   });
@@ -123,11 +146,9 @@ export default function DashboardPage() {
     // 1. Initial reported tickets awaiting approval
     if (s === 'reported') return true;
 
-    // 2. Contractor quotations or recommendations awaiting approval / assignment
-    if (['reported', 'approved'].includes(s) && !wo.assigned_to) {
-      if (wo.selected_contractor_quote_id || (wo.quotations && wo.quotations.length > 0) || wo.invited_contractor_ids) {
-        return true;
-      }
+    // 2. Any approved ticket awaiting contractor assignment, invitations or quote review
+    if (s === 'approved' && !wo.assigned_to) {
+      return true;
     }
 
     // 3. Client quoting gateway under review or awaiting client approval
@@ -499,13 +520,13 @@ export default function DashboardPage() {
 
           {/* Critical Emergency Jobs: Provide Quote Action Alert */}
           {contractorPendingCriticalQuotes.length > 0 && (
-            <div className="bg-purple-50 rounded-[18px] p-6 border border-purple-200 shadow-xs space-y-4">
+            <div className="bg-sky-50/80 rounded-[18px] p-6 border border-sky-200 shadow-xs space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2.5">
                   <div>
                     <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                       <span>Critical Emergency Jobs &bull; Provide Quote</span>
-                      <span className="px-2 py-0.5 rounded-full bg-purple-200 text-purple-900 text-xs font-bold font-mono">
+                      <span className="px-2 py-0.5 rounded-full bg-sky-200 text-sky-900 text-xs font-bold font-mono">
                         {contractorPendingCriticalQuotes.length}
                       </span>
                     </h3>
@@ -521,24 +542,24 @@ export default function DashboardPage() {
                   <Link
                     key={wo.id}
                     href={`/work-orders/${wo.id}`}
-                    className="p-4 bg-white rounded-xl border border-purple-200 hover:border-purple-400 transition-all shadow-2xs hover:shadow-xs group flex flex-col justify-between"
+                    className="p-4 bg-white rounded-xl border border-sky-200 hover:border-sky-400 transition-all shadow-2xs hover:shadow-xs group flex flex-col justify-between"
                   >
                     <div>
                       <div className="flex items-center justify-between">
-                        <span className="font-mono font-bold text-purple-800 text-xs">{wo.tracking_number}</span>
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-purple-100 text-purple-800">
+                        <span className="font-mono font-bold text-sky-800 text-xs">{wo.tracking_number}</span>
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-sky-100 text-sky-800">
                           {wo.contractor_critical_quote_status ? 'Quote Submitted' : 'Quote Needed'}
                         </span>
                       </div>
-                      <div className="font-bold text-slate-900 text-sm mt-1 group-hover:text-purple-700 transition">
+                      <div className="font-bold text-slate-900 text-sm mt-1 group-hover:text-sky-700 transition">
                         {wo.title}
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">{wo.facility_name}</div>
                     </div>
-                    <div className="mt-3 pt-2 border-t border-purple-50 flex items-center justify-between text-xs font-bold text-purple-700">
+                    <div className="mt-3 pt-2 border-t border-sky-50 flex items-center justify-between text-xs font-bold text-sky-700">
                       <span>Provide Quote / Cost &rarr;</span>
                       {wo.contractor_critical_quote_cost && (
-                        <span className="font-mono">{formatCurrency(wo.contractor_critical_quote_cost)}</span>
+                        <span className="font-mono text-slate-900">{formatCurrency(wo.contractor_critical_quote_cost)}</span>
                       )}
                     </div>
                   </Link>
@@ -782,7 +803,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="mt-3 pt-2 border-t border-amber-50 flex items-center justify-between text-xs font-bold text-amber-800">
                       <span>Review Quote (Approve / Adjust) &rarr;</span>
-                      <span className="font-mono font-bold text-purple-900">{formatCurrency(wo.contractor_critical_quote_cost || 0)}</span>
+                      <span className="font-mono font-bold text-slate-900">{formatCurrency(wo.contractor_critical_quote_cost || 0)}</span>
                     </div>
                   </Link>
                 ))}
